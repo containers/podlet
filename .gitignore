@@ -1,0 +1,5 @@
+# Cargo build directory
+/target
+
+# VS Code user settings
+/.vscode
