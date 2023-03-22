@@ -76,6 +76,84 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "PORT")]
     expose: Vec<String>,
 
+    /// Set or alter a healthcheck command for the container
+    ///
+    /// Converts to "HealthCmd=COMMAND"
+    #[arg(long, value_name = "COMMAND")]
+    health_cmd: Option<String>,
+
+    /// Set an interval for the healthchecks
+    ///
+    /// Converts to "HealthInterval=INTERVAL"
+    #[arg(long, value_name = "INTERVAL")]
+    health_interval: Option<String>,
+
+    /// Action to take once the container transitions to an unhealthy state
+    ///
+    /// Converts to "HealthOnFailure=ACTION"
+    #[arg(long, value_name = "ACTION")]
+    health_on_failure: Option<String>,
+
+    /// The number of retries allowed before a healthcheck is considered unhealthy
+    ///
+    /// Converts to "HealthRetries=RETRIES"
+    #[arg(long, value_name = "RETRIES")]
+    health_retries: Option<u16>,
+
+    /// The initialization time needed for the container to bootstrap
+    ///
+    /// Converts to "HealthStartPeriod=PERIOD"
+    #[arg(long, value_name = "PERIOD")]
+    health_start_period: Option<String>,
+
+    /// Set a startup healthcheck command for the container
+    ///
+    /// Converts to "HealthStartupCmd=COMMAND"
+    #[arg(long, value_name = "COMMAND")]
+    health_startup_cmd: Option<String>,
+
+    /// Set an interval for the startup healthcheck
+    ///
+    /// Converts to "HealthStartupInterval=INTERVAL"
+    #[arg(long, value_name = "INTERVAL")]
+    health_startup_interval: Option<String>,
+
+    /// The number of retries allowed before the startup healthcheck restarts the container
+    ///
+    /// Converts to "HealthStartupRetries=RETRIES"
+    #[arg(long, value_name = "RETRIES")]
+    health_startup_retries: Option<u16>,
+
+    /// The number of successful runs required before the startup healthcheck will succeed
+    ///
+    /// Converts to "HealthStartupSuccess=RETRIES"
+    #[arg(long, value_name = "RETRIES")]
+    health_startup_success: Option<u16>,
+
+    /// The maximum time a startup healthcheck has to complete
+    ///
+    /// Converts to "HealthStartupTimeout=TIMEOUT"
+    #[arg(long, value_name = "TIMEOUT")]
+    health_startup_timeout: Option<String>,
+
+    /// The maximum time a healthcheck has to complete
+    ///
+    /// Converts to "HealthTimeout=TIMEOUT"
+    #[arg(long, value_name = "TIMEOUT")]
+    health_timeout: Option<String>,
+
+    /// Specify a static IPv4 address for the container
+    ///
+    /// Converts to "IP=IPV4"
+    #[arg(long, value_name = "IPV4")]
+    ip: Option<String>,
+
+    /// Specify a static IPv6 address for the container
+    ///
+    /// Converts to "IP6=IPV6"
+    #[arg(long, value_name = "IPV6")]
+    ip6: Option<String>,
+
     /// Set one or more OCI labels on the container
     ///
     /// Converts to "Label=KEY=VALUE"
@@ -176,6 +254,7 @@ pub struct QuadletOptions {
 }
 
 impl Display for QuadletOptions {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if !self.cap_add.is_empty() {
             writeln!(f, "AddCapability={}", self.cap_add.join(" "))?;
@@ -211,6 +290,58 @@ impl Display for QuadletOptions {
 
         for port in &self.expose {
             writeln!(f, "ExposeHostPort={port}")?;
+        }
+
+        if let Some(command) = &self.health_cmd {
+            writeln!(f, "HealthCmd={command}")?;
+        }
+
+        if let Some(interval) = &self.health_interval {
+            writeln!(f, "HealthInterval={interval}")?;
+        }
+
+        if let Some(action) = &self.health_on_failure {
+            writeln!(f, "HealthOnFailure={action}")?;
+        }
+
+        if let Some(retries) = &self.health_retries {
+            writeln!(f, "HealthRetries={retries}")?;
+        }
+
+        if let Some(period) = &self.health_start_period {
+            writeln!(f, "HealthStartPeriod={period}")?;
+        }
+
+        if let Some(command) = &self.health_startup_cmd {
+            writeln!(f, "HealthStartupCmd={command}")?;
+        }
+
+        if let Some(interval) = &self.health_startup_interval {
+            writeln!(f, "HealthStartupInterval={interval}")?;
+        }
+
+        if let Some(retries) = &self.health_startup_retries {
+            writeln!(f, "HealthStartupRetries={retries}")?;
+        }
+
+        if let Some(retries) = &self.health_startup_success {
+            writeln!(f, "HealthStartupSuccess={retries}")?;
+        }
+
+        if let Some(timeout) = &self.health_startup_timeout {
+            writeln!(f, "HealthStartupTimeout={timeout}")?;
+        }
+
+        if let Some(timeout) = &self.health_timeout {
+            writeln!(f, "HealthTimeout={timeout}")?;
+        }
+
+        if let Some(ip) = &self.ip {
+            writeln!(f, "IP={ip}")?;
+        }
+
+        if let Some(ip6) = &self.ip6 {
+            writeln!(f, "IP6={ip6}")?;
         }
 
         if !self.label.is_empty() {
