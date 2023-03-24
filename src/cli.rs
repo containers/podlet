@@ -33,7 +33,7 @@ pub enum PodmanCommands {
 
         /// Converts to "PodmanArgs=ARGS"
         #[command(flatten)]
-        podman_args: container::podman::PodmanArgs,
+        podman_args: container::PodmanArgs,
 
         /// The \[Service\] section
         #[command(flatten)]
