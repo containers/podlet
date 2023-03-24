@@ -3,6 +3,7 @@ use std::fmt::Display;
 use clap::{Parser, Subcommand};
 
 mod container;
+mod service;
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
@@ -34,6 +35,10 @@ pub enum PodmanCommands {
         #[command(flatten)]
         podman_args: container::PodmanArgs,
 
+        /// The [Service] section
+        #[command(flatten)]
+        service_config: service::Config,
+
         /// The image to run in the container
         ///
         /// Converts to "Image=IMAGE"
@@ -53,6 +58,7 @@ impl Display for PodmanCommands {
             PodmanCommands::Run {
                 quadlet_options,
                 podman_args,
+                service_config,
                 image,
                 command,
             } => {
@@ -63,6 +69,10 @@ impl Display for PodmanCommands {
                 if !command.is_empty() {
                     let command = shlex::join(command.iter().map(String::as_str));
                     writeln!(f, "Exec={command}")?;
+                }
+                if !service_config.is_empty() {
+                    writeln!(f, "\n[Service]")?;
+                    write!(f, "{service_config}")?;
                 }
                 Ok(())
             }
