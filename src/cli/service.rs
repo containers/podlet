@@ -3,19 +3,21 @@ use std::fmt::Display;
 use clap::{Args, ValueEnum};
 
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
-pub struct Config {
+pub struct Service {
+    /// Configure if and when the service should be restarted
     #[arg(long, value_name = "POLICY")]
     restart: Option<RestartConfig>,
 }
 
-impl Config {
+impl Service {
     pub fn is_empty(&self) -> bool {
         self.restart.is_none()
     }
 }
 
-impl Display for Config {
+impl Display for Service {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "[Service]")?;
         if let Some(restart) = self.restart.and_then(|restart| restart.to_possible_value()) {
             writeln!(f, "Restart={}", restart.get_name())?;
         }

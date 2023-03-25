@@ -28,51 +28,23 @@ pub enum PodmanCommands {
     /// For details on options see:
     /// https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
     Run {
+        /// The \[Container\] section
         #[command(flatten)]
-        quadlet_options: container::QuadletOptions,
-
-        /// Converts to "PodmanArgs=ARGS"
-        #[command(flatten)]
-        podman_args: container::PodmanArgs,
+        container: container::Container,
 
         /// The \[Service\] section
         #[command(flatten)]
-        service_config: service::Config,
-
-        /// The image to run in the container
-        ///
-        /// Converts to "Image=IMAGE"
-        image: String,
-
-        /// Optionally, the command to run in the container
-        ///
-        /// Converts to "Exec=COMMAND..."
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        command: Vec<String>,
+        service: service::Service,
     },
 }
 
 impl Display for PodmanCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PodmanCommands::Run {
-                quadlet_options,
-                podman_args,
-                service_config,
-                image,
-                command,
-            } => {
-                writeln!(f, "[Container]")?;
-                writeln!(f, "Image={image}")?;
-                write!(f, "{quadlet_options}")?;
-                write!(f, "{podman_args}")?;
-                if !command.is_empty() {
-                    let command = shlex::join(command.iter().map(String::as_str));
-                    writeln!(f, "Exec={command}")?;
-                }
-                if !service_config.is_empty() {
-                    writeln!(f, "\n[Service]")?;
-                    write!(f, "{service_config}")?;
+            PodmanCommands::Run { container, service } => {
+                write!(f, "{container}")?;
+                if !service.is_empty() {
+                    write!(f, "\n{service}")?;
                 }
                 Ok(())
             }
