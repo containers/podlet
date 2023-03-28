@@ -637,12 +637,6 @@ impl Display for PodmanArgs {
 
         debug_assert_eq!(args.len(), self.args_len());
 
-        let args = shlex::join(args);
-
-        if args.is_empty() {
-            Ok(())
-        } else {
-            writeln!(f, "PodmanArgs={args}")
-        }
+        write!(f, "{}", shlex::join(args))
     }
 }

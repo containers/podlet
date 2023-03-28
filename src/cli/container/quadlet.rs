@@ -1,6 +1,6 @@
 use std::{borrow::Cow, fmt::Display, path::PathBuf};
 
-use clap::Args;
+use clap::{Args, ValueEnum};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Debug, Clone, PartialEq)]
@@ -187,6 +187,12 @@ pub struct QuadletOptions {
     #[arg(long, visible_alias = "net", value_name = "MODE")]
     network: Vec<String>,
 
+    /// Control sd-notify behavior
+    ///
+    /// If `container`, converts to "Notify=true"
+    #[arg(long, value_enum, default_value_t = Notify::Conmon)]
+    sdnotify: Notify,
+
     /// The rootfs to use for the container
     ///
     /// Converts to "Rootfs=PATH"
@@ -252,6 +258,12 @@ pub struct QuadletOptions {
         value_name = "[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]"
     )]
     volume: Vec<String>,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+enum Notify {
+    Conmon,
+    Container,
 }
 
 fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
@@ -374,6 +386,11 @@ impl Display for QuadletOptions {
         for network in &self.network {
             writeln!(f, "Network={network}")?;
         }
+
+        match self.sdnotify {
+            Notify::Conmon => Ok(()),
+            Notify::Container => writeln!(f, "Notify=true"),
+        }?;
 
         if let Some(rootfs) = &self.rootfs {
             writeln!(f, "Rootfs={rootfs}")?;

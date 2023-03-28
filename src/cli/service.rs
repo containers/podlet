@@ -36,5 +36,6 @@ enum RestartConfig {
     OnAbnormal,
     OnWatchdog,
     OnAbort,
+    #[value(alias = "unless-stopped")]
     Always,
 }
