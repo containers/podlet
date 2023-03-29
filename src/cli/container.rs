@@ -28,6 +28,12 @@ pub struct Container {
     #[arg(long, value_name = "OPTION")]
     security_opt: Vec<SecurityOpt>,
 
+    /// Create a tmpfs mount
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "FS")]
+    tmpfs: Vec<String>,
+
     /// The image to run in the container
     ///
     /// Converts to "Image=IMAGE"
@@ -60,7 +66,17 @@ impl Display for Container {
 
         let userns = map_arg_output(&self.userns, "--userns");
         let security_opt = map_arg_output(&self.security_opt, "--security-opt");
-        let outputs = userns.chain(security_opt);
+        let tmpfs = self.tmpfs.iter().map(|fs| {
+            (
+                "--tmpfs",
+                if fs == "/tmp" {
+                    Output::QuadletOptions(String::from("VolatileTmp=true"))
+                } else {
+                    Output::PodmanArg(fs.clone())
+                },
+            )
+        });
+        let outputs = userns.chain(security_opt).chain(tmpfs);
         for (arg, output) in outputs {
             output.write_or_add_arg(arg, f, &mut podman_args)?;
         }

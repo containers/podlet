@@ -60,7 +60,7 @@ pub enum ParseSecurityOptError {
 
 impl From<SecurityOpt> for Output {
     fn from(value: SecurityOpt) -> Self {
-        value.into()
+        (&value).into()
     }
 }
 
@@ -131,7 +131,7 @@ pub struct InvalidLabelOpt(pub String);
 
 impl From<LabelOpt> for Output {
     fn from(value: LabelOpt) -> Self {
-        value.into()
+        (&value).into()
     }
 }
 

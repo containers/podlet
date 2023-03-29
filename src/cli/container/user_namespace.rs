@@ -146,7 +146,7 @@ pub enum ParseModeError {
 
 impl From<Mode> for Output {
     fn from(value: Mode) -> Self {
-        value.into()
+        (&value).into()
     }
 }
 
