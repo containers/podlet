@@ -2,6 +2,8 @@ use std::{num::ParseIntError, str::FromStr};
 
 use thiserror::Error;
 
+use super::Output;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mode {
     Auto {
@@ -142,9 +144,15 @@ pub enum ParseModeError {
     InvalidMode(String),
 }
 
-impl Mode {
-    pub fn to_output(&self) -> Output {
-        match self {
+impl From<Mode> for Output {
+    fn from(value: Mode) -> Self {
+        value.into()
+    }
+}
+
+impl From<&Mode> for Output {
+    fn from(value: &Mode) -> Self {
+        match value {
             Mode::Auto {
                 uidmapping,
                 gidmapping,
@@ -160,10 +168,10 @@ impl Mode {
                 if let Some(size) = size {
                     options.push(format!("RemapUidSize={size}"));
                 }
-                Output::QuadletOptions(options.join("\n"))
+                Self::QuadletOptions(options.join("\n"))
             }
-            Mode::Container { id } => Output::PodmanArg(format!("container:{id}")),
-            Mode::Host => Output::PodmanArg(String::from("host")),
+            Mode::Container { id } => Self::PodmanArg(format!("container:{id}")),
+            Mode::Host => Self::PodmanArg(String::from("host")),
             Mode::KeepId { uid, gid } => {
                 if uid.is_some() || gid.is_some() {
                     let mut options = Vec::new();
@@ -173,21 +181,15 @@ impl Mode {
                     if let Some(gid) = gid {
                         options.push(format!("gid={gid}"));
                     }
-                    Output::PodmanArg(format!("keep-id:{}", options.join(",")))
+                    Self::PodmanArg(format!("keep-id:{}", options.join(",")))
                 } else {
-                    Output::QuadletOptions(String::from("RemapUsers=keep-id"))
+                    Self::QuadletOptions(String::from("RemapUsers=keep-id"))
                 }
             }
-            Mode::Nomap => Output::PodmanArg(String::from("nomap")),
-            Mode::Ns { namespace } => Output::PodmanArg(format!("ns:{namespace}")),
+            Mode::Nomap => Self::PodmanArg(String::from("nomap")),
+            Mode::Ns { namespace } => Self::PodmanArg(format!("ns:{namespace}")),
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Output {
-    QuadletOptions(String),
-    PodmanArg(String),
 }
 
 #[cfg(test)]
@@ -332,15 +334,13 @@ mod tests {
 
         #[test]
         fn auto_no_options() {
-            let sut = Mode::Auto {
+            let sut: Output = Mode::Auto {
                 uidmapping: None,
                 gidmapping: None,
                 size: None,
-            };
-            assert_eq!(
-                sut.to_output(),
-                Output::QuadletOptions(String::from("RemapUsers=auto"))
-            );
+            }
+            .into();
+            assert_eq!(sut, Output::QuadletOptions(String::from("RemapUsers=auto")));
         }
 
         #[allow(clippy::similar_names)]
@@ -349,14 +349,15 @@ mod tests {
             let uidmapping = "100";
             let gidmapping = "200";
             let size = 300;
-            let sut = Mode::Auto {
+            let sut: Output = Mode::Auto {
                 uidmapping: Some(String::from(uidmapping)),
                 gidmapping: Some(String::from(gidmapping)),
                 size: Some(size),
-            };
+            }
+            .into();
 
             assert_eq!(
-                sut.to_output(),
+                sut,
                 Output::QuadletOptions(format!(
                     "RemapUsers=auto\n\
                     RemapUid={uidmapping}\n\
@@ -369,29 +370,28 @@ mod tests {
         #[test]
         fn container() {
             let id = "name";
-            let sut = Mode::Container {
+            let sut: Output = Mode::Container {
                 id: String::from(id),
-            };
-            assert_eq!(
-                sut.to_output(),
-                Output::PodmanArg(format!("container:{id}"))
-            );
+            }
+            .into();
+            assert_eq!(sut, Output::PodmanArg(format!("container:{id}")));
         }
 
         #[test]
         fn host() {
-            let sut = Mode::Host;
-            assert_eq!(sut.to_output(), Output::PodmanArg(String::from("host")));
+            let sut: Output = Mode::Host.into();
+            assert_eq!(sut, Output::PodmanArg(String::from("host")));
         }
 
         #[test]
         fn keep_id_no_options() {
-            let sut = Mode::KeepId {
+            let sut: Output = Mode::KeepId {
                 uid: None,
                 gid: None,
-            };
+            }
+            .into();
             assert_eq!(
-                sut.to_output(),
+                sut,
                 Output::QuadletOptions(String::from("RemapUsers=keep-id"))
             );
         }
@@ -401,32 +401,31 @@ mod tests {
         fn keep_id_all_options() {
             let uid = 100;
             let gid = 200;
-            let sut = Mode::KeepId {
+            let sut: Output = Mode::KeepId {
                 uid: Some(uid),
                 gid: Some(gid),
-            };
+            }
+            .into();
             assert_eq!(
-                sut.to_output(),
+                sut,
                 Output::PodmanArg(format!("keep-id:uid={uid},gid={gid}"))
             );
         }
 
         #[test]
         fn nomap() {
-            let sut = Mode::Nomap;
-            assert_eq!(sut.to_output(), Output::PodmanArg(String::from("nomap")));
+            let sut: Output = Mode::Nomap.into();
+            assert_eq!(sut, Output::PodmanArg(String::from("nomap")));
         }
 
         #[test]
         fn ns() {
             let namespace = "namespace";
-            let sut = Mode::Ns {
+            let sut: Output = Mode::Ns {
                 namespace: String::from(namespace),
-            };
-            assert_eq!(
-                sut.to_output(),
-                Output::PodmanArg(format!("ns:{namespace}"))
-            );
+            }
+            .into();
+            assert_eq!(sut, Output::PodmanArg(format!("ns:{namespace}")));
         }
     }
 }

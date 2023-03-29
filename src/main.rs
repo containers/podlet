@@ -14,15 +14,17 @@
 
 #![warn(clippy::pedantic)]
 
-use clap::Parser;
-
 mod cli;
 
+use clap::Parser;
+
+use self::cli::{Cli, Commands};
+
 fn main() {
-    let args = cli::Cli::parse();
+    let args = Cli::parse();
 
     println!("args:\n{args:#?}");
 
-    let cli::Commands::Podman { command } = args.command;
+    let Commands::Podman { command } = args.command;
     print!("{command}");
 }

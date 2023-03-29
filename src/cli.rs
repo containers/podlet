@@ -1,9 +1,11 @@
+mod container;
+mod service;
+
 use std::fmt::Display;
 
 use clap::{Parser, Subcommand};
 
-mod container;
-mod service;
+use self::{container::Container, service::Service};
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
@@ -30,11 +32,11 @@ pub enum PodmanCommands {
     Run {
         /// The \[Container\] section
         #[command(flatten)]
-        container: container::Container,
+        container: Container,
 
         /// The \[Service\] section
         #[command(flatten)]
-        service: service::Service,
+        service: Service,
     },
 }
 
