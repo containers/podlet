@@ -11,8 +11,8 @@ pub enum Kube {
     /// Only options supported by quadlet are present
     ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-kube-play.1.html
-    /// and https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#kube-units-kube
+    /// https://docs.podman.io/en/latest/markdown/podman-kube-play.1.html and
+    /// https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#kube-units-kube
     #[group(skip)]
     Play {
         #[command(flatten)]
