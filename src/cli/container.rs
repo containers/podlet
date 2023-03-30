@@ -1,7 +1,7 @@
 mod podman;
 mod quadlet;
 mod security_opt;
-mod user_namespace;
+pub mod user_namespace;
 
 use std::fmt::{self, Display, Formatter};
 
@@ -95,13 +95,13 @@ impl Display for Container {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Output {
+pub enum Output {
     QuadletOptions(String),
     PodmanArg(String),
 }
 
 impl Output {
-    fn write_or_add_arg(
+    pub fn write_or_add_arg(
         &self,
         arg: &str,
         f: &mut Formatter,
