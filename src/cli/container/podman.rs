@@ -345,6 +345,84 @@ pub struct PodmanArgs {
     /// After the container exits, remove the container image unless it is used by other containers
     #[arg(long)]
     rmi: bool,
+
+    /// Specify the policy to select the seccomp profile
+    #[arg(long, value_name = "POLICY")]
+    seccomp_policy: Option<String>,
+
+    /// Size of /dev/shm
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
+    /// Size of systemd-specific tmpfs mounts: /run, /run/lock, /var/log/journal, and /tmp
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size_systemd: Option<String>,
+
+    /// Proxy received signals to the container process
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    sig_proxy: bool,
+
+    /// Signal to stop a container
+    #[arg(long, value_name = "SIGNAL")]
+    stop_signal: Option<String>,
+
+    /// Timeout to stop a container
+    ///
+    /// Default is 10
+    #[arg(long, value_name = "SECONDS")]
+    stop_timeout: Option<u16>,
+
+    /// Name of range listed in /etc/subgid for use in user namespace
+    #[arg(long, value_name = "NAME")]
+    subgidname: Option<String>,
+
+    /// Name of range listed in /etc/subuid for use in user namespace
+    #[arg(long, value_name = "NAME")]
+    subuidname: Option<String>,
+
+    /// Configure namespaced kernel parameters at runtime
+    #[arg(long, value_name = "NAME=VALUE")]
+    sysctl: Option<String>,
+
+    /// Run container in systemd mode
+    ///
+    /// Default is true
+    #[arg(long, value_name = "true | false | always")]
+    systemd: Option<String>,
+
+    /// Maximum length of time a container is allowed to run
+    #[arg(long, value_name = "SECONDS")]
+    timeout: Option<u16>,
+
+    /// Require HTTPS and verify certificates when contacting registries
+    #[arg(long)]
+    tls_verify: Option<bool>,
+
+    /// Allocate a pseudo-TTY
+    #[arg(short, long)]
+    tty: bool,
+
+    /// Ulimit options
+    #[arg(long, value_name = "OPTION")]
+    ulimit: Option<String>,
+
+    /// Set the umask inside the container
+    #[arg(long)]
+    umask: Option<String>,
+
+    /// Set variant to use instead of the default architecture variant of the container image
+    #[arg(long)]
+    variant: Option<String>,
+
+    /// Mount volumes from the specified container
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
+    volumes_from: Vec<String>,
+
+    /// Working directory inside the container
+    #[arg(short, long, value_name = "DIR")]
+    workdir: Option<PathBuf>,
 }
 
 impl PodmanArgs {
@@ -413,7 +491,24 @@ impl PodmanArgs {
             + self.preserve_fds.iter().len()
             + self.pull.iter().len()
             + usize::from(!self.read_only_tmpfs)
-            + self.requires.iter().len())
+            + self.requires.iter().len()
+            + self.seccomp_policy.iter().len()
+            + self.shm_size.iter().len()
+            + self.shm_size_systemd.iter().len()
+            + usize::from(!self.sig_proxy)
+            + self.stop_signal.iter().len()
+            + self.stop_timeout.iter().len()
+            + self.subgidname.iter().len()
+            + self.subuidname.iter().len()
+            + self.sysctl.iter().len()
+            + self.systemd.iter().len()
+            + self.timeout.iter().len()
+            + self.tls_verify.iter().len()
+            + self.ulimit.iter().len()
+            + self.umask.iter().len()
+            + self.variant.iter().len()
+            + self.volumes_from.len()
+            + self.workdir.iter().len())
             * 2
             + usize::from(self.interactive)
             + usize::from(self.no_healthcheck)
@@ -424,6 +519,7 @@ impl PodmanArgs {
             + usize::from(self.publish_all)
             + usize::from(self.quiet)
             + usize::from(self.rmi)
+            + usize::from(self.tty)
     }
 }
 
@@ -633,7 +729,47 @@ impl Display for PodmanArgs {
             args.push("--rmi");
         }
 
-        // ----------
+        extend_args(&mut args, "--seccomp-policy", &self.seccomp_policy);
+
+        extend_args(&mut args, "--shm-size", &self.shm_size);
+
+        extend_args(&mut args, "--shm-size-systemd", &self.shm_size_systemd);
+
+        if !self.sig_proxy {
+            args.extend(["--sig-proxy", "false"]);
+        }
+
+        extend_args(&mut args, "--stop-signal", &self.stop_signal);
+
+        let stop_timeout = self.stop_timeout.map(|timeout| timeout.to_string());
+        extend_args(&mut args, "--stop-timeout", &stop_timeout);
+
+        extend_args(&mut args, "--subgidname", &self.subgidname);
+
+        extend_args(&mut args, "--subuidname", &self.subuidname);
+
+        extend_args(&mut args, "--sysctl", &self.sysctl);
+
+        extend_args(&mut args, "--systemd", &self.systemd);
+
+        let timeout = self.timeout.map(|timeout| timeout.to_string());
+        extend_args(&mut args, "--timeout", &timeout);
+
+        let tls_verify = self.tls_verify.map(|verify| verify.to_string());
+        extend_args(&mut args, "--tls-verify", &tls_verify);
+
+        if self.tty {
+            args.push("--tty");
+        }
+
+        extend_args(&mut args, "--ulimit", &self.ulimit);
+
+        extend_args(&mut args, "--umask", &self.umask);
+
+        extend_args(&mut args, "--volumes-from", &self.volumes_from);
+
+        let workdir = self.workdir.as_deref().map(Path::to_string_lossy);
+        extend_args(&mut args, "--workdir", &workdir);
 
         debug_assert_eq!(args.len(), self.args_len());
 

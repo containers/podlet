@@ -235,6 +235,12 @@ pub struct QuadletOptions {
     #[arg(long)]
     init: bool,
 
+    /// Give the container access to a secret
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
+    secret: Vec<String>,
+
     /// Set the timezone in the container
     ///
     /// Converts to "Timezone=TIMEZONE"
@@ -418,6 +424,10 @@ impl Display for QuadletOptions {
 
         if self.init {
             writeln!(f, "RunInit=true")?;
+        }
+
+        for secret in &self.secret {
+            writeln!(f, "Secret={secret}")?;
         }
 
         if let Some(tz) = &self.tz {
