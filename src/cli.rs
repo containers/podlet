@@ -1,11 +1,12 @@
 mod container;
+mod kube;
 mod service;
 
 use std::fmt::Display;
 
 use clap::{Parser, Subcommand};
 
-use self::{container::Container, service::Service};
+use self::{container::Container, kube::Kube, service::Service};
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
@@ -32,24 +33,33 @@ pub enum PodmanCommands {
     Run {
         /// The \[Container\] section
         #[command(flatten)]
-        container: Container,
+        container: Box<Container>,
 
         /// The \[Service\] section
         #[command(flatten)]
         service: Service,
+    },
+    /// Generate a podman quadlet `.kube` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/latest/markdown/podman-kube-play.1.html
+    Kube {
+        #[command(subcommand)]
+        kube: Kube,
     },
 }
 
 impl Display for PodmanCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PodmanCommands::Run { container, service } => {
+            Self::Run { container, service } => {
                 write!(f, "{container}")?;
                 if !service.is_empty() {
                     write!(f, "\n{service}")?;
                 }
                 Ok(())
             }
+            Self::Kube { kube } => write!(f, "{kube}"),
         }
     }
 }
