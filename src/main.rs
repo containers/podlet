@@ -13,6 +13,10 @@
 //! Run `podlet --help` for more information.
 
 #![warn(clippy::pedantic)]
+#![warn(clippy::cargo)]
+// Different versions of syn used by clap and thiserror,
+// this is ok for now
+#![allow(clippy::multiple_crate_versions)]
 
 mod cli;
 
@@ -22,8 +26,6 @@ use self::cli::{Cli, Commands};
 
 fn main() {
     let args = Cli::parse();
-
-    println!("args:\n{args:#?}");
 
     let Commands::Podman { command } = args.command;
     print!("{command}");
