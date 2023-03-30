@@ -1,6 +1,8 @@
-use std::{borrow::Cow, fmt::Display, path::PathBuf};
+use std::{fmt::Display, path::PathBuf};
 
 use clap::{Args, ValueEnum};
+
+use crate::cli::escape_spaces_join;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Debug, Clone, PartialEq)]
@@ -270,20 +272,6 @@ pub struct QuadletOptions {
 enum Notify {
     Conmon,
     Container,
-}
-
-fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
-    words
-        .into_iter()
-        .map(|word| {
-            if word.contains(' ') {
-                format!("\"{word}\"").into()
-            } else {
-                word.into()
-            }
-        })
-        .collect::<Vec<Cow<_>>>()
-        .join(" ")
 }
 
 impl Display for QuadletOptions {

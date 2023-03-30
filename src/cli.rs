@@ -1,12 +1,13 @@
 mod container;
 mod kube;
+mod network;
 mod service;
 
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 use clap::{Parser, Subcommand};
 
-use self::{container::Container, kube::Kube, service::Service};
+use self::{container::Container, kube::Kube, network::Network, service::Service};
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
@@ -39,6 +40,7 @@ pub enum PodmanCommands {
         #[command(flatten)]
         service: Service,
     },
+
     /// Generate a podman quadlet `.kube` file
     ///
     /// For details on options see:
@@ -46,6 +48,15 @@ pub enum PodmanCommands {
     Kube {
         #[command(subcommand)]
         kube: Kube,
+    },
+
+    /// Generate a podman quadlet `.network` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/latest/markdown/podman-network-create.1.html
+    Network {
+        #[command(subcommand)]
+        network: Network,
     },
 }
 
@@ -60,8 +71,23 @@ impl Display for PodmanCommands {
                 Ok(())
             }
             Self::Kube { kube } => write!(f, "{kube}"),
+            Self::Network { network } => write!(f, "{network}"),
         }
     }
+}
+
+fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
+    words
+        .into_iter()
+        .map(|word| {
+            if word.contains(' ') {
+                format!("\"{word}\"").into()
+            } else {
+                word.into()
+            }
+        })
+        .collect::<Vec<Cow<_>>>()
+        .join(" ")
 }
 
 #[cfg(test)]
