@@ -2,12 +2,13 @@ mod container;
 mod kube;
 mod network;
 mod service;
+mod volume;
 
 use std::{borrow::Cow, fmt::Display};
 
 use clap::{Parser, Subcommand};
 
-use self::{container::Container, kube::Kube, network::Network, service::Service};
+use self::{container::Container, kube::Kube, network::Network, service::Service, volume::Volume};
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
@@ -58,6 +59,11 @@ pub enum PodmanCommands {
         #[command(subcommand)]
         network: Network,
     },
+
+    Volume {
+        #[command(subcommand)]
+        volume: Volume,
+    },
 }
 
 impl Display for PodmanCommands {
@@ -72,6 +78,7 @@ impl Display for PodmanCommands {
             }
             Self::Kube { kube } => write!(f, "{kube}"),
             Self::Network { network } => write!(f, "{network}"),
+            Self::Volume { volume } => write!(f, "{volume}"),
         }
     }
 }
