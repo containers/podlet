@@ -173,18 +173,14 @@ impl From<&Mode> for Output {
             Mode::Container { id } => Self::PodmanArg(format!("container:{id}")),
             Mode::Host => Self::PodmanArg(String::from("host")),
             Mode::KeepId { uid, gid } => {
-                if uid.is_some() || gid.is_some() {
-                    let mut options = Vec::new();
-                    if let Some(uid) = uid {
-                        options.push(format!("uid={uid}"));
-                    }
-                    if let Some(gid) = gid {
-                        options.push(format!("gid={gid}"));
-                    }
-                    Self::PodmanArg(format!("keep-id:{}", options.join(",")))
-                } else {
-                    Self::QuadletOptions(String::from("RemapUsers=keep-id"))
+                let mut options = vec![String::from("RemapUsers=keep-id")];
+                if let Some(uid) = uid {
+                    options.push(format!("RemapUid={uid}"));
                 }
+                if let Some(gid) = gid {
+                    options.push(format!("RemapGid={gid}"));
+                }
+                Self::QuadletOptions(options.join("\n"))
             }
             Mode::Nomap => Self::PodmanArg(String::from("nomap")),
             Mode::Ns { namespace } => Self::PodmanArg(format!("ns:{namespace}")),
@@ -408,7 +404,11 @@ mod tests {
             .into();
             assert_eq!(
                 sut,
-                Output::PodmanArg(format!("keep-id:uid={uid},gid={gid}"))
+                Output::QuadletOptions(format!(
+                    "RemapUsers=keep-id\n\
+                    RemapUid={uid}\n\
+                    RemapGid={gid}"
+                ))
             );
         }
 
