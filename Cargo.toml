@@ -12,5 +12,6 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.1.8", features = ["derive"] }
+ipnet = "2.7.2"
 shlex = "1.1.0"
 thiserror = "1.0.40"

@@ -3,7 +3,7 @@ mod kube;
 mod network;
 mod service;
 
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 use clap::{Parser, Subcommand};
 
@@ -74,6 +74,20 @@ impl Display for PodmanCommands {
             Self::Network { network } => write!(f, "{network}"),
         }
     }
+}
+
+fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
+    words
+        .into_iter()
+        .map(|word| {
+            if word.contains(' ') {
+                format!("\"{word}\"").into()
+            } else {
+                word.into()
+            }
+        })
+        .collect::<Vec<Cow<_>>>()
+        .join(" ")
 }
 
 #[cfg(test)]
