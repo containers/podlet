@@ -2,19 +2,37 @@ mod container;
 mod kube;
 mod network;
 mod service;
+mod unit;
 mod volume;
 
 use std::{borrow::Cow, fmt::Display};
 
 use clap::{Parser, Subcommand};
 
-use self::{container::Container, kube::Kube, network::Network, service::Service, volume::Volume};
+use self::{
+    container::Container, kube::Kube, network::Network, service::Service, unit::Unit,
+    volume::Volume,
+};
 
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
 pub struct Cli {
+    #[command(flatten)]
+    unit: Unit,
+
     #[command(subcommand)]
-    pub command: Commands,
+    command: Commands,
+}
+
+impl Display for Cli {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.unit.is_empty() {
+            writeln!(f, "{}", &self.unit)?;
+        }
+
+        let Commands::Podman { command } = &self.command;
+        write!(f, "{command}")
+    }
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]

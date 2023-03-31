@@ -22,11 +22,10 @@ mod cli;
 
 use clap::Parser;
 
-use self::cli::{Cli, Commands};
+use self::cli::Cli;
 
 fn main() {
     let args = Cli::parse();
 
-    let Commands::Podman { command } = args.command;
-    print!("{command}");
+    print!("{args}");
 }
