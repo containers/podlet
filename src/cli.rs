@@ -17,6 +17,7 @@ use self::{
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
 pub struct Cli {
+    /// The \[Unit\] section
     #[command(flatten)]
     unit: Unit,
 
@@ -65,6 +66,7 @@ pub enum PodmanCommands {
     /// For details on options see:
     /// https://docs.podman.io/en/latest/markdown/podman-kube-play.1.html
     Kube {
+        /// The \[Kube\] section
         #[command(subcommand)]
         kube: Kube,
     },
@@ -74,6 +76,7 @@ pub enum PodmanCommands {
     /// For details on options see:
     /// https://docs.podman.io/en/latest/markdown/podman-network-create.1.html
     Network {
+        /// The \[Network\] section
         #[command(subcommand)]
         network: Network,
     },
@@ -83,6 +86,7 @@ pub enum PodmanCommands {
     /// For details on options see:
     /// https://docs.podman.io/en/latest/markdown/podman-volume-create.1.html
     Volume {
+        /// The \[Volume\] section
         #[command(subcommand)]
         volume: Volume,
     },

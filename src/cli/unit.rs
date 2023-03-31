@@ -14,11 +14,47 @@ pub struct Unit {
     /// Converts to "Description=DESCRIPTION"
     #[arg(short, long)]
     description: Option<String>,
+
+    /// Add (weak) requirement dependencies to the unit
+    ///
+    /// Converts to "Wants=WANTS[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    wants: Vec<String>,
+
+    /// Similar to --wants, but adds stronger requirement dependencies
+    ///
+    /// Converts to "Requires=REQUIRES[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    requires: Vec<String>,
+
+    /// Configure ordering dependency between units
+    ///
+    /// Converts to "Before=BEFORE[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    before: Vec<String>,
+
+    /// Configure ordering dependency between units
+    ///
+    /// Converts to "After=AFTER[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    after: Vec<String>,
 }
 
 impl Unit {
     pub fn is_empty(&self) -> bool {
         self.description.is_none()
+            && self.wants.is_empty()
+            && self.requires.is_empty()
+            && self.before.is_empty()
+            && self.after.is_empty()
     }
 }
 
@@ -28,6 +64,22 @@ impl Display for Unit {
 
         if let Some(description) = &self.description {
             writeln!(f, "Description={description}")?;
+        }
+
+        if !self.wants.is_empty() {
+            writeln!(f, "Wants={}", self.wants.join(" "))?;
+        }
+
+        if !self.requires.is_empty() {
+            writeln!(f, "Requires={}", self.requires.join(" "))?;
+        }
+
+        if !self.before.is_empty() {
+            writeln!(f, "Before={}", self.before.join(" "))?;
+        }
+
+        if !self.before.is_empty() {
+            writeln!(f, "After={}", self.after.join(" "))?;
         }
 
         Ok(())
