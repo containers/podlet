@@ -60,6 +60,10 @@ pub enum PodmanCommands {
         network: Network,
     },
 
+    /// Generate a podman quadlet `.volume` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/latest/markdown/podman-volume-create.1.html
     Volume {
         #[command(subcommand)]
         volume: Volume,
