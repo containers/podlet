@@ -5,7 +5,7 @@ use clap::Args;
 /// Common systemd unit options
 ///
 /// From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
-#[derive(Args, Debug, Clone, PartialEq)]
+#[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Unit {
     /// Add a description to the unit
     ///
@@ -50,11 +50,7 @@ pub struct Unit {
 
 impl Unit {
     pub fn is_empty(&self) -> bool {
-        self.description.is_none()
-            && self.wants.is_empty()
-            && self.requires.is_empty()
-            && self.before.is_empty()
-            && self.after.is_empty()
+        *self == Self::default()
     }
 }
 

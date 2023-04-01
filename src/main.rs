@@ -21,11 +21,12 @@
 mod cli;
 
 use clap::Parser;
+use color_eyre::eyre;
 
 use self::cli::Cli;
 
-fn main() {
-    let args = Cli::parse();
+fn main() -> eyre::Result<()> {
+    color_eyre::install()?;
 
-    print!("{args}");
+    Cli::parse().print_or_write_file()
 }

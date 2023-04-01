@@ -5,18 +5,48 @@ mod service;
 mod unit;
 mod volume;
 
-use std::{borrow::Cow, fmt::Display};
+use std::{
+    borrow::Cow,
+    env,
+    fmt::Display,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use clap::{Parser, Subcommand};
+use color_eyre::eyre::{self, Context};
 
 use self::{
     container::Container, kube::Kube, network::Network, service::Service, unit::Unit,
     volume::Volume,
 };
 
+#[allow(clippy::option_option)]
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about)]
 pub struct Cli {
+    /// Generate a file instead of printing to stdout
+    ///
+    /// Optionally provide a path for the file,
+    /// if no path is provided the file will be placed in the current working directory.
+    /// If not provided, the name of the generated file will be taken from,
+    /// the `name` parameter for volumes and networks,
+    /// the filename of the kube file,
+    /// the container name,
+    /// or the name of the container image.
+    #[arg(short, long)]
+    file: Option<Option<PathBuf>>,
+
+    /// Override the name of the generated file (without the extension)
+    ///
+    /// This only applies if a file was not given to the --file option.
+    ///
+    /// E.g. `podlet --file --name hello-world podman run quay.io/podman/hello`
+    /// will generate a file with the name "hello-world.container".
+    #[arg(short, long, requires = "file")]
+    name: Option<String>,
+
     /// The \[Unit\] section
     #[command(flatten)]
     unit: Unit,
@@ -33,6 +63,42 @@ impl Display for Cli {
 
         let Commands::Podman { command } = &self.command;
         write!(f, "{command}")
+    }
+}
+
+impl Cli {
+    pub fn print_or_write_file(&self) -> eyre::Result<()> {
+        if self.file.is_some() {
+            let path = self.file_path()?;
+            let mut file = File::create(&path)?;
+            write!(file, "{self}").wrap_err("Failed to write to file")?;
+            println!("Wrote to file: {}", path.display());
+            Ok(())
+        } else {
+            print!("{self}");
+            Ok(())
+        }
+    }
+
+    /// Returns the file path for the generated file
+    fn file_path(&self) -> eyre::Result<Cow<Path>> {
+        let mut path = if let Some(Some(path)) = &self.file {
+            if path.is_dir() {
+                path.clone()
+            } else {
+                return Ok(path.into());
+            }
+        } else {
+            env::current_dir()
+                .wrap_err("File path not provided and can't access current directory")?
+        };
+
+        let Commands::Podman { command } = &self.command;
+
+        path.push(self.name.as_deref().unwrap_or_else(|| command.name()));
+        path.set_extension(command.extension());
+
+        Ok(path.into())
     }
 }
 
@@ -105,6 +171,28 @@ impl Display for PodmanCommands {
             Self::Kube { kube } => write!(f, "{kube}"),
             Self::Network { network } => write!(f, "{network}"),
             Self::Volume { volume } => write!(f, "{volume}"),
+        }
+    }
+}
+
+impl PodmanCommands {
+    /// Returns the name that should be used for the generated file
+    fn name(&self) -> &str {
+        match self {
+            PodmanCommands::Run { container, .. } => container.name(),
+            PodmanCommands::Kube { kube } => kube.name(),
+            PodmanCommands::Network { network } => network.name(),
+            PodmanCommands::Volume { volume } => volume.name(),
+        }
+    }
+
+    /// Returns the extension that should be used for the generated file
+    fn extension(&self) -> &'static str {
+        match self {
+            PodmanCommands::Run { .. } => "container",
+            PodmanCommands::Kube { .. } => "kube",
+            PodmanCommands::Network { .. } => "network",
+            PodmanCommands::Volume { .. } => "volume",
         }
     }
 }

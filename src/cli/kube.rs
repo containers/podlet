@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt::Display, path::PathBuf, str::FromStr};
+use std::{convert::Infallible, ffi::OsStr, fmt::Display, path::PathBuf, str::FromStr};
 
 use clap::{Args, Subcommand};
 use url::Url;
@@ -26,6 +26,14 @@ impl Display for Kube {
         let Self::Play { play } = self;
         writeln!(f, "[Kube]")?;
         write!(f, "{play}")
+    }
+}
+
+impl Kube {
+    pub fn name(&self) -> &str {
+        let Kube::Play { play } = self;
+
+        play.file.name().unwrap_or("pod")
     }
 }
 
@@ -112,10 +120,8 @@ impl FromStr for File {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.parse() {
-            Ok(url) => Ok(Self::Url(url)),
-            Err(_) => Ok(Self::Path(PathBuf::from(s))),
-        }
+        Ok(s.parse()
+            .map_or_else(|_| Self::Path(PathBuf::from(s)), Self::Url))
     }
 }
 
@@ -125,5 +131,36 @@ impl Display for File {
             File::Url(url) => write!(f, "{url}"),
             File::Path(path) => write!(f, "{}", path.display()),
         }
+    }
+}
+
+impl File {
+    /// Return the name of the kube file (without the extension)
+    fn name(&self) -> Option<&str> {
+        match self {
+            Self::Url(url) => url
+                .path_segments()
+                .and_then(Iterator::last)
+                .filter(|file| !file.is_empty())
+                .and_then(|file| file.split('.').next()),
+            Self::Path(path) => path.file_stem().and_then(OsStr::to_str),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn url_file_name() {
+        let sut = File::Url(Url::parse("https://example.com/test.yaml").expect("valid url"));
+        assert_eq!(sut.name(), Some("test"));
+    }
+
+    #[test]
+    fn path_file_name() {
+        let sut = File::Path(PathBuf::from("test.yaml"));
+        assert_eq!(sut.name(), Some("test"));
     }
 }

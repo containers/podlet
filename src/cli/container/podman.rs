@@ -6,7 +6,7 @@ use std::{
 use clap::{ArgAction, Args};
 
 #[allow(clippy::struct_excessive_bools, clippy::module_name_repetitions)]
-#[derive(Args, Debug, Clone, PartialEq)]
+#[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct PodmanArgs {
     /// Add a custom host-to-IP mapping
     ///

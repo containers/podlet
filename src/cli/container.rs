@@ -9,7 +9,7 @@ use clap::Args;
 
 use self::security_opt::SecurityOpt;
 
-#[derive(Args, Debug, Clone, PartialEq)]
+#[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
     #[command(flatten)]
     quadlet_options: quadlet::QuadletOptions,
@@ -94,6 +94,20 @@ impl Display for Container {
     }
 }
 
+impl Container {
+    pub fn name(&self) -> &str {
+        self.quadlet_options.name.as_deref().unwrap_or_else(|| {
+            let image = self
+                .image
+                .rsplit('/')
+                .next()
+                .expect("Split will has at least one element");
+            // Remove image tag
+            image.split_once(':').map_or(image, |(name, _)| name)
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Output {
     QuadletOptions(String),
@@ -113,6 +127,42 @@ impl Output {
                 *args += &format!(" {arg} {arg_value}");
                 Ok(())
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod name {
+        use super::*;
+
+        #[test]
+        fn container_name() {
+            let name = "test";
+            let mut sut = Container::default();
+            sut.quadlet_options.name = Some(String::from(name));
+
+            assert_eq!(sut.name(), name);
+        }
+
+        #[test]
+        fn image_no_tag() {
+            let sut = Container {
+                image: String::from("quay.io/podman/hello"),
+                ..Default::default()
+            };
+            assert_eq!(sut.name(), "hello");
+        }
+
+        #[test]
+        fn image_with_tag() {
+            let sut = Container {
+                image: String::from("quay.io/podman/hello:latest"),
+                ..Default::default()
+            };
+            assert_eq!(sut.name(), "hello");
         }
     }
 }
