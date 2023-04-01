@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use std::{convert::Infallible, fmt::Display, path::PathBuf, str::FromStr};
 
 use clap::{Args, Subcommand};
+use url::Url;
 
 use super::container::{user_namespace, Output};
 
@@ -70,7 +71,7 @@ pub struct Play {
     /// The path to the Kubernetes YAML file to use
     ///
     /// Converts to "Yaml=FILE"
-    file: String,
+    file: File,
 }
 
 impl Display for Play {
@@ -98,5 +99,31 @@ impl Display for Play {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum File {
+    Url(Url),
+    Path(PathBuf),
+}
+
+impl FromStr for File {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse() {
+            Ok(url) => Ok(Self::Url(url)),
+            Err(_) => Ok(Self::Path(PathBuf::from(s))),
+        }
+    }
+}
+
+impl Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            File::Url(url) => write!(f, "{url}"),
+            File::Path(path) => write!(f, "{}", path.display()),
+        }
     }
 }
