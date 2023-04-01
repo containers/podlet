@@ -1,4 +1,5 @@
 mod container;
+mod install;
 mod kube;
 mod network;
 mod service;
@@ -18,8 +19,8 @@ use clap::{Parser, Subcommand};
 use color_eyre::eyre::{self, Context};
 
 use self::{
-    container::Container, kube::Kube, network::Network, service::Service, unit::Unit,
-    volume::Volume,
+    container::Container, install::Install, kube::Kube, network::Network, service::Service,
+    unit::Unit, volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -51,6 +52,10 @@ pub struct Cli {
     #[command(flatten)]
     unit: Unit,
 
+    /// The \[Install\] section
+    #[command(flatten)]
+    install: Install,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -62,7 +67,13 @@ impl Display for Cli {
         }
 
         let Commands::Podman { command } = &self.command;
-        write!(f, "{command}")
+        write!(f, "{command}")?;
+
+        if self.install.install {
+            write!(f, "\n{}", &self.install)?;
+        }
+
+        Ok(())
     }
 }
 
