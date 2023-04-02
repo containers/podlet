@@ -16,7 +16,10 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::{self, Context};
+use color_eyre::{
+    eyre::{self, Context},
+    Help,
+};
 
 use self::{
     container::Container, install::Install, kube::Kube, network::Network, service::Service,
@@ -81,7 +84,9 @@ impl Cli {
     pub fn print_or_write_file(&self) -> eyre::Result<()> {
         if self.file.is_some() {
             let path = self.file_path()?;
-            let mut file = File::create(&path)?;
+            let mut file = File::create(&path)
+                .wrap_err("Failed to create/open file")
+                .suggestion("Make sure you have write permissions for the file")?;
             write!(file, "{self}").wrap_err("Failed to write to file")?;
             println!("Wrote to file: {}", path.display());
             Ok(())
