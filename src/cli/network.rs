@@ -29,6 +29,13 @@ impl Display for Network {
     }
 }
 
+impl Network {
+    pub fn name(&self) -> &str {
+        let Network::Create { create } = self;
+        &create.name
+    }
+}
+
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
     /// Disable the DNS plugin for the network

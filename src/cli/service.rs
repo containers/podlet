@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use clap::{Args, ValueEnum};
 
-#[derive(Args, Debug, Clone, PartialEq, Eq)]
+#[derive(Args, Default, Debug, Clone, PartialEq, Eq)]
 pub struct Service {
     /// Configure if and when the service should be restarted
     #[arg(long, value_name = "POLICY")]
@@ -11,7 +11,7 @@ pub struct Service {
 
 impl Service {
     pub fn is_empty(&self) -> bool {
-        self.restart.is_none()
+        *self == Self::default()
     }
 }
 

@@ -5,7 +5,7 @@ use clap::{Args, ValueEnum};
 use crate::cli::escape_spaces_join;
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Args, Debug, Clone, PartialEq)]
+#[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
     /// Add Linux capabilities
     ///
@@ -37,7 +37,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "ContainerName=NAME"
     #[arg(long)]
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Drop Linux capability from the default podman capability set
     ///
@@ -192,7 +192,7 @@ pub struct QuadletOptions {
     /// Control sd-notify behavior
     ///
     /// If `container`, converts to "Notify=true"
-    #[arg(long, value_enum, default_value_t = Notify::Conmon)]
+    #[arg(long, value_enum, default_value_t)]
     sdnotify: Notify,
 
     /// The rootfs to use for the container
@@ -272,6 +272,12 @@ pub struct QuadletOptions {
 enum Notify {
     Conmon,
     Container,
+}
+
+impl Default for Notify {
+    fn default() -> Self {
+        Self::Conmon
+    }
 }
 
 impl Display for QuadletOptions {

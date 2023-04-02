@@ -31,6 +31,13 @@ impl Display for Volume {
     }
 }
 
+impl Volume {
+    pub fn name(&self) -> &str {
+        let Volume::Create { create } = self;
+        &create.name
+    }
+}
+
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
     /// Set driver specific options

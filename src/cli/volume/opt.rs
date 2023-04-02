@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{convert::Infallible, str::FromStr};
 
 use thiserror::Error;
 
@@ -29,7 +29,7 @@ impl FromStr for Opt {
                 let options = options
                     .split(',')
                     .map(str::parse)
-                    .collect::<Result<Vec<_>, ()>>()
+                    .collect::<Result<Vec<_>, _>>()
                     .expect("Mount::from_str cannot error");
                 Ok(Self::Mount(options))
             }
@@ -52,7 +52,7 @@ pub enum Mount {
 }
 
 impl FromStr for Mount {
-    type Err = ();
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with("uid=") {
