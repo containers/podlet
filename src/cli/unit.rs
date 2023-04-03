@@ -2,9 +2,8 @@ use std::fmt::Display;
 
 use clap::Args;
 
-/// Common systemd unit options
-///
-/// From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+// Common systemd unit options
+// From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Unit {
     /// Add a description to the unit

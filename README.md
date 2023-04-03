@@ -6,7 +6,7 @@
 
 Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) (systemd-like) files from a podman command.
 
-![Made with VHS](https://vhs.charm.sh/vhs-3PhBe9UiKe4zaUDywcWHyG.gif)
+![Made with VHS](https://vhs.charm.sh/vhs-4x04CoFBi5Hj1EZ0zKlSWE.gif)
 
 ## Features
 

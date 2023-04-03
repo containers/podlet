@@ -15,9 +15,8 @@ Show
 
 Sleep 500ms
 Type "podlet -h"
-Sleep 1s
 Enter
-Sleep 5s
+Sleep 7s
 
 Hide
 Type "clear"
@@ -26,9 +25,8 @@ Show
 Sleep 500ms
 
 Type "podlet podman -h"
-Sleep 1s
 Enter
-Sleep 5s
+Sleep 7s
 
 Hide
 Type "clear"
@@ -49,9 +47,8 @@ Enter
 Type "  -v caddy_data:/data \"
 Enter
 Type "  docker.io/library/caddy:latest"
-Sleep 3s
 Enter
-Sleep 5s
+Sleep 8s
 
 Hide
 Type "clear"
@@ -74,12 +71,11 @@ Enter
 Type "  -v caddy_data:/data \"
 Enter
 Type "  docker.io/library/caddy:latest"
-Sleep 3s
 Enter
 Sleep 3s
 Type "cat caddy.container"
 Enter
-Sleep 8s
+Sleep 10s
 
 # Cleanup
 Hide
