@@ -239,9 +239,19 @@ pub struct QuadletOptions {
 
     /// Give the container access to a secret
     ///
+    /// Converts to "Secret=SECRET[,OPT=OPT,...]"
+    ///
     /// Can be specified multiple times
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
+
+    /// Create a tmpfs mount
+    ///
+    /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "FS")]
+    tmpfs: Vec<String>,
 
     /// Set the timezone in the container
     ///
@@ -422,6 +432,14 @@ impl Display for QuadletOptions {
 
         for secret in &self.secret {
             writeln!(f, "Secret={secret}")?;
+        }
+
+        for tmpfs in &self.tmpfs {
+            if tmpfs == "/tmp" {
+                writeln!(f, "VolatileTmp=true")?;
+            } else {
+                writeln!(f, "Tmpfs={tmpfs}")?;
+            }
         }
 
         if let Some(tz) = &self.tz {
