@@ -108,7 +108,7 @@ $ podlet podman kube play --network pasta --userns auto kube.yaml
 [Kube]
 Yaml=kube.yaml
 Network=pasta
-RemapUsers=auto
+UserNS=auto
 ```
 
 ## Contribution

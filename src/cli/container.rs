@@ -1,7 +1,6 @@
 mod podman;
 mod quadlet;
 mod security_opt;
-pub mod user_namespace;
 
 use std::fmt::{self, Display, Formatter};
 
