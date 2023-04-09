@@ -170,6 +170,12 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENV")]
     env_merge: Vec<String>,
 
+    /// Run the container in a new user namespace using the supplied GID mapping
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "CONTAINER_GID:HOST_GID:AMOUNT")]
+    gidmap: Vec<String>,
+
     /// Assign additional groups to the primary user running within the container process
     ///
     /// Can be specified multiple times
@@ -402,6 +408,12 @@ pub struct PodmanArgs {
     #[arg(short, long)]
     tty: bool,
 
+    /// Run the container in a new user namespace using the supplied UID mapping
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "CONTAINER_UID:FROM_UID:AMOUNT")]
+    uidmap: Vec<String>,
+
     /// Ulimit options
     #[arg(long, value_name = "OPTION")]
     ulimit: Option<String>,
@@ -461,6 +473,7 @@ impl PodmanArgs {
             + self.dns_search.iter().len()
             + self.entrypoint.iter().len()
             + self.env_merge.len()
+            + self.gidmap.len()
             + self.group_add.len()
             + self.group_entry.iter().len()
             + self.hostname.iter().len()
@@ -504,6 +517,7 @@ impl PodmanArgs {
             + self.systemd.iter().len()
             + self.timeout.iter().len()
             + self.tls_verify.iter().len()
+            + self.uidmap.len()
             + self.ulimit.iter().len()
             + self.umask.iter().len()
             + self.variant.iter().len()
@@ -616,6 +630,8 @@ impl Display for PodmanArgs {
         extend_args(&mut args, "--entrypoint", &self.entrypoint);
 
         extend_args(&mut args, "--env-merge", &self.env_merge);
+
+        extend_args(&mut args, "--gidmap", &self.gidmap);
 
         extend_args(&mut args, "--group-add", &self.group_add);
 
@@ -761,6 +777,8 @@ impl Display for PodmanArgs {
         if self.tty {
             args.push("--tty");
         }
+
+        extend_args(&mut args, "--uidmap", &self.uidmap);
 
         extend_args(&mut args, "--ulimit", &self.ulimit);
 

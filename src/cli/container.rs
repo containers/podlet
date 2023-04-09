@@ -18,10 +18,6 @@ pub struct Container {
     #[command(flatten)]
     podman_args: podman::PodmanArgs,
 
-    /// Set the user namespace mode for the container
-    #[arg(long, value_name = "MODE")]
-    userns: Option<user_namespace::Mode>,
-
     /// Security options
     ///
     /// Can be specified multiple times
@@ -40,15 +36,6 @@ pub struct Container {
     command: Vec<String>,
 }
 
-fn map_arg_output<'a, T, U>(iter: T, arg: &'a str) -> impl Iterator<Item = (&'a str, Output)>
-where
-    T: IntoIterator<Item = &'a U>,
-    Output: From<&'a U>,
-    U: 'a,
-{
-    iter.into_iter().map(move |item| (arg, Output::from(item)))
-}
-
 impl Display for Container {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "[Container]")?;
@@ -58,11 +45,8 @@ impl Display for Container {
 
         let mut podman_args = self.podman_args.to_string();
 
-        let userns = map_arg_output(&self.userns, "--userns");
-        let security_opt = map_arg_output(&self.security_opt, "--security-opt");
-        let outputs = userns.chain(security_opt);
-        for (arg, output) in outputs {
-            output.write_or_add_arg(arg, f, &mut podman_args)?;
+        for output in self.security_opt.iter().map(Output::from) {
+            output.write_or_add_arg("--security-opt", f, &mut podman_args)?;
         }
 
         if !podman_args.is_empty() {
