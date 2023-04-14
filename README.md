@@ -10,13 +10,14 @@ Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/e
 
 ## Features
 
-- Write to stdout or to a file.
+- Designed for podman v4.5.0 and newer
 - Supports the following podman commands:
     - `podman run`
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
-- Options for including common systemd unit options.
+- Write to stdout or to a file
+- Options for including common systemd unit options
 
 ## Install
 
@@ -111,9 +112,15 @@ Network=pasta
 UserNS=auto
 ```
 
+Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
+
+For the `kube play`, `network create`, and `volume create` commands, not all of podman's options are available as not all options are supported by quadlet.
+
+Podlet is meant to be used with podman v4.5.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
+
 ## Contribution
 
-This is my (@k9withabone) first real rust project and is mostly meant as a learning project for myself. That said, contributions, suggestions, and/or comments are appreciated!
+This is my (@k9withabone) first real rust project and is mostly meant as a learning project for myself. That said, contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/k9withabone/podlet/issues), [discussion](https://github.com/k9withabone/podlet/discussions), or [pull request](https://github.com/k9withabone/podlet/pulls).
 
 ## License
 
