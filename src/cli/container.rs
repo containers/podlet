@@ -1,38 +1,31 @@
 mod podman;
 mod quadlet;
 mod security_opt;
-pub mod user_namespace;
 
 use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
 
-use self::security_opt::SecurityOpt;
+use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
     #[command(flatten)]
-    quadlet_options: quadlet::QuadletOptions,
+    quadlet_options: QuadletOptions,
 
     /// Converts to "PodmanArgs=ARGS"
     #[command(flatten)]
-    podman_args: podman::PodmanArgs,
-
-    /// Set the user namespace mode for the container
-    #[arg(long, value_name = "MODE")]
-    userns: Option<user_namespace::Mode>,
+    podman_args: PodmanArgs,
 
     /// Security options
+    ///
+    /// Converts to a number of different quadlet options or,
+    /// if a quadlet option for the specified security option doesn't exist,
+    /// is placed in "PodmanArgs="
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "OPTION")]
     security_opt: Vec<SecurityOpt>,
-
-    /// Create a tmpfs mount
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "FS")]
-    tmpfs: Vec<String>,
 
     /// The image to run in the container
     ///
@@ -46,15 +39,6 @@ pub struct Container {
     command: Vec<String>,
 }
 
-fn map_arg_output<'a, T, U>(iter: T, arg: &'a str) -> impl Iterator<Item = (&'a str, Output)>
-where
-    T: IntoIterator<Item = &'a U>,
-    Output: From<&'a U>,
-    U: 'a,
-{
-    iter.into_iter().map(move |item| (arg, Output::from(item)))
-}
-
 impl Display for Container {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "[Container]")?;
@@ -64,21 +48,8 @@ impl Display for Container {
 
         let mut podman_args = self.podman_args.to_string();
 
-        let userns = map_arg_output(&self.userns, "--userns");
-        let security_opt = map_arg_output(&self.security_opt, "--security-opt");
-        let tmpfs = self.tmpfs.iter().map(|fs| {
-            (
-                "--tmpfs",
-                if fs == "/tmp" {
-                    Output::QuadletOptions(String::from("VolatileTmp=true"))
-                } else {
-                    Output::PodmanArg(fs.clone())
-                },
-            )
-        });
-        let outputs = userns.chain(security_opt).chain(tmpfs);
-        for (arg, output) in outputs {
-            output.write_or_add_arg(arg, f, &mut podman_args)?;
+        for output in self.security_opt.iter().map(Output::from) {
+            output.write_or_add_arg("--security-opt", f, &mut podman_args)?;
         }
 
         if !podman_args.is_empty() {
@@ -101,7 +72,7 @@ impl Container {
                 .image
                 .rsplit('/')
                 .next()
-                .expect("Split will has at least one element");
+                .expect("Split will have at least one element");
             // Remove image tag
             image.split_once(':').map_or(image, |(name, _)| name)
         })
@@ -109,13 +80,13 @@ impl Container {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Output {
+enum Output {
     QuadletOptions(String),
     PodmanArg(String),
 }
 
 impl Output {
-    pub fn write_or_add_arg(
+    fn write_or_add_arg(
         &self,
         arg: &str,
         f: &mut Formatter,

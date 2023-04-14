@@ -167,8 +167,6 @@ pub struct QuadletOptions {
 
     /// Logging driver for the container
     ///
-    /// The default is `passthrough`
-    ///
     /// Converts to "LogDriver=DRIVER"
     #[arg(long, value_name = "DRIVER")]
     log_driver: Option<String>,
@@ -219,18 +217,6 @@ pub struct QuadletOptions {
     #[arg(long)]
     read_only: bool,
 
-    /// Run the container in a new user namespace using the supplied UID mapping
-    ///
-    /// Converts to ""RemapUsers=manual" and "RemapUid=UID_MAP""
-    #[arg(long, value_name = "CONTAINER_UID:FROM_UID:AMOUNT")]
-    uidmap: Option<String>,
-
-    /// Run the container in a new user namespace using the supplied GID mapping
-    ///
-    /// Converts to "RemapUsers=manual" and "RemapGid=GID_MAP"
-    #[arg(long, value_name = "CONTAINER_GID:HOST_GID:AMOUNT")]
-    gidmap: Option<String>,
-
     /// Run an init inside the container
     ///
     /// Converts to "RunInit=true"
@@ -239,9 +225,19 @@ pub struct QuadletOptions {
 
     /// Give the container access to a secret
     ///
+    /// Converts to "Secret=SECRET[,OPT=OPT,...]"
+    ///
     /// Can be specified multiple times
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
+
+    /// Create a tmpfs mount
+    ///
+    /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "FS")]
+    tmpfs: Vec<String>,
 
     /// Set the timezone in the container
     ///
@@ -254,6 +250,12 @@ pub struct QuadletOptions {
     /// Converts to "User=UID" and "Group=GID"
     #[arg(short, long, value_name = "UID[:GID]")]
     user: Option<String>,
+
+    /// Set the user namespace mode for the container
+    ///
+    /// Converts to "UserNS=MODE"
+    #[arg(long, value_name = "MODE")]
+    userns: Option<String>,
 
     /// Mount a volume in the container
     ///
@@ -404,24 +406,20 @@ impl Display for QuadletOptions {
             writeln!(f, "ReadOnly=true")?;
         }
 
-        if self.uidmap.is_some() || self.gidmap.is_some() {
-            writeln!(f, "RemapUsers=manual")?;
-        }
-
-        if let Some(uidmap) = &self.uidmap {
-            writeln!(f, "RemapUid={uidmap}")?;
-        }
-
-        if let Some(gidmap) = &self.gidmap {
-            writeln!(f, "RemapGid={gidmap}")?;
-        }
-
         if self.init {
             writeln!(f, "RunInit=true")?;
         }
 
         for secret in &self.secret {
             writeln!(f, "Secret={secret}")?;
+        }
+
+        for tmpfs in &self.tmpfs {
+            if tmpfs == "/tmp" {
+                writeln!(f, "VolatileTmp=true")?;
+            } else {
+                writeln!(f, "Tmpfs={tmpfs}")?;
+            }
         }
 
         if let Some(tz) = &self.tz {
@@ -435,6 +433,10 @@ impl Display for QuadletOptions {
             } else {
                 writeln!(f, "User={user}")?;
             }
+        }
+
+        if let Some(userns) = &self.userns {
+            writeln!(f, "UserNS={userns}")?;
         }
 
         for volume in &self.volume {

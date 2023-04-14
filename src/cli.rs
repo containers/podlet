@@ -119,7 +119,7 @@ impl Cli {
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
-pub enum Commands {
+enum Commands {
     /// Generate a podman quadlet file from a podman command
     Podman {
         #[command(subcommand)]
@@ -128,7 +128,7 @@ pub enum Commands {
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
-pub enum PodmanCommands {
+enum PodmanCommands {
     /// Generate a podman quadlet `.container` file
     ///
     /// For details on options see:

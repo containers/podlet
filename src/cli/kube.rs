@@ -3,8 +3,6 @@ use std::{convert::Infallible, ffi::OsStr, fmt::Display, path::PathBuf, str::Fro
 use clap::{Args, Subcommand};
 use url::Url;
 
-use super::container::{user_namespace, Output};
-
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Kube {
     /// Generate a podman quadlet `.kube` file
@@ -71,10 +69,9 @@ pub struct Play {
 
     /// Set the user namespace mode for the pod
     ///
-    /// Converts to "RemapUsers=MODE"
-    /// and potentially "RemapUid=UID" and "RemapGid=GID"
+    /// Converts to "UserNS=MODE"
     #[arg(long, value_name = "MODE")]
-    userns: Option<user_namespace::Mode>,
+    userns: Option<String>,
 
     /// The path to the Kubernetes YAML file to use
     ///
@@ -102,8 +99,8 @@ impl Display for Play {
             writeln!(f, "PublishPort={port}")?;
         }
 
-        if let Some(Output::QuadletOptions(option)) = self.userns.as_ref().map(Output::from) {
-            writeln!(f, "{option}")?;
+        if let Some(userns) = &self.userns {
+            writeln!(f, "UserNS={userns}")?;
         }
 
         Ok(())
@@ -128,8 +125,8 @@ impl FromStr for File {
 impl Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            File::Url(url) => write!(f, "{url}"),
-            File::Path(path) => write!(f, "{}", path.display()),
+            Self::Url(url) => write!(f, "{url}"),
+            Self::Path(path) => write!(f, "{}", path.display()),
         }
     }
 }

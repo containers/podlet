@@ -22,28 +22,28 @@ impl FromStr for SecurityOpt {
         match s {
             s if s.starts_with("apparmor=") => {
                 let (_, policy) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::Apparmor(String::from(policy)))
+                Ok(Self::Apparmor(String::from(policy)))
             }
             s if s.starts_with("label=") => {
                 let (_, label) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::Label(label.parse()?))
+                Ok(Self::Label(label.parse()?))
             }
             s if s.starts_with("mask=") => {
                 let (_, mask) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::Mask(String::from(mask)))
+                Ok(Self::Mask(String::from(mask)))
             }
-            "no-new-privileges" => Ok(SecurityOpt::NoNewPrivileges),
+            "no-new-privileges" => Ok(Self::NoNewPrivileges),
             s if s.starts_with("seccomp=") => {
                 let (_, profile) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::Seccomp(String::from(profile)))
+                Ok(Self::Seccomp(String::from(profile)))
             }
             s if s.starts_with("proc-opts=") => {
                 let (_, opts) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::ProcOpts(String::from(opts)))
+                Ok(Self::ProcOpts(String::from(opts)))
             }
             s if s.starts_with("unmask=") => {
                 let (_, unmask) = s.split_once('=').expect("delimiter is in guard");
-                Ok(SecurityOpt::Unmask(String::from(unmask)))
+                Ok(Self::Unmask(String::from(unmask)))
             }
             _ => Err(ParseSecurityOptError::InvalidSecurityOpt(String::from(s))),
         }
@@ -100,26 +100,26 @@ impl FromStr for LabelOpt {
         match s {
             s if s.starts_with("user:") => {
                 let (_, user) = s.split_once(':').expect("delimiter is in guard");
-                Ok(LabelOpt::User(String::from(user)))
+                Ok(Self::User(String::from(user)))
             }
             s if s.starts_with("role:") => {
                 let (_, role) = s.split_once(':').expect("delimiter is in guard");
-                Ok(LabelOpt::Role(String::from(role)))
+                Ok(Self::Role(String::from(role)))
             }
             s if s.starts_with("type:") => {
                 let (_, label_type) = s.split_once(':').expect("delimiter is in guard");
-                Ok(LabelOpt::Type(String::from(label_type)))
+                Ok(Self::Type(String::from(label_type)))
             }
             s if s.starts_with("level:") => {
                 let (_, level) = s.split_once(':').expect("delimiter is in guard");
-                Ok(LabelOpt::Level(String::from(level)))
+                Ok(Self::Level(String::from(level)))
             }
             s if s.starts_with("filetype:") => {
                 let (_, filetype) = s.split_once(':').expect("delimiter is in guard");
-                Ok(LabelOpt::Filetype(String::from(filetype)))
+                Ok(Self::Filetype(String::from(filetype)))
             }
-            "disable" => Ok(LabelOpt::Disable),
-            "nested" => Ok(LabelOpt::Nested),
+            "disable" => Ok(Self::Disable),
+            "nested" => Ok(Self::Nested),
             _ => Err(InvalidLabelOpt(String::from(s))),
         }
     }

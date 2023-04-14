@@ -11,12 +11,12 @@ keywords = ["podman", "quadlet"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-clap = { version = "4.1.8", features = ["derive"] }
-color-eyre = "0.6.2"
-ipnet = "2.7.2"
-shlex = "1.1.0"
+clap = { version = "4.2", features = ["derive"] }
+color-eyre = "0.6"
+ipnet = "2.7"
+shlex = "1.1"
 thiserror = "1.0.40"
-url = "2.3.1"
+url = "2.3"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

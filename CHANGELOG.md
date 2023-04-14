@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2023-04-14
 
-The initial release of podlet! Designed for podman v4.5.0(?) and newer.
+The initial release of podlet! Designed for podman v4.5.0 and newer.
 
 ### Initial Features
 
