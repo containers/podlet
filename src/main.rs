@@ -12,11 +12,7 @@
 //!
 //! Run `podlet --help` for more information.
 
-#![warn(clippy::pedantic)]
-#![warn(clippy::cargo)]
-// Different versions of syn used by clap and thiserror,
-// this is ok for now
-#![allow(clippy::multiple_crate_versions)]
+#![warn(clippy::pedantic, clippy::cargo)]
 
 mod cli;
 
