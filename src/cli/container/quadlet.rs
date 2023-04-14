@@ -167,8 +167,6 @@ pub struct QuadletOptions {
 
     /// Logging driver for the container
     ///
-    /// The default is `passthrough`
-    ///
     /// Converts to "LogDriver=DRIVER"
     #[arg(long, value_name = "DRIVER")]
     log_driver: Option<String>,

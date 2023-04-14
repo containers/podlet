@@ -6,18 +6,22 @@ use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
 
-use self::security_opt::SecurityOpt;
+use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
     #[command(flatten)]
-    quadlet_options: quadlet::QuadletOptions,
+    quadlet_options: QuadletOptions,
 
     /// Converts to "PodmanArgs=ARGS"
     #[command(flatten)]
-    podman_args: podman::PodmanArgs,
+    podman_args: PodmanArgs,
 
     /// Security options
+    ///
+    /// Converts to a number of different quadlet options or,
+    /// if a quadlet option for the specified security option doesn't exist,
+    /// is placed in "PodmanArgs="
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "OPTION")]
@@ -68,7 +72,7 @@ impl Container {
                 .image
                 .rsplit('/')
                 .next()
-                .expect("Split will has at least one element");
+                .expect("Split will have at least one element");
             // Remove image tag
             image.split_once(':').map_or(image, |(name, _)| name)
         })
@@ -76,13 +80,13 @@ impl Container {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Output {
+enum Output {
     QuadletOptions(String),
     PodmanArg(String),
 }
 
 impl Output {
-    pub fn write_or_add_arg(
+    fn write_or_add_arg(
         &self,
         arg: &str,
         f: &mut Formatter,

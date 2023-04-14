@@ -31,7 +31,7 @@ impl Display for Network {
 
 impl Network {
     pub fn name(&self) -> &str {
-        let Network::Create { create } = self;
+        let Self::Create { create } = self;
         &create.name
     }
 }

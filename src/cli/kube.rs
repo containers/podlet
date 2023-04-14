@@ -125,8 +125,8 @@ impl FromStr for File {
 impl Display for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            File::Url(url) => write!(f, "{url}"),
-            File::Path(path) => write!(f, "{}", path.display()),
+            Self::Url(url) => write!(f, "{url}"),
+            Self::Path(path) => write!(f, "{}", path.display()),
         }
     }
 }
