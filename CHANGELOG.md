@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- A container image of podlet now available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet).
+
 ## [0.1.0] - 2023-04-14
 
 The initial release of podlet! Designed for podman v4.5.0 and newer.
