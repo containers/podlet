@@ -1,10 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.1] - 2023-04-19
 
 ### Added
 
 - A container image of podlet now available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet).
+- Option flag for outputting to podman unit directory `--unit-directory`.
+    - Places the generated file in the appropriate directory (i.e. `/etc/containers/systemd`, `~/.config/containers/systemd`) for use by quadlet.
 
 ## [0.1.0] - 2023-04-14
 

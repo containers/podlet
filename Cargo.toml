@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
 description = "Podlet generates podman quadlet (systemd-like) files from a podman command."
@@ -14,6 +14,7 @@ categories = ["command-line-utilities"]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
 ipnet = "2.7"
+nix = { version = "0.26", features = ["user"], default-features = false }
 shlex = "1.1"
 thiserror = "1.0.40"
 url = "2.3"
