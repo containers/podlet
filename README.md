@@ -24,9 +24,9 @@ Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/e
 Podlet can be acquired in several ways:
 
 - Download a prebuilt binary from [releases](https://github.com/k9withabone/podlet/releases)
-
+- As a container: `podman run quay.io/k9withabone/podlet`
+    - Container images are available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet)
 - Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`
-
 - Build and install with `cargo install podlet`
 
 ## Usage

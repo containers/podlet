@@ -1,0 +1,52 @@
+# Builds and pushes container images upon realease
+name: Release Container
+
+on:
+  push:
+    tags:
+      - '*-?v[0-9]+*'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build image
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          image: podlet
+          tags: latest ${{ github.ref_name }}
+          platforms: linux/amd64, linux/arm64/v8
+          layers: true
+          oci: true
+          containerfiles: |
+            ./Containerfile
+
+      - name: Push to quay.io
+        id: push-to-quay
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: quay.io/k9withabone
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Print quay.io url
+        run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
+
+      - name: Push to docker.io
+        id: push-to-docker
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build-image.outputs.image }}
+          tags: ${{ steps.build-image.outputs.tags }}
+          registry: docker.io/k9withabone
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Print docker url
+        run: echo "Image pushed to ${{ steps.push-to-docker.outputs.registry-paths }}"
