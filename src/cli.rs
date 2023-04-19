@@ -20,6 +20,7 @@ use color_eyre::{
     eyre::{self, Context},
     Help,
 };
+use nix::unistd::Uid;
 
 use self::{
     container::Container, install::Install, kube::Kube, network::Network, service::Service,
@@ -34,21 +35,40 @@ pub struct Cli {
     ///
     /// Optionally provide a path for the file,
     /// if no path is provided the file will be placed in the current working directory.
+    ///
     /// If not provided, the name of the generated file will be taken from,
     /// the `name` parameter for volumes and networks,
     /// the filename of the kube file,
     /// the container name,
     /// or the name of the container image.
-    #[arg(short, long)]
+    #[arg(short, long, group = "file_out")]
     file: Option<Option<PathBuf>>,
+
+    /// Generate a file in the podman unit directory instead of printing to stdout
+    ///
+    /// Conflicts with the --file option
+    ///
+    /// Equivalent to `--file $XDG_CONFIG_HOME/containers/systemd/` for non-root users,
+    /// or `--file /etc/containers/systemd/` for root.
+    ///
+    /// The name of the file can be specified with the --name option.
+    #[arg(
+        short,
+        long,
+        visible_alias = "unit-dir",
+        conflicts_with = "file",
+        group = "file_out"
+    )]
+    unit_directory: bool,
 
     /// Override the name of the generated file (without the extension)
     ///
-    /// This only applies if a file was not given to the --file option.
+    /// This only applies if a file was not given to the --file option,
+    /// or the --unit-directory option was used.
     ///
     /// E.g. `podlet --file --name hello-world podman run quay.io/podman/hello`
     /// will generate a file with the name "hello-world.container".
-    #[arg(short, long, requires = "file")]
+    #[arg(short, long, requires = "file_out")]
     name: Option<String>,
 
     /// The \[Unit\] section
@@ -82,11 +102,13 @@ impl Display for Cli {
 
 impl Cli {
     pub fn print_or_write_file(&self) -> eyre::Result<()> {
-        if self.file.is_some() {
+        if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
             let mut file = File::create(&path)
-                .wrap_err("Failed to create/open file")
-                .suggestion("Make sure you have write permissions for the file")?;
+                .wrap_err_with(|| format!("Failed to create/open file: {}", path.display()))
+                .suggestion(
+                    "Make sure the directory exists and you have write permissions for the file",
+                )?;
             write!(file, "{self}").wrap_err("Failed to write to file")?;
             println!("Wrote to file: {}", path.display());
             Ok(())
@@ -98,7 +120,23 @@ impl Cli {
 
     /// Returns the file path for the generated file
     fn file_path(&self) -> eyre::Result<Cow<Path>> {
-        let mut path = if let Some(Some(path)) = &self.file {
+        let mut path = if self.unit_directory {
+            if Uid::current().is_root() {
+                let path = PathBuf::from("/etc/containers/systemd/");
+                if path.is_dir() {
+                    path
+                } else {
+                    PathBuf::from("/usr/share/containers/systemd/")
+                }
+            } else {
+                let mut path: PathBuf = env::var("XDG_CONFIG_HOME")
+                    .or_else(|_| env::var("HOME").map(|home| format!("{home}/.config")))
+                    .unwrap_or_else(|_| String::from("~/.config/"))
+                    .into();
+                path.push("containers/systemd/");
+                path
+            }
+        } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()
             } else {

@@ -14,6 +14,7 @@ categories = ["command-line-utilities"]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
 ipnet = "2.7"
+nix = { version = "0.26.2", features = ["user"], default-features = false }
 shlex = "1.1"
 thiserror = "1.0.40"
 url = "2.3"
