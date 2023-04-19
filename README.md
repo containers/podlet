@@ -6,7 +6,7 @@
 
 Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) (systemd-like) files from a podman command.
 
-![Made with VHS](https://vhs.charm.sh/vhs-4x04CoFBi5Hj1EZ0zKlSWE.gif)
+![Made with VHS](https://vhs.charm.sh/vhs-7GpylCk1SkTulSrL7jp6UV.gif)
 
 ## Features
 
@@ -44,6 +44,7 @@ Commands:
 
 Options:
   -f, --file [<FILE>]              Generate a file instead of printing to stdout
+  -u, --unit-directory             Generate a file in the podman unit directory instead of printing to stdout [aliases: unit-dir]
   -n, --name <NAME>                Override the name of the generated file (without the extension)
   -d, --description <DESCRIPTION>  Add a description to the unit
       --wants <WANTS>              Add (weak) requirement dependencies to the unit
