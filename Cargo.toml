@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
 description = "Podlet generates podman quadlet (systemd-like) files from a podman command."
