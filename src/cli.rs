@@ -122,7 +122,27 @@ impl Cli {
     /// Returns the file path for the generated file
     fn file_path(&self) -> eyre::Result<Cow<Path>> {
         let mut path = if self.unit_directory {
-            unit_dir()
+            #[cfg(unix)]
+            if Uid::current().is_root() {
+                let path = PathBuf::from("/etc/containers/systemd/");
+                if path.is_dir() {
+                    path
+                } else {
+                    PathBuf::from("/usr/share/containers/systemd/")
+                }
+            } else {
+                let mut path: PathBuf = env::var("XDG_CONFIG_HOME")
+                    .or_else(|_| env::var("HOME").map(|home| format!("{home}/.config")))
+                    .unwrap_or_else(|_| String::from("~/.config/"))
+                    .into();
+                path.push("containers/systemd/");
+                path
+            }
+
+            #[cfg(not(unix))]
+            return Err(eyre::eyre!(
+                "Cannot get podman unit directory on non-unix system"
+            ));
         } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()
@@ -141,30 +161,6 @@ impl Cli {
 
         Ok(path.into())
     }
-}
-
-#[cfg(unix)]
-fn unit_dir() -> PathBuf {
-    if Uid::current().is_root() {
-        let path = PathBuf::from("/etc/containers/systemd/");
-        if path.is_dir() {
-            path
-        } else {
-            PathBuf::from("/usr/share/containers/systemd/")
-        }
-    } else {
-        let mut path: PathBuf = env::var("XDG_CONFIG_HOME")
-            .or_else(|_| env::var("HOME").map(|home| format!("{home}/.config")))
-            .unwrap_or_else(|_| String::from("~/.config/"))
-            .into();
-        path.push("containers/systemd/");
-        path
-    }
-}
-
-#[cfg(not(unix))]
-fn unit_dir() -> PathBuf {
-    panic!("Cannot get podman unit directory on non-unix system");
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
