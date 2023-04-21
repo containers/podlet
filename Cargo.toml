@@ -14,10 +14,13 @@ categories = ["command-line-utilities"]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
 ipnet = "2.7"
-nix = { version = "0.26", features = ["user"], default-features = false }
 shlex = "1.1"
 thiserror = "1.0.40"
 url = "2.3"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.26", features = ["user"], default-features = false }
+zbus = "3.12"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
