@@ -6,22 +6,24 @@ mod service;
 mod unit;
 mod volume;
 
+#[cfg(unix)]
+mod systemd_dbus;
+
 use std::{
     borrow::Cow,
     env,
+    ffi::OsStr,
     fmt::Display,
     fs::File,
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
     eyre::{self, Context},
-    Help,
+    Help, Report,
 };
-#[cfg(unix)]
-use nix::unistd::Uid;
 
 use self::{
     container::Container, install::Install, kube::Kube, network::Network, service::Service,
@@ -72,6 +74,21 @@ pub struct Cli {
     #[arg(short, long, requires = "file_out")]
     name: Option<String>,
 
+    /// Overwrite existing files when generating a file
+    ///
+    /// By default, podlet will return an error if a file already exists at the given location.
+    #[arg(long, alias = "override", requires = "file_out")]
+    overwrite: bool,
+
+    /// Skip the check for existing services of the same name
+    ///
+    /// By default, podlet will check for existing services with the same name as
+    /// the service quadlet will generate from the generated quadlet file
+    /// and return an error if a conflict is found.
+    /// This option will cause podlet to skip that check.
+    #[arg(long, requires = "file_out")]
+    skip_services_check: bool,
+
     /// The \[Unit\] section
     #[command(flatten)]
     unit: Unit,
@@ -105,13 +122,27 @@ impl Cli {
     pub fn print_or_write_file(&self) -> eyre::Result<()> {
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
-            let mut file = File::create(&path)
-                .wrap_err_with(|| format!("Failed to create/open file: {}", path.display()))
-                .suggestion(
-                    "Make sure the directory exists and you have write permissions for the file",
-                )?;
-            write!(file, "{self}").wrap_err("Failed to write to file")?;
-            println!("Wrote to file: {}", path.display());
+            let path_display = path.display();
+            let mut file = File::options()
+                .write(true)
+                .create_new(!self.overwrite)
+                .create(self.overwrite)
+                .open(&path)
+                .map_err(|error| match error.kind() {
+                    io::ErrorKind::AlreadyExists => {
+                        eyre::eyre!("File already exists, not overwriting it: {path_display}")
+                            .suggestion("Use `--overwrite` if you wish overwrite existing files.")
+                    }
+                    _ => Report::new(error)
+                        .wrap_err(format!("Failed to create/open file: {path_display}"))
+                        .suggestion(
+                            "Make sure the directory exists \
+                                and you have write permissions for the file",
+                        ),
+                })?;
+            write!(file, "{self}")
+                .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
+            println!("Wrote to file: {path_display}");
             Ok(())
         } else {
             print!("{self}");
@@ -122,11 +153,34 @@ impl Cli {
     /// Returns the file path for the generated file
     fn file_path(&self) -> eyre::Result<Cow<Path>> {
         let mut path = if self.unit_directory {
-            unit_dir()
+            #[cfg(unix)]
+            if nix::unistd::Uid::current().is_root() {
+                let path = PathBuf::from("/etc/containers/systemd/");
+                if path.is_dir() {
+                    path
+                } else {
+                    PathBuf::from("/usr/share/containers/systemd/")
+                }
+            } else {
+                let mut path: PathBuf = env::var("XDG_CONFIG_HOME")
+                    .or_else(|_| env::var("HOME").map(|home| format!("{home}/.config")))
+                    .unwrap_or_else(|_| String::from("~/.config/"))
+                    .into();
+                path.push("containers/systemd/");
+                path
+            }
+
+            #[cfg(not(unix))]
+            return Err(eyre::eyre!(
+                "Cannot get podman unit directory on non-unix system"
+            ));
         } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()
             } else {
+                if let Some(name) = path.file_stem().and_then(OsStr::to_str) {
+                    self.check_existing(name)?;
+                }
                 return Ok(path.into());
             }
         } else {
@@ -135,36 +189,37 @@ impl Cli {
         };
 
         let Commands::Podman { command } = &self.command;
+        let name = self.name.as_deref().unwrap_or_else(|| command.name());
+        self.check_existing(name)?;
 
-        path.push(self.name.as_deref().unwrap_or_else(|| command.name()));
+        path.push(name);
         path.set_extension(command.extension());
 
         Ok(path.into())
     }
-}
 
-#[cfg(unix)]
-fn unit_dir() -> PathBuf {
-    if Uid::current().is_root() {
-        let path = PathBuf::from("/etc/containers/systemd/");
-        if path.is_dir() {
-            path
-        } else {
-            PathBuf::from("/usr/share/containers/systemd/")
+    fn check_existing(&self, name: &str) -> eyre::Result<()> {
+        #[cfg(unix)]
+        if !self.skip_services_check {
+            if let Ok(unit_files) = systemd_dbus::unit_files() {
+                let Commands::Podman { command } = &self.command;
+                let service = command.name_to_service(name);
+                for systemd_dbus::UnitFile { file_name, status } in unit_files {
+                    if !(self.overwrite && status == "generated") && file_name.contains(&service) {
+                        return Err(eyre::eyre!(
+                            "File name `{name}` conflicts with existing unit file: {file_name}"
+                        )
+                        .suggestion(
+                            "Change the generated file's name with `--file` or `--name`. \
+                                Alternatively, use `--skip-services-check` if this is ok.",
+                        ));
+                    }
+                }
+            }
         }
-    } else {
-        let mut path: PathBuf = env::var("XDG_CONFIG_HOME")
-            .or_else(|_| env::var("HOME").map(|home| format!("{home}/.config")))
-            .unwrap_or_else(|_| String::from("~/.config/"))
-            .into();
-        path.push("containers/systemd/");
-        path
-    }
-}
 
-#[cfg(not(unix))]
-fn unit_dir() -> PathBuf {
-    panic!("Cannot get podman unit directory on non-unix system");
+        Ok(())
+    }
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -244,20 +299,32 @@ impl PodmanCommands {
     /// Returns the name that should be used for the generated file
     fn name(&self) -> &str {
         match self {
-            PodmanCommands::Run { container, .. } => container.name(),
-            PodmanCommands::Kube { kube } => kube.name(),
-            PodmanCommands::Network { network } => network.name(),
-            PodmanCommands::Volume { volume } => volume.name(),
+            Self::Run { container, .. } => container.name(),
+            Self::Kube { kube } => kube.name(),
+            Self::Network { network } => network.name(),
+            Self::Volume { volume } => volume.name(),
         }
+    }
+
+    /// Takes a file name (no extension) and returns the corresponding service file name
+    /// generated by quadlet
+    fn name_to_service(&self, name: &str) -> String {
+        let mut service = match self {
+            Self::Run { .. } | Self::Kube { .. } => String::from(name),
+            Self::Network { .. } => format!("{name}-network"),
+            Self::Volume { .. } => format!("{name}-volume"),
+        };
+        service.push_str(".service");
+        service
     }
 
     /// Returns the extension that should be used for the generated file
     fn extension(&self) -> &'static str {
         match self {
-            PodmanCommands::Run { .. } => "container",
-            PodmanCommands::Kube { .. } => "kube",
-            PodmanCommands::Network { .. } => "network",
-            PodmanCommands::Volume { .. } => "volume",
+            Self::Run { .. } => "container",
+            Self::Kube { .. } => "kube",
+            Self::Network { .. } => "network",
+            Self::Volume { .. } => "volume",
         }
     }
 }
