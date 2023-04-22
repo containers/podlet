@@ -15,14 +15,14 @@ use std::{
     ffi::OsStr,
     fmt::Display,
     fs::File,
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
     eyre::{self, Context},
-    Help,
+    Help, Report,
 };
 
 use self::{
@@ -74,6 +74,12 @@ pub struct Cli {
     #[arg(short, long, requires = "file_out")]
     name: Option<String>,
 
+    /// Overwrite existing files when generating a file
+    ///
+    /// By default, podlet will return an error if a file already exists at the given location.
+    #[arg(long, alias = "override", requires = "file_out")]
+    overwrite: bool,
+
     /// Skip the check for existing services of the same name
     ///
     /// By default, podlet will check for existing services with the same name as
@@ -81,7 +87,7 @@ pub struct Cli {
     /// and return an error if a conflict is found.
     /// This option will cause podlet to skip that check.
     #[arg(long, requires = "file_out")]
-    skip_check_existing: bool,
+    skip_services_check: bool,
 
     /// The \[Unit\] section
     #[command(flatten)]
@@ -116,13 +122,27 @@ impl Cli {
     pub fn print_or_write_file(&self) -> eyre::Result<()> {
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
-            let mut file = File::create(&path)
-                .wrap_err_with(|| format!("Failed to create/open file: {}", path.display()))
-                .suggestion(
-                    "Make sure the directory exists and you have write permissions for the file",
-                )?;
-            write!(file, "{self}").wrap_err("Failed to write to file")?;
-            println!("Wrote to file: {}", path.display());
+            let path_display = path.display();
+            let mut file = File::options()
+                .write(true)
+                .create_new(!self.overwrite)
+                .create(self.overwrite)
+                .open(&path)
+                .map_err(|error| match error.kind() {
+                    io::ErrorKind::AlreadyExists => {
+                        eyre::eyre!("File already exists, not overwriting it: {path_display}")
+                            .suggestion("Use `--overwrite` if you wish overwrite existing files.")
+                    }
+                    _ => Report::new(error)
+                        .wrap_err(format!("Failed to create/open file: {path_display}"))
+                        .suggestion(
+                            "Make sure the directory exists \
+                                and you have write permissions for the file",
+                        ),
+                })?;
+            write!(file, "{self}")
+                .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
+            println!("Wrote to file: {path_display}");
             Ok(())
         } else {
             print!("{self}");
@@ -180,18 +200,18 @@ impl Cli {
 
     fn check_existing(&self, name: &str) -> eyre::Result<()> {
         #[cfg(unix)]
-        if !self.skip_check_existing {
+        if !self.skip_services_check {
             if let Ok(unit_files) = systemd_dbus::unit_files() {
                 let Commands::Podman { command } = &self.command;
                 let service = command.name_to_service(name);
                 for systemd_dbus::UnitFile { file_name, status } in unit_files {
-                    if file_name.contains(&service) {
+                    if !(self.overwrite && status == "generated") && file_name.contains(&service) {
                         return Err(eyre::eyre!(
                             "File name `{name}` conflicts with existing unit file: {file_name}"
                         )
                         .suggestion(
                             "Change the generated file's name with `--file` or `--name`. \
-                                Alternatively, use the `--skip-check-existing` option if this is ok",
+                                Alternatively, use `--skip-services-check` if this is ok.",
                         ));
                     }
                 }
