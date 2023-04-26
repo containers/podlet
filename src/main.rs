@@ -17,6 +17,7 @@
 #![allow(clippy::multiple_crate_versions)]
 
 mod cli;
+mod quadlet;
 
 use clap::Parser;
 use color_eyre::eyre;

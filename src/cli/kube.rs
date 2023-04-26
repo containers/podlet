@@ -1,4 +1,10 @@
-use std::{convert::Infallible, ffi::OsStr, fmt::Display, path::PathBuf, str::FromStr};
+use std::{
+    convert::Infallible,
+    ffi::OsStr,
+    fmt::{self, Display, Formatter},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use clap::{Args, Subcommand};
 use url::Url;
@@ -19,11 +25,16 @@ pub enum Kube {
     },
 }
 
-impl Display for Kube {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self::Play { play } = self;
-        writeln!(f, "[Kube]")?;
-        write!(f, "{play}")
+impl From<Kube> for crate::quadlet::Kube {
+    fn from(value: Kube) -> Self {
+        let Kube::Play { play } = value;
+        play.into()
+    }
+}
+
+impl From<Kube> for crate::quadlet::Resource {
+    fn from(value: Kube) -> Self {
+        crate::quadlet::Kube::from(value).into()
     }
 }
 
@@ -43,7 +54,7 @@ pub struct Play {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "PATH", value_delimiter = ',')]
-    configmap: Vec<String>,
+    configmap: Vec<PathBuf>,
 
     /// Set logging driver for the pod
     ///
@@ -79,31 +90,16 @@ pub struct Play {
     file: File,
 }
 
-impl Display for Play {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Yaml={}", self.file)?;
-
-        for configmap in &self.configmap {
-            writeln!(f, "ConfigMap={configmap}")?;
+impl From<Play> for crate::quadlet::Kube {
+    fn from(value: Play) -> Self {
+        Self {
+            config_map: value.configmap,
+            log_driver: value.log_driver,
+            network: value.network,
+            publish_port: value.publish,
+            user_ns: value.userns,
+            yaml: value.file.to_string(),
         }
-
-        if let Some(log_driver) = &self.log_driver {
-            writeln!(f, "LogDriver={log_driver}")?;
-        }
-
-        for network in &self.network {
-            writeln!(f, "Network={network}")?;
-        }
-
-        for port in &self.publish {
-            writeln!(f, "PublishPort={port}")?;
-        }
-
-        if let Some(userns) = &self.userns {
-            writeln!(f, "UserNS={userns}")?;
-        }
-
-        Ok(())
     }
 }
 
@@ -123,7 +119,7 @@ impl FromStr for File {
 }
 
 impl Display for File {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Url(url) => write!(f, "{url}"),
             Self::Path(path) => write!(f, "{}", path.display()),

@@ -2,8 +2,8 @@ mod container;
 mod install;
 mod kube;
 mod network;
-mod service;
-mod unit;
+pub mod service;
+pub mod unit;
 mod volume;
 
 #[cfg(unix)]
@@ -13,7 +13,6 @@ use std::{
     borrow::Cow,
     env,
     ffi::OsStr,
-    fmt::Display,
     fs::File,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -24,6 +23,8 @@ use color_eyre::{
     eyre::{self, Context},
     Help, Report,
 };
+
+use crate::quadlet;
 
 use self::{
     container::Container, install::Install, kube::Kube, network::Network, service::Service,
@@ -101,28 +102,24 @@ pub struct Cli {
     command: Commands,
 }
 
-impl Display for Cli {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.unit.is_empty() {
-            writeln!(f, "{}", &self.unit)?;
+impl From<Cli> for quadlet::File {
+    fn from(value: Cli) -> Self {
+        let Commands::Podman { command } = value.command;
+        let service = command.service().cloned();
+        Self {
+            unit: (!value.unit.is_empty()).then_some(value.unit),
+            resource: command.into(),
+            service,
+            install: value.install.install.then(|| value.install.into()),
         }
-
-        let Commands::Podman { command } = &self.command;
-        write!(f, "{command}")?;
-
-        if self.install.install {
-            write!(f, "\n{}", &self.install)?;
-        }
-
-        Ok(())
     }
 }
 
 impl Cli {
-    pub fn print_or_write_file(&self) -> eyre::Result<()> {
+    pub fn print_or_write_file(self) -> eyre::Result<()> {
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
-            let path_display = path.display();
+            let path_display = path.display().to_string();
             let mut file = File::options()
                 .write(true)
                 .create_new(!self.overwrite)
@@ -140,12 +137,12 @@ impl Cli {
                                 and you have write permissions for the file",
                         ),
                 })?;
-            write!(file, "{self}")
+            write!(file, "{}", quadlet::File::from(self))
                 .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
             println!("Wrote to file: {path_display}");
             Ok(())
         } else {
-            print!("{self}");
+            print!("{}", quadlet::File::from(self));
             Ok(())
         }
     }
@@ -278,24 +275,25 @@ enum PodmanCommands {
     },
 }
 
-impl Display for PodmanCommands {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Run { container, service } => {
-                write!(f, "{container}")?;
-                if !service.is_empty() {
-                    write!(f, "\n{service}")?;
-                }
-                Ok(())
-            }
-            Self::Kube { kube } => write!(f, "{kube}"),
-            Self::Network { network } => write!(f, "{network}"),
-            Self::Volume { volume } => write!(f, "{volume}"),
+impl From<PodmanCommands> for quadlet::Resource {
+    fn from(value: PodmanCommands) -> Self {
+        match value {
+            PodmanCommands::Run { container, .. } => (*container).into(),
+            PodmanCommands::Kube { kube } => kube.into(),
+            PodmanCommands::Network { network } => network.into(),
+            PodmanCommands::Volume { volume } => volume.into(),
         }
     }
 }
 
 impl PodmanCommands {
+    fn service(&self) -> Option<&Service> {
+        match self {
+            Self::Run { service, .. } => (!service.is_empty()).then_some(service),
+            _ => None,
+        }
+    }
+
     /// Returns the name that should be used for the generated file
     fn name(&self) -> &str {
         match self {
@@ -327,20 +325,6 @@ impl PodmanCommands {
             Self::Volume { .. } => "volume",
         }
     }
-}
-
-fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
-    words
-        .into_iter()
-        .map(|word| {
-            if word.contains(' ') {
-                format!("\"{word}\"").into()
-            } else {
-                word.into()
-            }
-        })
-        .collect::<Vec<Cow<_>>>()
-        .join(" ")
 }
 
 #[cfg(test)]

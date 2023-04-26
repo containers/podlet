@@ -2,8 +2,6 @@ mod podman;
 mod quadlet;
 mod security_opt;
 
-use std::fmt::{self, Display, Formatter};
-
 use clap::Args;
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
@@ -39,29 +37,37 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl Display for Container {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Container]")?;
-        writeln!(f, "Image={}", self.image)?;
+impl From<Container> for crate::quadlet::Container {
+    fn from(value: Container) -> Self {
+        let mut podman_args = value.podman_args.to_string();
 
-        write!(f, "{}", self.quadlet_options)?;
-
-        let mut podman_args = self.podman_args.to_string();
-
-        for output in self.security_opt.iter().map(Output::from) {
-            output.write_or_add_arg("--security-opt", f, &mut podman_args)?;
+        let mut security_options = security_opt::QuadletOptions::default();
+        for security_opt in value.security_opt {
+            security_options.add_security_opt(security_opt);
+        }
+        for arg in security_options.podman_args {
+            podman_args += &format!(" --security-opt {arg}");
         }
 
-        if !podman_args.is_empty() {
-            writeln!(f, "PodmanArgs={}", podman_args.trim())?;
+        Self {
+            image: value.image,
+            no_new_privileges: security_options.no_new_privileges,
+            seccomp_profile: security_options.seccomp_profile,
+            security_label_disable: security_options.security_label_disable,
+            security_label_file_type: security_options.security_label_file_type,
+            security_label_level: security_options.security_label_level,
+            security_label_type: security_options.security_label_type,
+            podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
+            exec: (!value.command.is_empty())
+                .then(|| shlex::join(value.command.iter().map(String::as_str))),
+            ..value.quadlet_options.into()
         }
+    }
+}
 
-        if !self.command.is_empty() {
-            let command = shlex::join(self.command.iter().map(String::as_str));
-            writeln!(f, "Exec={command}")?;
-        }
-
-        Ok(())
+impl From<Container> for crate::quadlet::Resource {
+    fn from(value: Container) -> Self {
+        crate::quadlet::Container::from(value).into()
     }
 }
 
@@ -76,29 +82,6 @@ impl Container {
             // Remove image tag
             image.split_once(':').map_or(image, |(name, _)| name)
         })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum Output {
-    QuadletOptions(String),
-    PodmanArg(String),
-}
-
-impl Output {
-    fn write_or_add_arg(
-        &self,
-        arg: &str,
-        f: &mut Formatter,
-        args: &mut String,
-    ) -> Result<(), fmt::Error> {
-        match self {
-            Output::QuadletOptions(options) => writeln!(f, "{options}"),
-            Output::PodmanArg(arg_value) => {
-                *args += &format!(" {arg} {arg_value}");
-                Ok(())
-            }
-        }
     }
 }
 

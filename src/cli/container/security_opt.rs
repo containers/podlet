@@ -2,8 +2,6 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use super::Output;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum SecurityOpt {
     Apparmor(String),
@@ -58,30 +56,6 @@ pub enum ParseSecurityOptError {
     InvalidSecurityOpt(String),
 }
 
-impl From<SecurityOpt> for Output {
-    fn from(value: SecurityOpt) -> Self {
-        (&value).into()
-    }
-}
-
-impl From<&SecurityOpt> for Output {
-    fn from(value: &SecurityOpt) -> Self {
-        match value {
-            SecurityOpt::Apparmor(policy) => Self::PodmanArg(format!("apparmor={policy}")),
-            SecurityOpt::Label(label_opt) => Self::from(label_opt),
-            SecurityOpt::Mask(mask) => Self::PodmanArg(format!("mask={mask}")),
-            SecurityOpt::NoNewPrivileges => {
-                Self::QuadletOptions(String::from("NoNewPrivileges=true"))
-            }
-            SecurityOpt::Seccomp(profile) => {
-                Self::QuadletOptions(format!("SeccompProfile={profile}"))
-            }
-            SecurityOpt::ProcOpts(proc_opts) => Self::PodmanArg(format!("proc-opts={proc_opts}")),
-            SecurityOpt::Unmask(unmask) => Self::PodmanArg(format!("unmask={unmask}")),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum LabelOpt {
     User(String),
@@ -129,26 +103,41 @@ impl FromStr for LabelOpt {
 #[error("`{0}` is not a valid label option")]
 pub struct InvalidLabelOpt(pub String);
 
-impl From<LabelOpt> for Output {
-    fn from(value: LabelOpt) -> Self {
-        (&value).into()
-    }
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct QuadletOptions {
+    pub no_new_privileges: bool,
+    pub seccomp_profile: Option<String>,
+    pub security_label_disable: bool,
+    pub security_label_file_type: Option<String>,
+    pub security_label_level: Option<String>,
+    pub security_label_type: Option<String>,
+    pub podman_args: Vec<String>,
 }
 
-impl From<&LabelOpt> for Output {
-    fn from(value: &LabelOpt) -> Self {
-        match value {
-            LabelOpt::User(user) => Self::PodmanArg(format!("label=user:{user}")),
-            LabelOpt::Role(role) => Self::PodmanArg(format!("label=role:{role}")),
-            LabelOpt::Type(label_type) => {
-                Self::QuadletOptions(format!("SecurityLabelType={label_type}"))
+impl QuadletOptions {
+    pub fn add_security_opt(&mut self, security_opt: SecurityOpt) {
+        match security_opt {
+            SecurityOpt::Apparmor(policy) => self.podman_args.push(format!("apparmor={policy}")),
+            SecurityOpt::Label(label_opt) => self.add_label_opt(label_opt),
+            SecurityOpt::Mask(mask) => self.podman_args.push(format!("mask={mask}")),
+            SecurityOpt::NoNewPrivileges => self.no_new_privileges = true,
+            SecurityOpt::Seccomp(profile) => self.seccomp_profile = Some(profile),
+            SecurityOpt::ProcOpts(proc_opts) => {
+                self.podman_args.push(format!("proc-opts={proc_opts}"));
             }
-            LabelOpt::Level(level) => Self::QuadletOptions(format!("SecurityLabelLevel={level}")),
-            LabelOpt::Filetype(filetype) => {
-                Self::QuadletOptions(format!("SecurityLabelFileType={filetype}"))
-            }
-            LabelOpt::Disable => Self::QuadletOptions(String::from("SecurityLabelDisable=true")),
-            LabelOpt::Nested => Self::PodmanArg(String::from("nested")),
+            SecurityOpt::Unmask(unmask) => self.podman_args.push(format!("unmask={unmask}")),
+        }
+    }
+
+    pub fn add_label_opt(&mut self, label_opt: LabelOpt) {
+        match label_opt {
+            LabelOpt::User(user) => self.podman_args.push(format!("label=user:{user}")),
+            LabelOpt::Role(role) => self.podman_args.push(format!("label=role:{role}")),
+            LabelOpt::Type(label_type) => self.security_label_type = Some(label_type),
+            LabelOpt::Level(level) => self.security_label_level = Some(level),
+            LabelOpt::Filetype(file_type) => self.security_label_file_type = Some(file_type),
+            LabelOpt::Disable => self.security_label_disable = true,
+            LabelOpt::Nested => self.podman_args.push(String::from("nested")),
         }
     }
 }

@@ -1,5 +1,5 @@
 use std::{
-    fmt::Display,
+    fmt::{self, Display, Formatter},
     path::{Path, PathBuf},
 };
 
@@ -547,7 +547,7 @@ where
 
 impl Display for PodmanArgs {
     #[allow(clippy::similar_names, clippy::too_many_lines)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let mut args = Vec::with_capacity(self.args_len());
 
         extend_args(&mut args, "--add-host", &self.add_host);

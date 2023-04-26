@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{self, Display, Formatter};
 
 use clap::{Args, ValueEnum};
 
@@ -16,7 +16,7 @@ impl Service {
 }
 
 impl Display for Service {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "[Service]")?;
         if let Some(restart) = self.restart.and_then(|restart| restart.to_possible_value()) {
             writeln!(f, "Restart={}", restart.get_name())?;

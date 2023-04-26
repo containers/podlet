@@ -1,8 +1,9 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    path::PathBuf,
+};
 
 use clap::{Args, ValueEnum};
-
-use crate::cli::escape_spaces_join;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -149,13 +150,13 @@ pub struct QuadletOptions {
     ///
     /// Converts to "IP=IPV4"
     #[arg(long, value_name = "IPV4")]
-    ip: Option<String>,
+    ip: Option<Ipv4Addr>,
 
     /// Specify a static IPv6 address for the container
     ///
     /// Converts to "IP6=IPV6"
     #[arg(long, value_name = "IPV6")]
-    ip6: Option<String>,
+    ip6: Option<Ipv6Addr>,
 
     /// Set one or more OCI labels on the container
     ///
@@ -282,167 +283,73 @@ impl Default for Notify {
     }
 }
 
-impl Display for QuadletOptions {
-    #[allow(clippy::too_many_lines)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.cap_add.is_empty() {
-            writeln!(f, "AddCapability={}", self.cap_add.join(" "))?;
-        }
-
-        for device in &self.device {
-            writeln!(f, "AddDevice={device}")?;
-        }
-
-        if !self.annotation.is_empty() {
-            writeln!(f, "Annotation={}", escape_spaces_join(&self.annotation))?;
-        }
-
-        if let Some(name) = &self.name {
-            writeln!(f, "ContainerName={name}")?;
-        }
-
-        if !self.cap_drop.is_empty() {
-            writeln!(f, "DropCapability={}", self.cap_drop.join(" "))?;
-        }
-
-        if !self.env.is_empty() {
-            writeln!(f, "Environment={}", escape_spaces_join(&self.env))?;
-        }
-
-        for file in &self.env_file {
-            writeln!(f, "EnvironmentFile={}", file.display())?;
-        }
-
-        if self.env_host {
-            writeln!(f, "EnvironmentHost=true")?;
-        }
-
-        for port in &self.expose {
-            writeln!(f, "ExposeHostPort={port}")?;
-        }
-
-        if let Some(command) = &self.health_cmd {
-            writeln!(f, "HealthCmd={command}")?;
-        }
-
-        if let Some(interval) = &self.health_interval {
-            writeln!(f, "HealthInterval={interval}")?;
-        }
-
-        if let Some(action) = &self.health_on_failure {
-            writeln!(f, "HealthOnFailure={action}")?;
-        }
-
-        if let Some(retries) = &self.health_retries {
-            writeln!(f, "HealthRetries={retries}")?;
-        }
-
-        if let Some(period) = &self.health_start_period {
-            writeln!(f, "HealthStartPeriod={period}")?;
-        }
-
-        if let Some(command) = &self.health_startup_cmd {
-            writeln!(f, "HealthStartupCmd={command}")?;
-        }
-
-        if let Some(interval) = &self.health_startup_interval {
-            writeln!(f, "HealthStartupInterval={interval}")?;
-        }
-
-        if let Some(retries) = &self.health_startup_retries {
-            writeln!(f, "HealthStartupRetries={retries}")?;
-        }
-
-        if let Some(retries) = &self.health_startup_success {
-            writeln!(f, "HealthStartupSuccess={retries}")?;
-        }
-
-        if let Some(timeout) = &self.health_startup_timeout {
-            writeln!(f, "HealthStartupTimeout={timeout}")?;
-        }
-
-        if let Some(timeout) = &self.health_timeout {
-            writeln!(f, "HealthTimeout={timeout}")?;
-        }
-
-        if let Some(ip) = &self.ip {
-            writeln!(f, "IP={ip}")?;
-        }
-
-        if let Some(ip6) = &self.ip6 {
-            writeln!(f, "IP6={ip6}")?;
-        }
-
-        if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
-        }
-
-        if let Some(log_driver) = &self.log_driver {
-            writeln!(f, "LogDriver={log_driver}")?;
-        }
-
-        for mount in &self.mount {
-            writeln!(f, "Mount={mount}")?;
-        }
-
-        for network in &self.network {
-            writeln!(f, "Network={network}")?;
-        }
-
-        match self.sdnotify {
-            Notify::Conmon => Ok(()),
-            Notify::Container => writeln!(f, "Notify=true"),
-        }?;
-
-        if let Some(rootfs) = &self.rootfs {
-            writeln!(f, "Rootfs={rootfs}")?;
-        }
-
-        for port in &self.publish {
-            writeln!(f, "PublishPort={port}")?;
-        }
-
-        if self.read_only {
-            writeln!(f, "ReadOnly=true")?;
-        }
-
-        if self.init {
-            writeln!(f, "RunInit=true")?;
-        }
-
-        for secret in &self.secret {
-            writeln!(f, "Secret={secret}")?;
-        }
-
-        for tmpfs in &self.tmpfs {
-            if tmpfs == "/tmp" {
-                writeln!(f, "VolatileTmp=true")?;
-            } else {
-                writeln!(f, "Tmpfs={tmpfs}")?;
-            }
-        }
-
-        if let Some(tz) = &self.tz {
-            writeln!(f, "Timezone={tz}")?;
-        }
-
-        if let Some(user) = &self.user {
+impl From<QuadletOptions> for crate::quadlet::Container {
+    fn from(value: QuadletOptions) -> Self {
+        let (user, group) = if let Some(user) = value.user {
             if let Some((uid, gid)) = user.split_once(':') {
-                writeln!(f, "User={uid}")?;
-                writeln!(f, "Group={gid}")?;
+                (Some(String::from(uid)), Some(String::from(gid)))
             } else {
-                writeln!(f, "User={user}")?;
+                (Some(user), None)
             }
-        }
+        } else {
+            (None, None)
+        };
 
-        if let Some(userns) = &self.userns {
-            writeln!(f, "UserNS={userns}")?;
-        }
+        let mut tmpfs = value.tmpfs;
+        let mut volatile_tmp = false;
+        tmpfs.retain(|tmpfs| {
+            if tmpfs == "/tmp" {
+                volatile_tmp = true;
+                false
+            } else {
+                true
+            }
+        });
 
-        for volume in &self.volume {
-            writeln!(f, "Volume={volume}")?;
+        Self {
+            add_capability: value.cap_add,
+            add_device: value.device,
+            annotation: value.annotation,
+            container_name: value.name,
+            drop_capability: value.cap_drop,
+            environment: value.env,
+            environment_file: value.env_file,
+            environment_host: value.env_host,
+            expose_host_port: value.expose,
+            group,
+            health_cmd: value.health_cmd,
+            health_interval: value.health_interval,
+            health_on_failure: value.health_on_failure,
+            health_retries: value.health_retries,
+            health_start_period: value.health_start_period,
+            health_startup_cmd: value.health_startup_cmd,
+            health_startup_interval: value.health_startup_interval,
+            health_startup_retries: value.health_startup_retries,
+            health_startup_success: value.health_startup_success,
+            health_startup_timeout: value.health_startup_timeout,
+            health_timeout: value.health_timeout,
+            ip: value.ip,
+            ip6: value.ip6,
+            label: value.label,
+            log_driver: value.log_driver,
+            mount: value.mount,
+            network: value.network,
+            rootfs: value.rootfs,
+            notify: match value.sdnotify {
+                Notify::Conmon => false,
+                Notify::Container => true,
+            },
+            publish_port: value.publish,
+            read_only: value.read_only,
+            run_init: value.init,
+            secret: value.secret,
+            tmpfs,
+            timezone: value.tz,
+            user,
+            user_ns: value.userns,
+            volatile_tmp,
+            volume: value.volume,
+            ..Self::default()
         }
-
-        Ok(())
     }
 }
