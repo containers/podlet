@@ -13,7 +13,9 @@ categories = ["command-line-utilities"]
 [dependencies]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
+docker-compose-types = "0.4.1"
 ipnet = "2.7"
+serde_yaml = "0.9.21"
 shlex = "1.1"
 thiserror = "1.0.40"
 url = "2.3"

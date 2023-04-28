@@ -27,5 +27,5 @@ use self::cli::Cli;
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
 
-    Cli::parse().print_or_write_file()
+    Cli::parse().print_or_write_files()
 }

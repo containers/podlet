@@ -13,15 +13,13 @@ use std::{
     borrow::Cow,
     env,
     ffi::OsStr,
-    fs::File,
-    io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
     eyre::{self, Context},
-    Help, Report,
+    Help,
 };
 
 use crate::quadlet;
@@ -33,7 +31,7 @@ use self::{
 
 #[allow(clippy::option_option)]
 #[derive(Parser, Debug, Clone, PartialEq)]
-#[command(author, version, about)]
+#[command(author, version, about, subcommand_precedence_over_arg = true)]
 pub struct Cli {
     /// Generate a file instead of printing to stdout
     ///
@@ -102,54 +100,74 @@ pub struct Cli {
     command: Commands,
 }
 
-impl From<Cli> for quadlet::File {
-    fn from(value: Cli) -> Self {
-        let Commands::Podman { command } = value.command;
-        let service = command.service().cloned();
-        Self {
-            unit: (!value.unit.is_empty()).then_some(value.unit),
-            resource: command.into(),
-            service,
-            install: value.install.install.then(|| value.install.into()),
-        }
-    }
-}
-
 impl Cli {
-    pub fn print_or_write_file(self) -> eyre::Result<()> {
+    pub fn print_or_write_files(self) -> eyre::Result<()> {
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
-            let path_display = path.display().to_string();
-            let mut file = File::options()
-                .write(true)
-                .create_new(!self.overwrite)
-                .create(self.overwrite)
-                .open(&path)
-                .map_err(|error| match error.kind() {
-                    io::ErrorKind::AlreadyExists => {
-                        eyre::eyre!("File already exists, not overwriting it: {path_display}")
-                            .suggestion("Use `--overwrite` if you wish overwrite existing files.")
+            if matches!(path, FilePath::Full(..))
+                && matches!(self.command, Commands::Compose { .. })
+            {
+                return Err(eyre::eyre!(
+                    "A file path was provided to `--file` and the `compose` command was used"
+                )
+                .suggestion(
+                    "Provide a directory to `--file`. \
+                        `compose` can generate multiple files so a directory is needed.",
+                ));
+            }
+
+            let overwrite = self.overwrite;
+            #[cfg(unix)]
+            let services_check = !self.skip_services_check;
+
+            let quadlet_files = self.into_quadlet_files();
+
+            #[cfg(unix)]
+            if services_check {
+                for file in &quadlet_files {
+                    match &path {
+                        FilePath::Full(path) => {
+                            if let Some(name) = path.file_stem().and_then(OsStr::to_str) {
+                                let service = file.resource.name_to_service(name);
+                                check_existing(name, &service, overwrite)?;
+                            }
+                        }
+                        FilePath::Dir(_) => {
+                            check_existing(&file.name, &file.service_name(), overwrite)?;
+                        }
                     }
-                    _ => Report::new(error)
-                        .wrap_err(format!("Failed to create/open file: {path_display}"))
-                        .suggestion(
-                            "Make sure the directory exists \
-                                and you have write permissions for the file",
-                        ),
-                })?;
-            write!(file, "{}", quadlet::File::from(self))
-                .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
-            println!("Wrote to file: {path_display}");
+                }
+            }
+
+            for file in quadlet_files {
+                let path: Cow<Path> = match &path {
+                    FilePath::Full(path) => path.into(),
+                    FilePath::Dir(path) => {
+                        let mut path = path.clone();
+                        path.push(&file.name);
+                        path.set_extension(file.resource.extension());
+                        path.into()
+                    }
+                };
+                file.write(&path, overwrite)?;
+            }
+
             Ok(())
         } else {
-            print!("{}", quadlet::File::from(self));
+            let quadlet_files = self
+                .into_quadlet_files()
+                .into_iter()
+                .map(|file| format!("# {}.{}\n{file}", file.name, file.resource.extension()))
+                .collect::<Vec<_>>()
+                .join("\n---\n");
+            print!("{quadlet_files}");
             Ok(())
         }
     }
 
     /// Returns the file path for the generated file
-    fn file_path(&self) -> eyre::Result<Cow<Path>> {
-        let mut path = if self.unit_directory {
+    fn file_path(&self) -> eyre::Result<FilePath> {
+        let path = if self.unit_directory {
             #[cfg(unix)]
             if nix::unistd::Uid::current().is_root() {
                 let path = PathBuf::from("/etc/containers/systemd/");
@@ -175,48 +193,40 @@ impl Cli {
             if path.is_dir() {
                 path.clone()
             } else {
-                if let Some(name) = path.file_stem().and_then(OsStr::to_str) {
-                    self.check_existing(name)?;
-                }
-                return Ok(path.into());
+                return Ok(FilePath::Full(path.clone()));
             }
         } else {
             env::current_dir()
                 .wrap_err("File path not provided and can't access current directory")?
         };
 
-        let Commands::Podman { command } = &self.command;
-        let name = self.name.as_deref().unwrap_or_else(|| command.name());
-        self.check_existing(name)?;
-
-        path.push(name);
-        path.set_extension(command.extension());
-
-        Ok(path.into())
+        Ok(FilePath::Dir(path))
     }
 
-    fn check_existing(&self, name: &str) -> eyre::Result<()> {
-        #[cfg(unix)]
-        if !self.skip_services_check {
-            if let Ok(unit_files) = systemd_dbus::unit_files() {
-                let Commands::Podman { command } = &self.command;
-                let service = command.name_to_service(name);
-                for systemd_dbus::UnitFile { file_name, status } in unit_files {
-                    if !(self.overwrite && status == "generated") && file_name.contains(&service) {
-                        return Err(eyre::eyre!(
-                            "File name `{name}` conflicts with existing unit file: {file_name}"
-                        )
-                        .suggestion(
-                            "Change the generated file's name with `--file` or `--name`. \
-                                Alternatively, use `--skip-services-check` if this is ok.",
-                        ));
-                    }
-                }
+    fn into_quadlet_files(self) -> Vec<quadlet::File> {
+        let unit = (!self.unit.is_empty()).then_some(self.unit);
+        let install = self.install.install.then(|| self.install.into());
+        match self.command {
+            Commands::Podman { command } => {
+                let service = command.service().cloned();
+                let file = quadlet::File {
+                    name: self.name.unwrap_or_else(|| String::from(command.name())),
+                    unit,
+                    resource: command.into(),
+                    service,
+                    install,
+                };
+                vec![file]
             }
+            Commands::Compose { pod, compose_file } => todo!(),
         }
-
-        Ok(())
     }
+}
+
+#[derive(Debug)]
+enum FilePath {
+    Full(PathBuf),
+    Dir(PathBuf),
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -225,6 +235,32 @@ enum Commands {
     Podman {
         #[command(subcommand)]
         command: PodmanCommands,
+    },
+
+    /// Generate podman quadlet files from a compose file
+    ///
+    /// Creates a `.container` file for each service,
+    /// a `.volume` file for each volume,
+    /// and a `.network` file for each network.
+    ///
+    /// The `--file` option must be a directory if used.
+    ///
+    /// Some compose options are not supported, such as `build`.
+    ///
+    /// When podlet encounters an unsupported option, a warning will be emitted on stderr.
+    Compose {
+        /// Create a Kubernetes YAML file for a pod instead of separate containers
+        ///
+        /// A `.kube` file using the generated Kubernetes YAML file will also be created.
+        #[arg(long)]
+        pod: Option<String>,
+
+        /// The compose file to convert
+        ///
+        /// If not provided, podlet will look for (in order)
+        /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
+        /// in the current working directory.
+        compose_file: Option<PathBuf>,
     },
 }
 
@@ -303,28 +339,25 @@ impl PodmanCommands {
             Self::Volume { volume } => volume.name(),
         }
     }
+}
 
-    /// Takes a file name (no extension) and returns the corresponding service file name
-    /// generated by quadlet
-    fn name_to_service(&self, name: &str) -> String {
-        let mut service = match self {
-            Self::Run { .. } | Self::Kube { .. } => String::from(name),
-            Self::Network { .. } => format!("{name}-network"),
-            Self::Volume { .. } => format!("{name}-volume"),
-        };
-        service.push_str(".service");
-        service
-    }
-
-    /// Returns the extension that should be used for the generated file
-    fn extension(&self) -> &'static str {
-        match self {
-            Self::Run { .. } => "container",
-            Self::Kube { .. } => "kube",
-            Self::Network { .. } => "network",
-            Self::Volume { .. } => "volume",
+#[cfg(unix)]
+fn check_existing(name: &str, service: &str, overwrite: bool) -> eyre::Result<()> {
+    if let Ok(unit_files) = systemd_dbus::unit_files() {
+        for systemd_dbus::UnitFile { file_name, status } in unit_files {
+            if !(overwrite && status == "generated") && file_name.contains(service) {
+                return Err(eyre::eyre!(
+                    "File name `{name}` conflicts with existing unit file: {file_name}"
+                )
+                .suggestion(
+                    "Change the generated file's name with `--file` or `--name`. \
+                                Alternatively, use `--skip-services-check` if this is ok.",
+                ));
+            }
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
