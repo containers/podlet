@@ -127,19 +127,7 @@ impl Cli {
 
             #[cfg(unix)]
             if services_check {
-                for file in &quadlet_files {
-                    match &path {
-                        FilePath::Full(path) => {
-                            if let Some(name) = path.file_stem().and_then(OsStr::to_str) {
-                                let service = file.resource.name_to_service(name);
-                                check_existing(name, &service, overwrite)?;
-                            }
-                        }
-                        FilePath::Dir(_) => {
-                            check_existing(&file.name, &file.service_name(), overwrite)?;
-                        }
-                    }
-                }
+                check_existing(&quadlet_files, &path, overwrite)?;
             }
 
             for file in quadlet_files {
@@ -460,17 +448,33 @@ fn image_to_name(image: &str) -> &str {
 }
 
 #[cfg(unix)]
-fn check_existing(name: &str, service: &str, overwrite: bool) -> eyre::Result<()> {
-    if let Ok(unit_files) = systemd_dbus::unit_files() {
+fn check_existing(
+    quadlet_files: &[quadlet::File],
+    path: &FilePath,
+    overwrite: bool,
+) -> eyre::Result<()> {
+    if let Ok(unit_files) = systemd_dbus::unit_files().map(Iterator::collect::<Vec<_>>) {
+        let file_names: Vec<_> = quadlet_files
+            .iter()
+            .filter_map(|file| match &path {
+                FilePath::Full(path) => path.file_stem().and_then(OsStr::to_str).map(|name| {
+                    let service = file.resource.name_to_service(name);
+                    (name, service)
+                }),
+                FilePath::Dir(_) => Some((file.name.as_str(), file.service_name())),
+            })
+            .collect();
         for systemd_dbus::UnitFile { file_name, status } in unit_files {
-            if !(overwrite && status == "generated") && file_name.contains(service) {
-                return Err(eyre::eyre!(
-                    "File name `{name}` conflicts with existing unit file: {file_name}"
-                )
-                .suggestion(
-                    "Change the generated file's name with `--file` or `--name`. \
+            for (name, service) in &file_names {
+                if !(overwrite && status == "generated") && file_name.contains(service) {
+                    return Err(eyre::eyre!(
+                        "File name `{name}` conflicts with existing unit file: {file_name}"
+                    )
+                    .suggestion(
+                        "Change the generated file's name with `--file` or `--name`. \
                                 Alternatively, use `--skip-services-check` if this is ok.",
-                ));
+                    ));
+                }
             }
         }
     }
