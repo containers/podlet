@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::{ArgAction, Args};
+use color_eyre::eyre::Context;
 
 #[allow(clippy::struct_excessive_bools, clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -150,7 +151,7 @@ pub struct PodmanArgs {
 
     /// Set custom DNS servers
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Option<String>,
+    dns: Vec<String>,
 
     /// Set custom DNS options
     #[arg(long, value_name = "OPTION")]
@@ -468,7 +469,7 @@ impl PodmanArgs {
             + self.device_read_iops.len()
             + self.device_write_bps.len()
             + self.device_write_iops.len()
-            + self.dns.iter().len()
+            + self.dns.len()
             + self.dns_option.iter().len()
             + self.dns_search.iter().len()
             + self.entrypoint.iter().len()
@@ -792,5 +793,80 @@ impl Display for PodmanArgs {
         debug_assert_eq!(args.len(), self.args_len());
 
         write!(f, "{}", shlex::join(args))
+    }
+}
+
+impl TryFrom<docker_compose_types::Service> for PodmanArgs {
+    type Error = color_eyre::Report;
+
+    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+        (&mut value).try_into()
+    }
+}
+
+impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
+        let ulimit = value.ulimits.take().map(|ulimits| {
+            let docker_compose_types::Ulimits {
+                nofile: docker_compose_types::Nofile { soft, hard },
+            } = ulimits;
+            if hard == 0 {
+                format!("nofile={soft}")
+            } else {
+                format!("nofile={soft}:{hard}")
+            }
+        });
+
+        let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
+            docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
+            docker_compose_types::Entrypoint::List(list) => format!("{list:?}"),
+        });
+
+        let stop_timeout = value
+            .stop_grace_period
+            .take()
+            .map(|timeout| {
+                duration_str::parse(&timeout)
+                    .map(|duration| duration.as_secs().try_into().unwrap_or(u16::MAX))
+                    .wrap_err_with(|| {
+                        format!(
+                            "could not parse `stop_grace_period` value `{timeout}` as a duration"
+                        )
+                    })
+            })
+            .transpose()?;
+
+        let log_opt = value
+            .logging
+            .as_mut()
+            .and_then(|logging| {
+                logging
+                    .options
+                    .take()
+                    .map(|options| format!("max-size={}", options.max_size))
+            })
+            .into_iter()
+            .collect();
+
+        Ok(Self {
+            hostname: value.hostname.take(),
+            privileged: value.privileged,
+            pid: value.pid.take(),
+            ulimit,
+            entrypoint,
+            stop_signal: value.stop_signal.take(),
+            stop_timeout,
+            dns: value.dns.take().unwrap_or_default(),
+            ipc: value.ipc.take(),
+            workdir: value.working_dir.take().map(Into::into),
+            interactive: value.stdin_open,
+            shm_size: value.shm_size.take(),
+            log_opt,
+            add_host: value.extra_hosts.take().unwrap_or_default(),
+            tty: value.tty.take().unwrap_or_default(),
+            ..Self::default()
+        })
     }
 }

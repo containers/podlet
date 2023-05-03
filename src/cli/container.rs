@@ -3,8 +3,10 @@ mod quadlet;
 mod security_opt;
 
 use clap::Args;
+use color_eyre::eyre;
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
+use super::image_to_name;
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
@@ -35,6 +37,49 @@ pub struct Container {
     /// Converts to "Exec=COMMAND..."
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     command: Vec<String>,
+}
+
+impl TryFrom<docker_compose_types::Service> for Container {
+    type Error = color_eyre::Report;
+
+    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+        let unsupported_options = [
+            ("deploy", value.deploy.is_some()),
+            ("build", value.build_.is_some()),
+            ("profiles", value.profiles.is_some()),
+            ("links", value.links.is_some()),
+            ("net", value.net.is_some()),
+            ("volumes_from", !value.volumes_from.is_empty()),
+            ("extends", value.extends.is_some()),
+            ("scale", value.scale != 0),
+        ];
+        for (option, exists) in unsupported_options {
+            if exists {
+                return Err(unsupported_option(option));
+            }
+        }
+        if !value.extensions.is_empty() {
+            return Err(eyre::eyre!("compose extensions are not supported"));
+        }
+
+        Ok(Self {
+            quadlet_options: (&mut value).try_into()?,
+            podman_args: (&mut value).try_into()?,
+            security_opt: Vec::new(),
+            image: value.image.ok_or(eyre::eyre!("image is required"))?,
+            command: value
+                .command
+                .map(|command| match command {
+                    docker_compose_types::Command::Simple(s) => vec![s],
+                    docker_compose_types::Command::Args(args) => args,
+                })
+                .unwrap_or_default(),
+        })
+    }
+}
+
+fn unsupported_option(option: &str) -> color_eyre::Report {
+    eyre::eyre!("`{option}` is unsupported")
 }
 
 impl From<Container> for crate::quadlet::Container {
@@ -73,15 +118,10 @@ impl From<Container> for crate::quadlet::Resource {
 
 impl Container {
     pub fn name(&self) -> &str {
-        self.quadlet_options.name.as_deref().unwrap_or_else(|| {
-            let image = self
-                .image
-                .rsplit('/')
-                .next()
-                .expect("Split will have at least one element");
-            // Remove image tag
-            image.split_once(':').map_or(image, |(name, _)| name)
-        })
+        self.quadlet_options
+            .name
+            .as_deref()
+            .unwrap_or_else(|| image_to_name(&self.image))
     }
 }
 

@@ -23,7 +23,7 @@ pub struct Container {
     pub health_cmd: Option<String>,
     pub health_interval: Option<String>,
     pub health_on_failure: Option<String>,
-    pub health_retries: Option<u16>,
+    pub health_retries: Option<u32>,
     pub health_start_period: Option<String>,
     pub health_startup_cmd: Option<String>,
     pub health_startup_interval: Option<String>,

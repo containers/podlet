@@ -5,6 +5,8 @@ use std::{
 
 use clap::{Args, ValueEnum};
 
+use super::unsupported_option;
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
@@ -102,7 +104,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "HealthRetries=RETRIES"
     #[arg(long, value_name = "RETRIES")]
-    health_retries: Option<u16>,
+    health_retries: Option<u32>,
 
     /// The initialization time needed for the container to bootstrap
     ///
@@ -351,5 +353,255 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             volume: value.volume,
             ..Self::default()
         }
+    }
+}
+
+impl TryFrom<docker_compose_types::Service> for QuadletOptions {
+    type Error = color_eyre::Report;
+
+    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+        (&mut value).try_into()
+    }
+}
+
+impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
+        let Healthcheck {
+            health_cmd,
+            health_interval,
+            health_timeout,
+            health_retries,
+            health_start_period,
+        } = value
+            .healthcheck
+            .take()
+            .map(Healthcheck::from)
+            .unwrap_or_default();
+
+        let env = value
+            .environment
+            .take()
+            .map(|env| match env {
+                docker_compose_types::Environment::List(list) => list,
+                docker_compose_types::Environment::KvPair(map) => map
+                    .into_iter()
+                    .map(|(key, value)| {
+                        let value = value
+                            .map(|value| match value {
+                                docker_compose_types::EnvTypes::String(string) => string,
+                                docker_compose_types::EnvTypes::Number(num) => num.to_string(),
+                                docker_compose_types::EnvTypes::Bool(bool) => bool.to_string(),
+                                docker_compose_types::EnvTypes::Null => String::new(),
+                            })
+                            .unwrap_or_default();
+                        format!("{key}={value}")
+                    })
+                    .collect(),
+            })
+            .unwrap_or_default();
+
+        let network = value
+            .network_mode
+            .take()
+            .map(|mode| match mode.as_str() {
+                "bridge" | "host" | "none" => Ok(mode),
+                s if s.starts_with("container") => Ok(mode),
+                _ => Err(unsupported_option(&format!("network_mode: {mode}"))),
+            })
+            .into_iter()
+            .chain(
+                value
+                    .networks
+                    .take()
+                    .map(map_networks)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(Ok),
+            )
+            .collect::<Result<_, _>>()?;
+
+        let label = value
+            .labels
+            .take()
+            .map(|labels| {
+                labels
+                    .0
+                    .into_iter()
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut tmpfs = Vec::new();
+
+        let volume = value
+            .volumes
+            .take()
+            .map(|volumes| volumes_to_short(volumes, &mut tmpfs))
+            .unwrap_or_default();
+
+        let env_file = value
+            .env_file
+            .take()
+            .map(|env_file| match env_file {
+                docker_compose_types::EnvFile::Simple(s) => vec![s.into()],
+                docker_compose_types::EnvFile::List(list) => {
+                    list.into_iter().map(Into::into).collect()
+                }
+            })
+            .unwrap_or_default();
+
+        Ok(Self {
+            cap_add: value.cap_add.take().unwrap_or_default(),
+            name: value.container_name.take(),
+            publish: value.ports.take().unwrap_or_default(),
+            env,
+            env_file,
+            network,
+            device: value.devices.take().unwrap_or_default(),
+            label,
+            health_cmd,
+            health_interval,
+            health_retries,
+            health_start_period,
+            health_timeout,
+            tmpfs,
+            user: value.user.take(),
+            expose: value.expose.drain(..).collect(),
+            log_driver: value.logging.as_ref().map(|logging| logging.driver.clone()),
+            init: value.init,
+            volume,
+            ..Self::default()
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+struct Healthcheck {
+    health_cmd: Option<String>,
+    health_interval: Option<String>,
+    health_timeout: Option<String>,
+    health_retries: Option<u32>,
+    health_start_period: Option<String>,
+}
+
+impl From<docker_compose_types::Healthcheck> for Healthcheck {
+    fn from(value: docker_compose_types::Healthcheck) -> Self {
+        let docker_compose_types::Healthcheck {
+            test,
+            interval,
+            timeout,
+            retries,
+            start_period,
+            mut disable,
+        } = value;
+
+        let mut command = test.and_then(|test| match test {
+            docker_compose_types::HealthcheckTest::Single(s) => Some(s),
+            docker_compose_types::HealthcheckTest::Multiple(test) => {
+                match test.first().map(String::as_str) {
+                    Some("NONE") => {
+                        disable = true;
+                        None
+                    }
+                    Some("CMD") => Some(format!("{:?}", &test[1..])),
+                    Some("CMD-SHELL") => Some(shlex::join(test[1..].iter().map(String::as_str))),
+                    _ => None,
+                }
+            }
+        });
+
+        if disable {
+            command = Some(String::from("none"));
+        }
+
+        let retries = (retries > 0).then(|| u32::try_from(retries).unwrap_or_default());
+        Self {
+            health_cmd: command,
+            health_interval: interval,
+            health_timeout: timeout,
+            health_retries: retries,
+            health_start_period: start_period,
+        }
+    }
+}
+
+fn volumes_to_short(
+    volumes: docker_compose_types::Volumes,
+    tmpfs: &mut Vec<String>,
+) -> Vec<String> {
+    match volumes {
+        docker_compose_types::Volumes::Simple(volumes) => volumes
+            .into_iter()
+            .map(|volume| match volume.split_once(':') {
+                Some((source, target)) if !source.starts_with(['.', '/', '~']) => {
+                    format!("{source}.volume:{target}")
+                }
+                _ => volume,
+            })
+            .collect(),
+        docker_compose_types::Volumes::Advanced(volumes) => volumes
+            .into_iter()
+            .filter_map(|volume| {
+                let docker_compose_types::AdvancedVolumes {
+                    source,
+                    target,
+                    _type: kind,
+                    read_only,
+                    volume,
+                } = volume;
+
+                if kind == "tmpfs" {
+                    tmpfs.push(target);
+                    None
+                } else {
+                    let source = source
+                        .map(|source| {
+                            if kind == "bind" {
+                                source + ":"
+                            } else {
+                                source + ".volume:"
+                            }
+                        })
+                        .unwrap_or_default();
+
+                    let mut options = Vec::new();
+                    if read_only {
+                        options.push("ro");
+                    }
+                    if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
+                        options.push("nocopy");
+                    }
+                    let options = if options.is_empty() {
+                        String::new()
+                    } else {
+                        format!(":{}", options.join(","))
+                    };
+
+                    Some(format!("{source}{target}{options}"))
+                }
+            })
+            .collect(),
+    }
+}
+
+fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
+    match networks {
+        docker_compose_types::Networks::Simple(networks) => networks
+            .into_iter()
+            .map(|network| network + ".network")
+            .collect(),
+        docker_compose_types::Networks::Advanced(networks) => networks
+            .0
+            .into_iter()
+            .map(|(network, settings)| {
+                let options = settings
+                    .map(|settings| format!(":ip={}", settings.ipv4_address))
+                    .unwrap_or_default();
+                format!("{network}.network{options}")
+            })
+            .collect(),
     }
 }

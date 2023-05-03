@@ -51,6 +51,21 @@ impl Unit {
     pub fn is_empty(&self) -> bool {
         *self == Self::default()
     }
+
+    pub fn add_dependencies(&mut self, depends_on: docker_compose_types::DependsOnOptions) {
+        let depends_on = match depends_on {
+            docker_compose_types::DependsOnOptions::Simple(depends_on) => depends_on,
+            docker_compose_types::DependsOnOptions::Conditional(depends_on) => {
+                depends_on.into_keys().collect()
+            }
+        };
+
+        self.requires.extend(
+            depends_on
+                .into_iter()
+                .map(|dependency| dependency + ".service"),
+        );
+    }
 }
 
 impl Display for Unit {
