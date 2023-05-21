@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Display, Formatter},
+    mem,
     path::{Path, PathBuf},
 };
 
@@ -388,8 +389,10 @@ pub struct PodmanArgs {
     subuidname: Option<String>,
 
     /// Configure namespaced kernel parameters at runtime
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "NAME=VALUE")]
-    sysctl: Option<String>,
+    sysctl: Vec<String>,
 
     /// Run container in systemd mode
     ///
@@ -416,8 +419,10 @@ pub struct PodmanArgs {
     uidmap: Vec<String>,
 
     /// Ulimit options
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "OPTION")]
-    ulimit: Option<String>,
+    ulimit: Vec<String>,
 
     /// Set the umask inside the container
     #[arg(long)]
@@ -514,12 +519,12 @@ impl PodmanArgs {
             + self.stop_timeout.iter().len()
             + self.subgidname.iter().len()
             + self.subuidname.iter().len()
-            + self.sysctl.iter().len()
+            + self.sysctl.len()
             + self.systemd.iter().len()
             + self.timeout.iter().len()
             + self.tls_verify.iter().len()
             + self.uidmap.len()
-            + self.ulimit.iter().len()
+            + self.ulimit.len()
             + self.umask.iter().len()
             + self.variant.iter().len()
             + self.volumes_from.len()
@@ -808,16 +813,20 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
     type Error = color_eyre::Report;
 
     fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let ulimit = value.ulimits.take().map(|ulimits| {
-            let docker_compose_types::Ulimits {
-                nofile: docker_compose_types::Nofile { soft, hard },
-            } = ulimits;
-            if hard == 0 {
-                format!("nofile={soft}")
-            } else {
-                format!("nofile={soft}:{hard}")
-            }
-        });
+        let ulimit = mem::take(&mut value.ulimits)
+            .0
+            .into_iter()
+            .map(|(kind, ulimit)| match ulimit {
+                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
+                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
+                    if hard == 0 {
+                        format!("{kind}={soft}")
+                    } else {
+                        format!("{kind}={soft}:{hard}")
+                    }
+                }
+            })
+            .collect();
 
         let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
             docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
@@ -841,14 +850,24 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
         let log_opt = value
             .logging
             .as_mut()
-            .and_then(|logging| {
-                logging
-                    .options
-                    .take()
-                    .map(|options| format!("max-size={}", options.max_size))
-            })
+            .and_then(|logging| logging.options.take())
+            .unwrap_or_default()
             .into_iter()
+            .map(|(key, value)| format!("{key}={value}"))
             .collect();
+
+        let sysctl = match mem::take(&mut value.sysctls) {
+            docker_compose_types::SysCtls::List(vec) => vec,
+            docker_compose_types::SysCtls::Map(map) => map
+                .into_iter()
+                .map(|(key, value)| {
+                    let value = value
+                        .as_ref()
+                        .map_or_else(|| String::from("null"), ToString::to_string);
+                    format!("{key}={value}")
+                })
+                .collect(),
+        };
 
         Ok(Self {
             hostname: value.hostname.take(),
@@ -858,14 +877,15 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             entrypoint,
             stop_signal: value.stop_signal.take(),
             stop_timeout,
-            dns: value.dns.take().unwrap_or_default(),
+            dns: mem::take(&mut value.dns),
             ipc: value.ipc.take(),
             workdir: value.working_dir.take().map(Into::into),
             interactive: value.stdin_open,
             shm_size: value.shm_size.take(),
             log_opt,
-            add_host: value.extra_hosts.take().unwrap_or_default(),
-            tty: value.tty.take().unwrap_or_default(),
+            add_host: mem::take(&mut value.extra_hosts),
+            tty: value.tty,
+            sysctl,
             ..Self::default()
         })
     }

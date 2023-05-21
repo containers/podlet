@@ -14,6 +14,7 @@ use std::{
     env,
     ffi::OsStr,
     fs::File,
+    mem,
     path::{Path, PathBuf},
 };
 
@@ -220,9 +221,9 @@ impl Cli {
                     let mut files = Vec::with_capacity(services.len()); // TODO: add other file types
                     for (name, mut service) in services {
                         let mut unit = unit.clone();
-                        if let Some(depends_on) = service.depends_on.take() {
-                            let unit = unit.get_or_insert(Unit::default());
-                            unit.add_dependencies(depends_on);
+                        if !service.depends_on.is_empty() {
+                            unit.get_or_insert(Unit::default())
+                                .add_dependencies(mem::take(&mut service.depends_on));
                         }
 
                         let command: PodmanCommands = service.try_into().wrap_err_with(|| {
@@ -398,9 +399,13 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
                 break;
             }
         }
-        result.ok_or(eyre::eyre!("A compose file was not provided and none of \
-                        `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
-                        exist in the current directory or could not be read"))?
+        result.ok_or_else(|| {
+            eyre::eyre!(
+                "A compose file was not provided and none of \
+                `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
+                exist in the current directory or could not be read"
+            )
+        })?
     };
 
     serde_yaml::from_reader(compose_file)
@@ -410,27 +415,18 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
 fn compose_services(
     compose: &mut Compose,
 ) -> color_eyre::Result<IndexMap<String, docker_compose_types::Service>> {
-    let mut services: IndexMap<_, _> = compose
-        .services
-        .take()
-        .map(|services| {
-            services
-                .0
-                .into_iter()
-                .map(|(name, service)| {
-                    service
-                        .ok_or_else(|| {
-                            eyre::eyre!(
-                                "Service `{name}` does not have any corresponding options; \
-                                    minimally, `image` is required"
-                            )
-                        })
-                        .map(|service| (name, service))
-                })
-                .collect()
+    let mut services: IndexMap<_, _> = mem::take(&mut compose.services.0)
+        .into_iter()
+        .map(|(name, service)| {
+            let service_name = name.clone();
+            service.map(|service| (name, service)).ok_or_else(|| {
+                eyre::eyre!(
+                    "Service `{service_name}` does not have any corresponding options; \
+                        minimally, `image` is required"
+                )
+            })
         })
-        .transpose()?
-        .unwrap_or_default();
+        .collect::<Result<_, _>>()?;
     if let Some(service) = compose.service.take() {
         services.insert(String::from(image_to_name(service.image())), service);
     }

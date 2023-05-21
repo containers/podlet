@@ -54,10 +54,8 @@ impl Unit {
 
     pub fn add_dependencies(&mut self, depends_on: docker_compose_types::DependsOnOptions) {
         let depends_on = match depends_on {
-            docker_compose_types::DependsOnOptions::Simple(depends_on) => depends_on,
-            docker_compose_types::DependsOnOptions::Conditional(depends_on) => {
-                depends_on.into_keys().collect()
-            }
+            docker_compose_types::DependsOnOptions::Simple(vec) => vec,
+            docker_compose_types::DependsOnOptions::Conditional(map) => map.into_keys().collect(),
         };
 
         self.requires.extend(

@@ -1,9 +1,12 @@
 use std::{
+    mem,
     net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
 };
 
 use clap::{Args, ValueEnum};
+use color_eyre::eyre::{self, Context};
+use docker_compose_types::MapOrEmpty;
 
 use super::unsupported_option;
 
@@ -380,27 +383,19 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             .map(Healthcheck::from)
             .unwrap_or_default();
 
-        let env = value
-            .environment
-            .take()
-            .map(|env| match env {
-                docker_compose_types::Environment::List(list) => list,
-                docker_compose_types::Environment::KvPair(map) => map
-                    .into_iter()
-                    .map(|(key, value)| {
-                        let value = value
-                            .map(|value| match value {
-                                docker_compose_types::EnvTypes::String(string) => string,
-                                docker_compose_types::EnvTypes::Number(num) => num.to_string(),
-                                docker_compose_types::EnvTypes::Bool(bool) => bool.to_string(),
-                                docker_compose_types::EnvTypes::Null => String::new(),
-                            })
-                            .unwrap_or_default();
-                        format!("{key}={value}")
-                    })
-                    .collect(),
-            })
-            .unwrap_or_default();
+        let publish =
+            ports_try_into_publish(mem::take(&mut value.ports)).wrap_err("invalid port")?;
+
+        let env = match mem::take(&mut value.environment) {
+            docker_compose_types::Environment::List(list) => list,
+            docker_compose_types::Environment::KvPair(map) => map
+                .into_iter()
+                .map(|(key, value)| {
+                    let value = value.as_ref().map(ToString::to_string).unwrap_or_default();
+                    format!("{key}={value}")
+                })
+                .collect(),
+        };
 
         let network = value
             .network_mode
@@ -410,37 +405,32 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
                 s if s.starts_with("container") => Ok(mode),
                 _ => Err(unsupported_option(&format!("network_mode: {mode}"))),
             })
+            .transpose()?
             .into_iter()
-            .chain(
-                value
-                    .networks
-                    .take()
-                    .map(map_networks)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(Ok),
-            )
-            .collect::<Result<_, _>>()?;
+            .chain(map_networks(mem::take(&mut value.networks)))
+            .collect();
 
-        let label = value
-            .labels
+        let label = match mem::take(&mut value.labels) {
+            docker_compose_types::Labels::List(vec) => vec,
+            docker_compose_types::Labels::Map(map) => map
+                .into_iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .collect(),
+        };
+
+        let mut tmpfs = value
+            .tmpfs
             .take()
-            .map(|labels| {
-                labels
-                    .0
-                    .into_iter()
-                    .map(|(key, value)| format!("{key}={value}"))
-                    .collect()
+            .map(|tmpfs| match tmpfs {
+                docker_compose_types::Tmpfs::Simple(tmpfs) => vec![tmpfs],
+                docker_compose_types::Tmpfs::List(tmpfs) => tmpfs,
             })
             .unwrap_or_default();
 
-        let mut tmpfs = Vec::new();
+        let mut mount = Vec::new();
 
-        let volume = value
-            .volumes
-            .take()
-            .map(|volumes| volumes_to_short(volumes, &mut tmpfs))
-            .unwrap_or_default();
+        let volume = volumes_try_into_short(mem::take(&mut value.volumes), &mut tmpfs, &mut mount)
+            .wrap_err("invalid volume")?;
 
         let env_file = value
             .env_file
@@ -454,13 +444,13 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             .unwrap_or_default();
 
         Ok(Self {
-            cap_add: value.cap_add.take().unwrap_or_default(),
+            cap_add: mem::take(&mut value.cap_add),
             name: value.container_name.take(),
-            publish: value.ports.take().unwrap_or_default(),
+            publish,
             env,
             env_file,
             network,
-            device: value.devices.take().unwrap_or_default(),
+            device: mem::take(&mut value.devices),
             label,
             health_cmd,
             health_interval,
@@ -468,9 +458,13 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             health_start_period,
             health_timeout,
             tmpfs,
+            mount,
             user: value.user.take(),
-            expose: value.expose.drain(..).collect(),
-            log_driver: value.logging.as_ref().map(|logging| logging.driver.clone()),
+            expose: mem::take(&mut value.expose),
+            log_driver: value
+                .logging
+                .as_mut()
+                .map(|logging| mem::take(&mut logging.driver)),
             init: value.init,
             volume,
             ..Self::default()
@@ -528,12 +522,51 @@ impl From<docker_compose_types::Healthcheck> for Healthcheck {
     }
 }
 
-fn volumes_to_short(
+fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Result<Vec<String>> {
+    match ports {
+        docker_compose_types::Ports::Short(ports) => Ok(ports),
+        docker_compose_types::Ports::Long(ports) => ports
+            .into_iter()
+            .map(|port| {
+                let docker_compose_types::Port {
+                    target,
+                    host_ip,
+                    published,
+                    protocol,
+                    mode,
+                } = port;
+                if let Some(mode) = mode {
+                    if mode != "host" {
+                        return Err(eyre::eyre!("unsupported port mode: {mode}"));
+                    }
+                }
+
+                let host_ip = host_ip.map(|host_ip| host_ip + ":").unwrap_or_default();
+
+                let host_port = published
+                        .map(|port| match port {
+                            docker_compose_types::PublishedPort::Single(port) => port.to_string(),
+                            docker_compose_types::PublishedPort::Range(range) => range,
+                        } + ":")
+                        .unwrap_or_default();
+
+                let protocol = protocol
+                    .map(|protocol| format!("/{protocol}"))
+                    .unwrap_or_default();
+
+                Ok(format!("{host_ip}{host_port}{target}{protocol}"))
+            })
+            .collect(),
+    }
+}
+
+fn volumes_try_into_short(
     volumes: docker_compose_types::Volumes,
     tmpfs: &mut Vec<String>,
-) -> Vec<String> {
+    mount: &mut Vec<String>,
+) -> color_eyre::Result<Vec<String>> {
     match volumes {
-        docker_compose_types::Volumes::Simple(volumes) => volumes
+        docker_compose_types::Volumes::Simple(volumes) => Ok(volumes
             .into_iter()
             .map(|volume| match volume.split_once(':') {
                 Some((source, target)) if !source.starts_with(['.', '/', '~']) => {
@@ -541,7 +574,7 @@ fn volumes_to_short(
                 }
                 _ => volume,
             })
-            .collect(),
+            .collect()),
         docker_compose_types::Volumes::Advanced(volumes) => volumes
             .into_iter()
             .filter_map(|volume| {
@@ -550,37 +583,66 @@ fn volumes_to_short(
                     target,
                     _type: kind,
                     read_only,
+                    bind,
                     volume,
+                    tmpfs: tmpfs_settings,
                 } = volume;
 
-                if kind == "tmpfs" {
-                    tmpfs.push(target);
-                    None
-                } else {
-                    let source = source
-                        .map(|source| {
-                            if kind == "bind" {
-                                source + ":"
-                            } else {
-                                source + ".volume:"
-                            }
-                        })
-                        .unwrap_or_default();
+                match kind.as_str() {
+                    "bind" | "volume" if bind.is_none() => {
+                        let Some(mut source) = source else {
+                            return Some(Err(eyre::eyre!("{kind} mount without a source")));
+                        };
+                        if kind == "volume" {
+                            source += ".volume";
+                        }
+                        source += ":";
 
-                    let mut options = Vec::new();
-                    if read_only {
-                        options.push("ro");
-                    }
-                    if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
-                        options.push("nocopy");
-                    }
-                    let options = if options.is_empty() {
-                        String::new()
-                    } else {
-                        format!(":{}", options.join(","))
-                    };
+                        let mut options = Vec::new();
+                        if read_only {
+                            options.push("ro");
+                        }
+                        if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
+                            options.push("nocopy");
+                        }
+                        let options = if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        };
 
-                    Some(format!("{source}{target}{options}"))
+                        Some(Ok(format!("{source}{target}{options}")))
+                    }
+                    "bind" => {
+                        let Some(source) = source else {
+                            return Some(Err(eyre::eyre!("bind mount without a source")))
+                        };
+                        let read_only = if read_only { ",ro" } else { "" };
+                        let propagation = bind
+                            .map(|bind| format!(",bind-propagation={}", bind.propagation))
+                            .unwrap_or_default();
+                        mount.push(format!(
+                            "type=bind,source={source},destination={target}{read_only}{propagation}"
+                        ));
+                        None
+                    }
+                    "tmpfs" => {
+                        let mut options = Vec::new();
+                        if read_only {
+                            options.push(String::from("ro"));
+                        }
+                        if let Some(docker_compose_types::TmpfsSettings { size }) = tmpfs_settings {
+                            options.push(format!("size={size}"));
+                        }
+                        let options = if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        };
+                        tmpfs.push(format!("{target}{options}"));
+                        None
+                    }
+                    _ => Some(Err(eyre::eyre!("unsupported volume type: {kind}"))),
                 }
             })
             .collect(),
@@ -597,9 +659,28 @@ fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
             .0
             .into_iter()
             .map(|(network, settings)| {
-                let options = settings
-                    .map(|settings| format!(":ip={}", settings.ipv4_address))
-                    .unwrap_or_default();
+                let options =
+                    if let MapOrEmpty::Map(docker_compose_types::AdvancedNetworkSettings {
+                        ipv4_address,
+                        ipv6_address,
+                        aliases,
+                    }) = settings
+                    {
+                        let mut options = Vec::new();
+                        for ip in ipv4_address.into_iter().chain(ipv6_address) {
+                            options.push(format!("ip={ip}"));
+                        }
+                        for alias in aliases {
+                            options.push(format!("alias={alias}"));
+                        }
+                        if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        }
+                    } else {
+                        String::new()
+                    };
                 format!("{network}.network{options}")
             })
             .collect(),

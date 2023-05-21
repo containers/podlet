@@ -2,8 +2,10 @@ mod podman;
 mod quadlet;
 mod security_opt;
 
+use std::mem;
+
 use clap::Args;
-use color_eyre::eyre;
+use color_eyre::eyre::{self, Context};
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 use super::image_to_name;
@@ -46,11 +48,11 @@ impl TryFrom<docker_compose_types::Service> for Container {
         let unsupported_options = [
             ("deploy", value.deploy.is_some()),
             ("build", value.build_.is_some()),
-            ("profiles", value.profiles.is_some()),
-            ("links", value.links.is_some()),
+            ("profiles", !value.profiles.is_empty()),
+            ("links", !value.links.is_empty()),
             ("net", value.net.is_some()),
             ("volumes_from", !value.volumes_from.is_empty()),
-            ("extends", value.extends.is_some()),
+            ("extends", !value.extends.is_empty()),
             ("scale", value.scale != 0),
         ];
         for (option, exists) in unsupported_options {
@@ -62,10 +64,16 @@ impl TryFrom<docker_compose_types::Service> for Container {
             return Err(eyre::eyre!("compose extensions are not supported"));
         }
 
+        let security_opt = mem::take(&mut value.security_opt)
+            .into_iter()
+            .map(|s| s.parse())
+            .collect::<Result<_, _>>()
+            .wrap_err("invalid security option")?;
+
         Ok(Self {
             quadlet_options: (&mut value).try_into()?,
             podman_args: (&mut value).try_into()?,
-            security_opt: Vec::new(),
+            security_opt,
             image: value.image.ok_or(eyre::eyre!("image is required"))?,
             command: value
                 .command
