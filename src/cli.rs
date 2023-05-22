@@ -211,37 +211,16 @@ impl Cli {
                 Ok(vec![file])
             }
             Commands::Compose { pod, compose_file } => {
-                let mut compose = compose_from_file(&compose_file)?;
+                let compose = compose_from_file(&compose_file)?;
 
-                let services = compose_services(&mut compose)?;
+                if !compose.extensions.is_empty() {
+                    eyre::bail!("extensions are not supported");
+                }
 
                 if let Some(pod_name) = pod {
                     todo!();
                 } else {
-                    let mut files = Vec::with_capacity(services.len()); // TODO: add other file types
-                    for (name, mut service) in services {
-                        let mut unit = unit.clone();
-                        if !service.depends_on.is_empty() {
-                            unit.get_or_insert(Unit::default())
-                                .add_dependencies(mem::take(&mut service.depends_on));
-                        }
-
-                        let command: PodmanCommands = service.try_into().wrap_err_with(|| {
-                            format!("Could not parse service `{name}` as a valid podman command")
-                        })?;
-
-                        let service = command.service().cloned();
-
-                        let file = quadlet::File {
-                            name,
-                            unit,
-                            resource: command.into(),
-                            service,
-                            install: install.clone(),
-                        };
-                        files.push(file);
-                    }
-                    Ok(files)
+                    compose_try_into_files(compose, &unit, &install)
                 }
             }
         }
@@ -412,10 +391,63 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
         .wrap_err_with(|| format!("File `{path}` is not a valid compose file"))
 }
 
+fn compose_try_into_files(
+    mut compose: Compose,
+    unit: &Option<Unit>,
+    install: &Option<quadlet::Install>,
+) -> color_eyre::Result<Vec<quadlet::File>> {
+    let services = compose_services(&mut compose)?;
+
+    let mut files = Vec::with_capacity(services.len() + compose.networks.0.len()); // TODO: add other file types
+
+    for (name, mut service) in services {
+        let mut unit = unit.clone();
+        if !service.depends_on.is_empty() {
+            unit.get_or_insert(Unit::default())
+                .add_dependencies(mem::take(&mut service.depends_on));
+        }
+
+        let command: PodmanCommands = service.try_into().wrap_err_with(|| {
+            format!("Could not parse service `{name}` as a valid podman command")
+        })?;
+
+        let service = command.service().cloned();
+
+        files.push(quadlet::File {
+            name,
+            unit,
+            resource: command.into(),
+            service,
+            install: install.clone(),
+        });
+    }
+
+    for (name, network) in compose.networks.0 {
+        let resource = Option::<docker_compose_types::NetworkSettings>::from(network)
+            .map(quadlet::Network::try_from)
+            .transpose()
+            .wrap_err_with(|| {
+                format!("Could not parse network `{name}` as a valid podman network")
+            })?
+            .unwrap_or_default()
+            .into();
+
+        files.push(quadlet::File {
+            name,
+            unit: unit.clone(),
+            resource,
+            service: None,
+            install: install.clone(),
+        });
+    }
+
+    Ok(files)
+}
+
 fn compose_services(
     compose: &mut Compose,
 ) -> color_eyre::Result<IndexMap<String, docker_compose_types::Service>> {
-    let mut services: IndexMap<_, _> = mem::take(&mut compose.services.0)
+    mem::take(&mut compose.services.0)
         .into_iter()
         .map(|(name, service)| {
             let service_name = name.clone();
@@ -426,11 +458,13 @@ fn compose_services(
                 )
             })
         })
-        .collect::<Result<_, _>>()?;
-    if let Some(service) = compose.service.take() {
-        services.insert(String::from(image_to_name(service.image())), service);
-    }
-    Ok(services)
+        .chain(
+            compose
+                .service
+                .take()
+                .map(|service| Ok((String::from(image_to_name(service.image())), service))),
+        )
+        .collect()
 }
 
 /// Takes an image and returns an appropriate default service name
