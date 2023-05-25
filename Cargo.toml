@@ -13,7 +13,7 @@ categories = ["command-line-utilities"]
 [dependencies]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
-docker-compose-types = "0.5"
+docker-compose-types = "0.5.1"
 duration-str = { version = "0.5", default-features = false }
 indexmap = { version = "1.9", features = ["std"] }
 ipnet = "2.7"

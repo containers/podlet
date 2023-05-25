@@ -1,5 +1,9 @@
 use std::fmt::{self, Display, Formatter};
 
+use color_eyre::eyre::{self, Context};
+
+use crate::cli::volume::opt::Opt;
+
 use super::escape_spaces_join;
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -11,6 +15,50 @@ pub struct Volume {
     pub options: Option<String>,
     pub fs_type: Option<String>,
     pub user: Option<String>,
+}
+
+impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: docker_compose_types::ComposeVolume) -> Result<Self, Self::Error> {
+        let unsupported_options = [
+            ("driver", value.driver.is_none()),
+            ("external", value.external.is_none()),
+            ("name", value.name.is_none()),
+        ];
+        for (option, not_present) in unsupported_options {
+            eyre::ensure!(not_present, "`{option}` is not supported");
+        }
+
+        let options: Vec<Opt> = value
+            .driver_opts
+            .into_iter()
+            .map(|(key, value)| {
+                let driver_opt = key.clone();
+                match value {
+                    Some(value) if key != "copy" => format!("{key}={value}"),
+                    _ => key,
+                }
+                .parse()
+                .wrap_err_with(|| {
+                    format!("driver_opt `{driver_opt}` is not a valid podman volume driver option")
+                })
+            })
+            .collect::<Result<_, _>>()?;
+
+        let label = match value.labels {
+            docker_compose_types::Labels::List(labels) => labels,
+            docker_compose_types::Labels::Map(labels) => labels
+                .into_iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .collect(),
+        };
+
+        Ok(Self {
+            label,
+            ..options.into()
+        })
+    }
 }
 
 impl Display for Volume {

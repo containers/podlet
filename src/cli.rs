@@ -4,7 +4,7 @@ mod kube;
 mod network;
 pub mod service;
 pub mod unit;
-mod volume;
+pub mod volume;
 
 #[cfg(unix)]
 mod systemd_dbus;
@@ -316,11 +316,11 @@ enum PodmanCommands {
     },
 }
 
-impl TryFrom<docker_compose_types::Service> for PodmanCommands {
+impl<'a> TryFrom<ComposeService<'a>> for PodmanCommands {
     type Error = color_eyre::Report;
 
-    fn try_from(value: docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let service = (&value).try_into()?;
+    fn try_from(value: ComposeService) -> Result<Self, Self::Error> {
+        let service = (&value.service).try_into()?;
         Ok(Self::Run {
             container: Box::new(value.try_into()?),
             service,
@@ -356,6 +356,12 @@ impl PodmanCommands {
             Self::Volume { volume } => volume.name(),
         }
     }
+}
+
+#[derive(Debug)]
+struct ComposeService<'a> {
+    service: docker_compose_types::Service,
+    volumes: &'a docker_compose_types::TopLevelVolumes,
 }
 
 fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compose> {
@@ -398,7 +404,8 @@ fn compose_try_into_files(
 ) -> color_eyre::Result<Vec<quadlet::File>> {
     let services = compose_services(&mut compose)?;
 
-    let mut files = Vec::with_capacity(services.len() + compose.networks.0.len()); // TODO: add other file types
+    let mut files =
+        Vec::with_capacity(services.len() + compose.networks.0.len() + compose.volumes.0.len());
 
     for (name, mut service) in services {
         let mut unit = unit.clone();
@@ -407,6 +414,10 @@ fn compose_try_into_files(
                 .add_dependencies(mem::take(&mut service.depends_on));
         }
 
+        let service = ComposeService {
+            service,
+            volumes: &compose.volumes,
+        };
         let command: PodmanCommands = service.try_into().wrap_err_with(|| {
             format!("Could not parse service `{name}` as a valid podman command")
         })?;
@@ -439,6 +450,21 @@ fn compose_try_into_files(
             service: None,
             install: install.clone(),
         });
+    }
+
+    for (name, volume) in compose.volumes.0 {
+        if let docker_compose_types::MapOrEmpty::Map(volume) = volume {
+            let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
+                format!("could not parse volume `{name}` as a valid podman volume")
+            })?;
+            files.push(quadlet::File {
+                name,
+                unit: unit.clone(),
+                resource: volume.into(),
+                service: None,
+                install: install.clone(),
+            });
+        }
     }
 
     Ok(files)

@@ -9,6 +9,7 @@ use color_eyre::eyre::{self, Context};
 use docker_compose_types::MapOrEmpty;
 
 use super::unsupported_option;
+use crate::cli::ComposeService;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -359,34 +360,36 @@ impl From<QuadletOptions> for crate::quadlet::Container {
     }
 }
 
-impl TryFrom<docker_compose_types::Service> for QuadletOptions {
+impl<'a> TryFrom<ComposeService<'a>> for QuadletOptions {
     type Error = color_eyre::Report;
 
-    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
         (&mut value).try_into()
     }
 }
 
-impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
+impl<'a> TryFrom<&mut ComposeService<'a>> for QuadletOptions {
     type Error = color_eyre::Report;
 
-    fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
+    fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
+        let service = &mut value.service;
+
         let Healthcheck {
             health_cmd,
             health_interval,
             health_timeout,
             health_retries,
             health_start_period,
-        } = value
+        } = service
             .healthcheck
             .take()
             .map(Healthcheck::from)
             .unwrap_or_default();
 
         let publish =
-            ports_try_into_publish(mem::take(&mut value.ports)).wrap_err("invalid port")?;
+            ports_try_into_publish(mem::take(&mut service.ports)).wrap_err("invalid port")?;
 
-        let env = match mem::take(&mut value.environment) {
+        let env = match mem::take(&mut service.environment) {
             docker_compose_types::Environment::List(list) => list,
             docker_compose_types::Environment::KvPair(map) => map
                 .into_iter()
@@ -397,7 +400,7 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
                 .collect(),
         };
 
-        let network = value
+        let network = service
             .network_mode
             .take()
             .map(|mode| match mode.as_str() {
@@ -407,10 +410,10 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             })
             .transpose()?
             .into_iter()
-            .chain(map_networks(mem::take(&mut value.networks)))
+            .chain(map_networks(mem::take(&mut service.networks)))
             .collect();
 
-        let label = match mem::take(&mut value.labels) {
+        let label = match mem::take(&mut service.labels) {
             docker_compose_types::Labels::List(vec) => vec,
             docker_compose_types::Labels::Map(map) => map
                 .into_iter()
@@ -418,7 +421,7 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
                 .collect(),
         };
 
-        let mut tmpfs = value
+        let mut tmpfs = service
             .tmpfs
             .take()
             .map(|tmpfs| match tmpfs {
@@ -429,10 +432,12 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
 
         let mut mount = Vec::new();
 
-        let volume = volumes_try_into_short(mem::take(&mut value.volumes), &mut tmpfs, &mut mount)
-            .wrap_err("invalid volume")?;
+        let volume =
+            volumes_try_into_short(value, &mut tmpfs, &mut mount).wrap_err("invalid volume")?;
 
-        let env_file = value
+        let service = &mut value.service;
+
+        let env_file = service
             .env_file
             .take()
             .map(|env_file| match env_file {
@@ -444,13 +449,13 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             .unwrap_or_default();
 
         Ok(Self {
-            cap_add: mem::take(&mut value.cap_add),
-            name: value.container_name.take(),
+            cap_add: mem::take(&mut service.cap_add),
+            name: service.container_name.take(),
             publish,
             env,
             env_file,
             network,
-            device: mem::take(&mut value.devices),
+            device: mem::take(&mut service.devices),
             label,
             health_cmd,
             health_interval,
@@ -459,13 +464,13 @@ impl TryFrom<&mut docker_compose_types::Service> for QuadletOptions {
             health_timeout,
             tmpfs,
             mount,
-            user: value.user.take(),
-            expose: mem::take(&mut value.expose),
-            log_driver: value
+            user: service.user.take(),
+            expose: mem::take(&mut service.expose),
+            log_driver: service
                 .logging
                 .as_mut()
                 .map(|logging| mem::take(&mut logging.driver)),
-            init: value.init,
+            init: service.init,
             volume,
             ..Self::default()
         })
@@ -561,15 +566,19 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
 }
 
 fn volumes_try_into_short(
-    volumes: docker_compose_types::Volumes,
+    service: &mut ComposeService,
     tmpfs: &mut Vec<String>,
     mount: &mut Vec<String>,
 ) -> color_eyre::Result<Vec<String>> {
+    let volumes = mem::take(&mut service.service.volumes);
     match volumes {
         docker_compose_types::Volumes::Simple(volumes) => Ok(volumes
             .into_iter()
             .map(|volume| match volume.split_once(':') {
-                Some((source, target)) if !source.starts_with(['.', '/', '~']) => {
+                Some((source, target))
+                    if !source.starts_with(['.', '/', '~'])
+                        && matches!(service.volumes.0.get(source), Some(MapOrEmpty::Map(_))) =>
+                {
                     format!("{source}.volume:{target}")
                 }
                 _ => volume,
@@ -593,7 +602,9 @@ fn volumes_try_into_short(
                         let Some(mut source) = source else {
                             return Some(Err(eyre::eyre!("{kind} mount without a source")));
                         };
-                        if kind == "volume" {
+                        if kind == "volume"
+                            && matches!(service.volumes.0.get(&source), Some(MapOrEmpty::Map(_)))
+                        {
                             source += ".volume";
                         }
                         source += ":";

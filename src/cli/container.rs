@@ -8,7 +8,7 @@ use clap::Args;
 use color_eyre::eyre::{self, Context};
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
-use super::image_to_name;
+use super::{image_to_name, ComposeService};
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
@@ -41,30 +41,31 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl TryFrom<docker_compose_types::Service> for Container {
+impl<'a> TryFrom<ComposeService<'a>> for Container {
     type Error = color_eyre::Report;
 
-    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
+        let service = &value.service;
         let unsupported_options = [
-            ("deploy", value.deploy.is_some()),
-            ("build", value.build_.is_some()),
-            ("profiles", !value.profiles.is_empty()),
-            ("links", !value.links.is_empty()),
-            ("net", value.net.is_some()),
-            ("volumes_from", !value.volumes_from.is_empty()),
-            ("extends", !value.extends.is_empty()),
-            ("scale", value.scale != 0),
+            ("deploy", service.deploy.is_some()),
+            ("build", service.build_.is_some()),
+            ("profiles", !service.profiles.is_empty()),
+            ("links", !service.links.is_empty()),
+            ("net", service.net.is_some()),
+            ("volumes_from", !service.volumes_from.is_empty()),
+            ("extends", !service.extends.is_empty()),
+            ("scale", service.scale != 0),
         ];
         for (option, exists) in unsupported_options {
             if exists {
                 return Err(unsupported_option(option));
             }
         }
-        if !value.extensions.is_empty() {
+        if !service.extensions.is_empty() {
             return Err(eyre::eyre!("compose extensions are not supported"));
         }
 
-        let security_opt = mem::take(&mut value.security_opt)
+        let security_opt = mem::take(&mut value.service.security_opt)
             .into_iter()
             .map(|s| s.parse())
             .collect::<Result<_, _>>()
@@ -72,10 +73,14 @@ impl TryFrom<docker_compose_types::Service> for Container {
 
         Ok(Self {
             quadlet_options: (&mut value).try_into()?,
-            podman_args: (&mut value).try_into()?,
+            podman_args: (&mut value.service).try_into()?,
             security_opt,
-            image: value.image.ok_or(eyre::eyre!("image is required"))?,
+            image: value
+                .service
+                .image
+                .ok_or(eyre::eyre!("image is required"))?,
             command: value
+                .service
                 .command
                 .map(|command| match command {
                     docker_compose_types::Command::Simple(s) => vec![s],

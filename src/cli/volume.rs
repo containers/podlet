@@ -1,4 +1,4 @@
-mod opt;
+pub mod opt;
 
 use clap::{Args, Subcommand};
 
@@ -77,33 +77,9 @@ pub struct Create {
 
 impl From<Create> for crate::quadlet::Volume {
     fn from(value: Create) -> Self {
-        let mut volume = Self {
+        Self {
             label: value.label,
-            ..Self::default()
-        };
-
-        let mut mount_options = Vec::new();
-        for opt in value.opt {
-            match opt {
-                Opt::Type(fs_type) => volume.fs_type = Some(fs_type),
-                Opt::Device(device) => volume.device = Some(device),
-                Opt::Copy => volume.copy = true,
-                Opt::Mount(options) => {
-                    for option in options {
-                        match option {
-                            opt::Mount::Uid(uid) => volume.user = Some(uid),
-                            opt::Mount::Gid(gid) => volume.group = Some(gid),
-                            opt::Mount::Other(option) => mount_options.push(option),
-                        }
-                    }
-                }
-            }
+            ..value.opt.into()
         }
-
-        if !mount_options.is_empty() {
-            volume.options = Some(mount_options.join(","));
-        }
-
-        volume
     }
 }
