@@ -11,11 +11,15 @@ mod systemd_dbus;
 
 use std::{
     borrow::Cow,
+    collections::HashMap,
     env,
     ffi::OsStr,
-    fs::File,
-    mem,
+    fmt::{self, Display},
+    fs,
+    io::{self, Write},
+    iter, mem,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use clap::{Parser, Subcommand};
@@ -23,8 +27,8 @@ use color_eyre::{
     eyre::{self, Context},
     Help,
 };
-use docker_compose_types::Compose;
-use indexmap::IndexMap;
+use docker_compose_types::{Compose, MapOrEmpty};
+use k8s_openapi::api::core::v1::Pod;
 
 use crate::quadlet;
 
@@ -124,19 +128,23 @@ impl Cli {
             #[cfg(unix)]
             let services_check = !self.skip_services_check;
 
-            let quadlet_files = self.into_quadlet_files()?;
+            let files = self.try_into_files()?;
 
             #[cfg(unix)]
             if services_check {
-                check_existing(&quadlet_files, &path, overwrite)?;
+                check_existing(
+                    files.iter().filter_map(File::quadlet_file),
+                    &path,
+                    overwrite,
+                )?;
             }
 
-            for file in quadlet_files {
+            for file in files {
                 let path: Cow<Path> = match &path {
                     FilePath::Full(path) => path.into(),
                     FilePath::Dir(path) => {
-                        let mut path = path.join(&file.name);
-                        path.set_extension(file.resource.extension());
+                        let mut path = path.join(file.name());
+                        path.set_extension(file.extension());
                         path.into()
                     }
                 };
@@ -145,13 +153,13 @@ impl Cli {
 
             Ok(())
         } else {
-            let quadlet_files = self
-                .into_quadlet_files()?
+            let files = self
+                .try_into_files()?
                 .into_iter()
-                .map(|file| format!("# {}.{}\n{file}", file.name, file.resource.extension()))
+                .map(|file| format!("# {}.{}\n{file}", file.name(), file.extension()))
                 .collect::<Vec<_>>()
                 .join("\n---\n\n");
-            print!("{quadlet_files}");
+            print!("{files}");
             Ok(())
         }
     }
@@ -194,7 +202,7 @@ impl Cli {
         Ok(FilePath::Dir(path))
     }
 
-    fn into_quadlet_files(self) -> color_eyre::Result<Vec<quadlet::File>> {
+    fn try_into_files(self) -> color_eyre::Result<Vec<File>> {
         let unit = (!self.unit.is_empty()).then_some(self.unit);
         let install = self.install.install.then(|| self.install.into());
 
@@ -208,7 +216,7 @@ impl Cli {
                     service,
                     install,
                 };
-                Ok(vec![file])
+                Ok(vec![file.into()])
             }
             Commands::Compose { pod, compose_file } => {
                 let compose = compose_from_file(&compose_file)?;
@@ -220,7 +228,9 @@ impl Cli {
                 if let Some(pod_name) = pod {
                     todo!();
                 } else {
-                    compose_try_into_files(compose, &unit, &install)
+                    compose_try_into_quadlet_files(compose, &unit, &install)
+                        .map(|result| result.map(Into::into))
+                        .collect()
                 }
             }
         }
@@ -316,7 +326,7 @@ enum PodmanCommands {
     },
 }
 
-impl<'a> TryFrom<ComposeService<'a>> for PodmanCommands {
+impl TryFrom<ComposeService> for PodmanCommands {
     type Error = color_eyre::Report;
 
     fn try_from(value: ComposeService) -> Result<Self, Self::Error> {
@@ -359,14 +369,102 @@ impl PodmanCommands {
 }
 
 #[derive(Debug)]
-struct ComposeService<'a> {
+#[allow(clippy::large_enum_variant)] // false positive, [Pod] is not zero-sized
+enum File {
+    Quadlet(quadlet::File),
+    KubePod { name: String, pod: Pod },
+}
+
+impl From<quadlet::File> for File {
+    fn from(value: quadlet::File) -> Self {
+        Self::Quadlet(value)
+    }
+}
+
+impl Display for File {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Quadlet(file) => file.fmt(f),
+            Self::KubePod { name: _, pod } => {
+                f.write_str(&serde_yaml::to_string(pod).map_err(|_| fmt::Error)?)
+            }
+        }
+    }
+}
+
+impl File {
+    fn name(&self) -> &str {
+        match self {
+            Self::Quadlet(file) => &file.name,
+            Self::KubePod { name, .. } => name,
+        }
+    }
+
+    fn extension(&self) -> &str {
+        match self {
+            Self::Quadlet(file) => file.resource.extension(),
+            Self::KubePod { .. } => "yaml",
+        }
+    }
+
+    fn quadlet_file(&self) -> Option<&quadlet::File> {
+        match self {
+            Self::Quadlet(file) => Some(file),
+            Self::KubePod { .. } => None,
+        }
+    }
+
+    fn write(&self, path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<()> {
+        let path_display = path.as_ref().display().to_string();
+        let mut file = fs::File::options()
+            .write(true)
+            .create_new(!overwrite)
+            .create(overwrite)
+            .open(path)
+            .map_err(|error| match error.kind() {
+                io::ErrorKind::AlreadyExists => {
+                    eyre::eyre!("File already exists, not overwriting it: {path_display}")
+                        .suggestion("Use `--overwrite` if you wish overwrite existing files.")
+                }
+                _ => color_eyre::Report::new(error)
+                    .wrap_err(format!("Failed to create/open file: {path_display}"))
+                    .suggestion(
+                        "Make sure the directory exists \
+                                and you have write permissions for the file",
+                    ),
+            })?;
+        match self {
+            Self::Quadlet(quadlet_file) => {
+                write!(file, "{quadlet_file}").map_err(color_eyre::Report::from)
+            }
+            Self::KubePod { name: _, pod } => {
+                serde_yaml::to_writer(file, pod).map_err(color_eyre::Report::from)
+            }
+        }
+        .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
+        println!("Wrote to file: {path_display}");
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct ComposeService {
     service: docker_compose_types::Service,
-    volumes: &'a docker_compose_types::TopLevelVolumes,
+    volume_has_options: Rc<HashMap<String, bool>>,
+}
+
+impl ComposeService {
+    fn volume_has_options(&self, volume: &str) -> bool {
+        self.volume_has_options
+            .get(volume)
+            .copied()
+            .unwrap_or_default()
+    }
 }
 
 fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compose> {
     let (compose_file, path) = if let Some(path) = compose_file {
-        let compose_file = File::open(path)
+        let compose_file = fs::File::open(path)
             .wrap_err("Could not open provided compose file")
             .suggestion("Make sure you have the proper permissions for the given file.")?;
         (compose_file, path.display().to_string())
@@ -379,7 +477,7 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
         ];
         let mut result = None;
         for file_name in file_names {
-            if let Ok(compose_file) = File::open(file_name) {
+            if let Ok(compose_file) = fs::File::open(file_name) {
                 result = Some((compose_file, String::from(file_name)));
                 break;
             }
@@ -397,82 +495,81 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
         .wrap_err_with(|| format!("File `{path}` is not a valid compose file"))
 }
 
-fn compose_try_into_files(
+fn compose_try_into_quadlet_files<'a>(
     mut compose: Compose,
-    unit: &Option<Unit>,
-    install: &Option<quadlet::Install>,
-) -> color_eyre::Result<Vec<quadlet::File>> {
-    let services = compose_services(&mut compose)?;
+    unit: &'a Option<Unit>,
+    install: &'a Option<quadlet::Install>,
+) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+    let volume_has_options = compose
+        .volumes
+        .0
+        .iter()
+        .map(|(name, volume)| (name.clone(), matches!(volume, MapOrEmpty::Map(_))))
+        .collect();
+    compose_services(&mut compose)
+        .zip(iter::repeat(Rc::new(volume_has_options)))
+        .map(|(result, volume_has_options)| {
+            result.and_then(|(name, mut service)| {
+                let mut unit = unit.clone();
+                if !service.depends_on.is_empty() {
+                    unit.get_or_insert(Unit::default())
+                        .add_dependencies(mem::take(&mut service.depends_on));
+                }
 
-    let mut files =
-        Vec::with_capacity(services.len() + compose.networks.0.len() + compose.volumes.0.len());
+                let service = ComposeService {
+                    service,
+                    volume_has_options,
+                };
+                let command: PodmanCommands = service.try_into().wrap_err_with(|| {
+                    format!("Could not parse service `{name}` as a valid podman command")
+                })?;
 
-    for (name, mut service) in services {
-        let mut unit = unit.clone();
-        if !service.depends_on.is_empty() {
-            unit.get_or_insert(Unit::default())
-                .add_dependencies(mem::take(&mut service.depends_on));
-        }
+                let service = command.service().cloned();
 
-        let service = ComposeService {
-            service,
-            volumes: &compose.volumes,
-        };
-        let command: PodmanCommands = service.try_into().wrap_err_with(|| {
-            format!("Could not parse service `{name}` as a valid podman command")
-        })?;
-
-        let service = command.service().cloned();
-
-        files.push(quadlet::File {
-            name,
-            unit,
-            resource: command.into(),
-            service,
-            install: install.clone(),
-        });
-    }
-
-    for (name, network) in compose.networks.0 {
-        let resource = Option::<docker_compose_types::NetworkSettings>::from(network)
-            .map(quadlet::Network::try_from)
-            .transpose()
-            .wrap_err_with(|| {
-                format!("Could not parse network `{name}` as a valid podman network")
-            })?
-            .unwrap_or_default()
-            .into();
-
-        files.push(quadlet::File {
-            name,
-            unit: unit.clone(),
-            resource,
-            service: None,
-            install: install.clone(),
-        });
-    }
-
-    for (name, volume) in compose.volumes.0 {
-        if let docker_compose_types::MapOrEmpty::Map(volume) = volume {
-            let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
-                format!("could not parse volume `{name}` as a valid podman volume")
-            })?;
-            files.push(quadlet::File {
+                Ok(quadlet::File {
+                    name,
+                    unit,
+                    resource: command.into(),
+                    service,
+                    install: install.clone(),
+                })
+            })
+        })
+        .chain(compose.networks.0.into_iter().map(|(name, network)| {
+            let network = Option::<docker_compose_types::NetworkSettings>::from(network)
+                .map(quadlet::Network::try_from)
+                .transpose()
+                .wrap_err_with(|| {
+                    format!("Could not parse network `{name}` as a valid podman network")
+                })?
+                .unwrap_or_default();
+            Ok(quadlet::File {
                 name,
                 unit: unit.clone(),
-                resource: volume.into(),
+                resource: network.into(),
                 service: None,
                 install: install.clone(),
-            });
-        }
-    }
-
-    Ok(files)
+            })
+        }))
+        .chain(compose.volumes.0.into_iter().filter_map(|(name, volume)| {
+            Option::<docker_compose_types::ComposeVolume>::from(volume).map(|volume| {
+                let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
+                    format!("could not parse volume `{name}` as a valid podman volume")
+                })?;
+                Ok(quadlet::File {
+                    name,
+                    unit: unit.clone(),
+                    resource: volume.into(),
+                    service: None,
+                    install: install.clone(),
+                })
+            })
+        }))
 }
 
 fn compose_services(
     compose: &mut Compose,
-) -> color_eyre::Result<IndexMap<String, docker_compose_types::Service>> {
+) -> impl Iterator<Item = color_eyre::Result<(String, docker_compose_types::Service)>> {
     mem::take(&mut compose.services.0)
         .into_iter()
         .map(|(name, service)| {
@@ -490,7 +587,6 @@ fn compose_services(
                 .take()
                 .map(|service| Ok((String::from(image_to_name(service.image())), service))),
         )
-        .collect()
 }
 
 /// Takes an image and returns an appropriate default service name
@@ -504,14 +600,14 @@ fn image_to_name(image: &str) -> &str {
 }
 
 #[cfg(unix)]
-fn check_existing(
-    quadlet_files: &[quadlet::File],
+fn check_existing<'a>(
+    quadlet_files: impl IntoIterator<Item = &'a quadlet::File>,
     path: &FilePath,
     overwrite: bool,
 ) -> eyre::Result<()> {
     if let Ok(unit_files) = systemd_dbus::unit_files().map(Iterator::collect::<Vec<_>>) {
         let file_names: Vec<_> = quadlet_files
-            .iter()
+            .into_iter()
             .filter_map(|file| match &path {
                 FilePath::Full(path) => path.file_stem().and_then(OsStr::to_str).map(|name| {
                     let service = file.resource.name_to_service(name);

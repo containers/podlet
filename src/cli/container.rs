@@ -41,7 +41,7 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl<'a> TryFrom<ComposeService<'a>> for Container {
+impl TryFrom<ComposeService> for Container {
     type Error = color_eyre::Report;
 
     fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {

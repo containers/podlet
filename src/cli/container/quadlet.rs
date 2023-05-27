@@ -360,7 +360,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
     }
 }
 
-impl<'a> TryFrom<ComposeService<'a>> for QuadletOptions {
+impl TryFrom<ComposeService> for QuadletOptions {
     type Error = color_eyre::Report;
 
     fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
@@ -368,7 +368,7 @@ impl<'a> TryFrom<ComposeService<'a>> for QuadletOptions {
     }
 }
 
-impl<'a> TryFrom<&mut ComposeService<'a>> for QuadletOptions {
+impl TryFrom<&mut ComposeService> for QuadletOptions {
     type Error = color_eyre::Report;
 
     fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
@@ -577,7 +577,7 @@ fn volumes_try_into_short(
             .map(|volume| match volume.split_once(':') {
                 Some((source, target))
                     if !source.starts_with(['.', '/', '~'])
-                        && matches!(service.volumes.0.get(source), Some(MapOrEmpty::Map(_))) =>
+                        && service.volume_has_options(source) =>
                 {
                     format!("{source}.volume:{target}")
                 }
@@ -602,9 +602,7 @@ fn volumes_try_into_short(
                         let Some(mut source) = source else {
                             return Some(Err(eyre::eyre!("{kind} mount without a source")));
                         };
-                        if kind == "volume"
-                            && matches!(service.volumes.0.get(&source), Some(MapOrEmpty::Map(_)))
-                        {
+                        if kind == "volume" && service.volume_has_options(&source) {
                             source += ".volume";
                         }
                         source += ":";
