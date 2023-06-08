@@ -1,6 +1,6 @@
 mod podman;
 mod quadlet;
-mod security_opt;
+pub mod security_opt;
 
 use std::mem;
 
@@ -67,7 +67,15 @@ impl TryFrom<ComposeService> for Container {
 
         let security_opt = mem::take(&mut value.service.security_opt)
             .into_iter()
-            .map(|s| s.parse())
+            .filter_map(|s| {
+                if s == "no-new-privileges:true" {
+                    Some(Ok(SecurityOpt::NoNewPrivileges))
+                } else if s == "no-new-privileges:false" {
+                    None
+                } else {
+                    Some(s.replacen(':', "=", 1).parse())
+                }
+            })
             .collect::<Result<_, _>>()
             .wrap_err("invalid security option")?;
 

@@ -1,5 +1,6 @@
 mod container;
 mod install;
+mod k8s;
 mod kube;
 mod network;
 pub mod service;
@@ -28,7 +29,7 @@ use color_eyre::{
     Help,
 };
 use docker_compose_types::{Compose, MapOrEmpty};
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
 use crate::quadlet;
 
@@ -226,7 +227,34 @@ impl Cli {
                 }
 
                 if let Some(pod_name) = pod {
-                    todo!();
+                    let (pod, persistent_volume_claims) =
+                        k8s::compose_try_into_pod(compose, pod_name.clone())?;
+
+                    let kube = quadlet::Kube {
+                        config_map: Vec::new(),
+                        log_driver: None,
+                        network: Vec::new(),
+                        publish_port: Vec::new(),
+                        user_ns: None,
+                        yaml: String::from("kube.yaml"),
+                    };
+
+                    let quadlet_file = quadlet::File {
+                        name: pod_name.clone(),
+                        unit,
+                        resource: kube.into(),
+                        service: None,
+                        install,
+                    };
+
+                    Ok(vec![
+                        quadlet_file.into(),
+                        File::KubePod {
+                            name: pod_name,
+                            pod,
+                            persistent_volume_claims,
+                        },
+                    ])
                 } else {
                     compose_try_into_quadlet_files(compose, &unit, &install)
                         .map(|result| result.map(Into::into))
@@ -372,7 +400,11 @@ impl PodmanCommands {
 #[allow(clippy::large_enum_variant)] // false positive, [Pod] is not zero-sized
 enum File {
     Quadlet(quadlet::File),
-    KubePod { name: String, pod: Pod },
+    KubePod {
+        name: String,
+        pod: Pod,
+        persistent_volume_claims: Vec<PersistentVolumeClaim>,
+    },
 }
 
 impl From<quadlet::File> for File {
@@ -385,7 +417,15 @@ impl Display for File {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Quadlet(file) => file.fmt(f),
-            Self::KubePod { name: _, pod } => {
+            Self::KubePod {
+                name: _,
+                pod,
+                persistent_volume_claims,
+            } => {
+                for volume in persistent_volume_claims {
+                    f.write_str(&serde_yaml::to_string(volume).map_err(|_| fmt::Error)?)?;
+                    writeln!(f, "---")?;
+                }
                 f.write_str(&serde_yaml::to_string(pod).map_err(|_| fmt::Error)?)
             }
         }
@@ -437,7 +477,15 @@ impl File {
             Self::Quadlet(quadlet_file) => {
                 write!(file, "{quadlet_file}").map_err(color_eyre::Report::from)
             }
-            Self::KubePod { name: _, pod } => {
+            Self::KubePod {
+                name: _,
+                pod,
+                persistent_volume_claims,
+            } => {
+                for volume in persistent_volume_claims {
+                    serde_yaml::to_writer(&file, volume)?;
+                    writeln!(file, "---")?;
+                }
                 serde_yaml::to_writer(file, pod).map_err(color_eyre::Report::from)
             }
         }

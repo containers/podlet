@@ -576,7 +576,7 @@ fn volumes_try_into_short(
             .into_iter()
             .map(|volume| match volume.split_once(':') {
                 Some((source, target))
-                    if !source.starts_with(['.', '/', '~'])
+                    if !source.starts_with(['.', '/', '~']) // not bind mount or anonymous volume
                         && service.volume_has_options(source) =>
                 {
                     format!("{source}.volume:{target}")
