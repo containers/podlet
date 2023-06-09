@@ -236,7 +236,7 @@ impl Cli {
                         network: Vec::new(),
                         publish_port: Vec::new(),
                         user_ns: None,
-                        yaml: String::from("kube.yaml"),
+                        yaml: format!("{pod_name}-kube.yaml"),
                     };
 
                     let quadlet_file = quadlet::File {
@@ -250,7 +250,7 @@ impl Cli {
                     Ok(vec![
                         quadlet_file.into(),
                         File::KubePod {
-                            name: pod_name,
+                            name: format!("{pod_name}-kube"),
                             pod,
                             persistent_volume_claims,
                         },
