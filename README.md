@@ -6,7 +6,8 @@
 
 Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) (systemd-like) files from a podman command.
 
-![Made with VHS](https://vhs.charm.sh/vhs-7GpylCk1SkTulSrL7jp6UV.gif)
+[![demo.gif](./demo.gif)](https://asciinema.org/a/591369)
+You can also view the demo on [asciinema](https://asciinema.org/a/591369).
 
 ## Features
 
@@ -16,8 +17,13 @@ Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/e
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
+- Convert a (docker) compose file to:
+    - Multiple quadlet files
+    - A pod with a quadlet kube file and Kubernetes YAML
 - Write to stdout or to a file
 - Options for including common systemd unit options
+- Checks for existing systemd services to avoid conflict
+    - Opt-out with `--skip-services-check`
 
 ## Install
 
@@ -39,13 +45,16 @@ Podlet generates podman quadlet (systemd-like) files from a podman command.
 Usage: podlet [OPTIONS] <COMMAND>
 
 Commands:
-  podman  Generate a podman quadlet file from a podman command
-  help    Print this message or the help of the given subcommand(s)
+  podman   Generate a podman quadlet file from a podman command
+  compose  Generate podman quadlet files from a compose file
+  help     Print this message or the help of the given subcommand(s)
 
 Options:
   -f, --file [<FILE>]              Generate a file instead of printing to stdout
   -u, --unit-directory             Generate a file in the podman unit directory instead of printing to stdout [aliases: unit-dir]
   -n, --name <NAME>                Override the name of the generated file (without the extension)
+      --overwrite                  Overwrite existing files when generating a file
+      --skip-services-check        Skip the check for existing services of the same name
   -d, --description <DESCRIPTION>  Add a description to the unit
       --wants <WANTS>              Add (weak) requirement dependencies to the unit
       --requires <REQUIRES>        Similar to --wants, but adds stronger requirement dependencies
@@ -63,6 +72,7 @@ To generate a quadlet file, just put `podlet` in front of your podman command!
 ```
 $ podlet podman run quay.io/podman/hello
 
+# hello.container
 [Container]
 Image=quay.io/podman/hello
 ```
@@ -113,9 +123,18 @@ Network=pasta
 UserNS=auto
 ```
 
+Use the following commands for more usage information:
+- `podlet --help`
+- `podlet podman --help`
+- `podlet compose --help`
+
+## Cautions
+
 Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
 
 For the `kube play`, `network create`, and `volume create` commands, not all of podman's options are available as not all options are supported by quadlet.
+
+When converting compose files, not all options are supported by podman/quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
 Podlet is meant to be used with podman v4.5.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
 

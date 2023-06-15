@@ -1,0 +1,11 @@
+services:
+  caddy:
+    image: docker.io/library/caddy:latest
+    ports:
+      - 8000:80
+      - 8443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+volumes:
+  caddy-data:
