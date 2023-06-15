@@ -1,9 +1,7 @@
-use std::{fmt::Display, net::IpAddr};
+use std::net::IpAddr;
 
 use clap::{Args, Subcommand};
 use ipnet::IpNet;
-
-use crate::cli::escape_spaces_join;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Network {
@@ -21,11 +19,16 @@ pub enum Network {
     },
 }
 
-impl Display for Network {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self::Create { create } = self;
-        writeln!(f, "[Network]")?;
-        write!(f, "{create}")
+impl From<Network> for crate::quadlet::Network {
+    fn from(value: Network) -> Self {
+        let Network::Create { create } = value;
+        create.into()
+    }
+}
+
+impl From<Network> for crate::quadlet::Resource {
+    fn from(value: Network) -> Self {
+        crate::quadlet::Network::from(value).into()
     }
 }
 
@@ -115,48 +118,19 @@ pub struct Create {
     name: String,
 }
 
-impl Display for Create {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.disable_dns {
-            writeln!(f, "DisableDNS=true")?;
+impl From<Create> for crate::quadlet::Network {
+    fn from(value: Create) -> Self {
+        Self {
+            disable_dns: value.disable_dns,
+            driver: value.driver,
+            gateway: value.gateway,
+            internal: value.internal,
+            ipam_driver: value.ipam_driver,
+            ip_range: value.ip_range,
+            ipv6: value.ipv6,
+            label: value.label,
+            options: Some(value.opt.join(",")),
+            subnet: value.subnet,
         }
-
-        if let Some(driver) = &self.driver {
-            writeln!(f, "Driver={driver}")?;
-        }
-
-        for gateway in &self.gateway {
-            writeln!(f, "Gateway={gateway}")?;
-        }
-
-        if self.internal {
-            writeln!(f, "Internal=true")?;
-        }
-
-        if let Some(driver) = &self.ipam_driver {
-            writeln!(f, "IPAMDriver={driver}")?;
-        }
-
-        for ip_range in &self.ip_range {
-            writeln!(f, "IPRange={ip_range}")?;
-        }
-
-        if self.ipv6 {
-            writeln!(f, "IPv6=true")?;
-        }
-
-        if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
-        }
-
-        if !self.opt.is_empty() {
-            writeln!(f, "Options={}", self.opt.join(","))?;
-        }
-
-        for subnet in &self.subnet {
-            writeln!(f, "Subnet={subnet}")?;
-        }
-
-        Ok(())
     }
 }

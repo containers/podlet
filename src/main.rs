@@ -17,6 +17,7 @@
 #![allow(clippy::multiple_crate_versions)]
 
 mod cli;
+mod quadlet;
 
 use clap::Parser;
 use color_eyre::eyre;
@@ -26,5 +27,5 @@ use self::cli::Cli;
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
 
-    Cli::parse().print_or_write_file()
+    Cli::parse().print_or_write_files()
 }

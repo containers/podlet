@@ -1,8 +1,4 @@
-use std::fmt::Display;
-
 use clap::Args;
-
-use crate::cli::escape_spaces_join;
 
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Install {
@@ -34,22 +30,15 @@ pub struct Install {
     required_by: Vec<String>,
 }
 
-impl Display for Install {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "[Install]")?;
-
-        if self.wanted_by.is_empty() && self.required_by.is_empty() {
-            writeln!(f, "WantedBy=default.target")?;
+impl From<Install> for crate::quadlet::Install {
+    fn from(value: Install) -> Self {
+        Self {
+            wanted_by: if value.wanted_by.is_empty() && value.required_by.is_empty() {
+                vec![String::from("default.target")]
+            } else {
+                value.wanted_by
+            },
+            required_by: value.required_by,
         }
-
-        if !self.wanted_by.is_empty() {
-            writeln!(f, "WantedBy={}", escape_spaces_join(&self.wanted_by))?;
-        }
-
-        if !self.required_by.is_empty() {
-            writeln!(f, "RequiredBy={}", escape_spaces_join(&self.required_by))?;
-        }
-
-        Ok(())
     }
 }

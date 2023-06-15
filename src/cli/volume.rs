@@ -1,11 +1,8 @@
-mod opt;
-
-use std::fmt::Display;
+pub mod opt;
 
 use clap::{Args, Subcommand};
 
 use self::opt::Opt;
-use super::escape_spaces_join;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Volume {
@@ -23,11 +20,16 @@ pub enum Volume {
     },
 }
 
-impl Display for Volume {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self::Create { create } = self;
-        writeln!(f, "[Volume]")?;
-        write!(f, "{create}")
+impl From<Volume> for crate::quadlet::Volume {
+    fn from(value: Volume) -> Self {
+        let Volume::Create { create } = value;
+        create.into()
+    }
+}
+
+impl From<Volume> for crate::quadlet::Resource {
+    fn from(value: Volume) -> Self {
+        crate::quadlet::Volume::from(value).into()
     }
 }
 
@@ -73,41 +75,11 @@ pub struct Create {
     name: String,
 }
 
-impl Display for Create {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut mount_options = Vec::new();
-        for opt in &self.opt {
-            match opt {
-                Opt::Type(opt_type) => writeln!(f, "Type={opt_type}")?,
-                Opt::Device(device) => writeln!(f, "Device={device}")?,
-                Opt::Copy => writeln!(f, "Copy=true")?,
-                Opt::Mount(options) => {
-                    for option in options {
-                        match option {
-                            opt::Mount::Uid(uid) => writeln!(f, "User={uid}")?,
-                            opt::Mount::Gid(gid) => writeln!(f, "Group={gid}")?,
-                            opt::Mount::Other(option) => mount_options.push(option),
-                        }
-                    }
-                }
-            }
+impl From<Create> for crate::quadlet::Volume {
+    fn from(value: Create) -> Self {
+        Self {
+            label: value.label,
+            ..value.opt.into()
         }
-        if !mount_options.is_empty() {
-            writeln!(
-                f,
-                "Options={}",
-                mount_options
-                    .into_iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-                    .join(",")
-            )?;
-        }
-
-        if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
-        }
-
-        Ok(())
     }
 }

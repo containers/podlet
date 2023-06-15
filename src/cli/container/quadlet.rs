@@ -1,8 +1,15 @@
-use std::{fmt::Display, path::PathBuf};
+use std::{
+    mem,
+    net::{Ipv4Addr, Ipv6Addr},
+    path::PathBuf,
+};
 
 use clap::{Args, ValueEnum};
+use color_eyre::eyre::{self, Context};
+use docker_compose_types::MapOrEmpty;
 
-use crate::cli::escape_spaces_join;
+use super::unsupported_option;
+use crate::cli::ComposeService;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -101,7 +108,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "HealthRetries=RETRIES"
     #[arg(long, value_name = "RETRIES")]
-    health_retries: Option<u16>,
+    health_retries: Option<u32>,
 
     /// The initialization time needed for the container to bootstrap
     ///
@@ -149,13 +156,13 @@ pub struct QuadletOptions {
     ///
     /// Converts to "IP=IPV4"
     #[arg(long, value_name = "IPV4")]
-    ip: Option<String>,
+    ip: Option<Ipv4Addr>,
 
     /// Specify a static IPv6 address for the container
     ///
     /// Converts to "IP6=IPV6"
     #[arg(long, value_name = "IPV6")]
-    ip6: Option<String>,
+    ip6: Option<Ipv6Addr>,
 
     /// Set one or more OCI labels on the container
     ///
@@ -282,167 +289,409 @@ impl Default for Notify {
     }
 }
 
-impl Display for QuadletOptions {
-    #[allow(clippy::too_many_lines)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.cap_add.is_empty() {
-            writeln!(f, "AddCapability={}", self.cap_add.join(" "))?;
-        }
-
-        for device in &self.device {
-            writeln!(f, "AddDevice={device}")?;
-        }
-
-        if !self.annotation.is_empty() {
-            writeln!(f, "Annotation={}", escape_spaces_join(&self.annotation))?;
-        }
-
-        if let Some(name) = &self.name {
-            writeln!(f, "ContainerName={name}")?;
-        }
-
-        if !self.cap_drop.is_empty() {
-            writeln!(f, "DropCapability={}", self.cap_drop.join(" "))?;
-        }
-
-        if !self.env.is_empty() {
-            writeln!(f, "Environment={}", escape_spaces_join(&self.env))?;
-        }
-
-        for file in &self.env_file {
-            writeln!(f, "EnvironmentFile={}", file.display())?;
-        }
-
-        if self.env_host {
-            writeln!(f, "EnvironmentHost=true")?;
-        }
-
-        for port in &self.expose {
-            writeln!(f, "ExposeHostPort={port}")?;
-        }
-
-        if let Some(command) = &self.health_cmd {
-            writeln!(f, "HealthCmd={command}")?;
-        }
-
-        if let Some(interval) = &self.health_interval {
-            writeln!(f, "HealthInterval={interval}")?;
-        }
-
-        if let Some(action) = &self.health_on_failure {
-            writeln!(f, "HealthOnFailure={action}")?;
-        }
-
-        if let Some(retries) = &self.health_retries {
-            writeln!(f, "HealthRetries={retries}")?;
-        }
-
-        if let Some(period) = &self.health_start_period {
-            writeln!(f, "HealthStartPeriod={period}")?;
-        }
-
-        if let Some(command) = &self.health_startup_cmd {
-            writeln!(f, "HealthStartupCmd={command}")?;
-        }
-
-        if let Some(interval) = &self.health_startup_interval {
-            writeln!(f, "HealthStartupInterval={interval}")?;
-        }
-
-        if let Some(retries) = &self.health_startup_retries {
-            writeln!(f, "HealthStartupRetries={retries}")?;
-        }
-
-        if let Some(retries) = &self.health_startup_success {
-            writeln!(f, "HealthStartupSuccess={retries}")?;
-        }
-
-        if let Some(timeout) = &self.health_startup_timeout {
-            writeln!(f, "HealthStartupTimeout={timeout}")?;
-        }
-
-        if let Some(timeout) = &self.health_timeout {
-            writeln!(f, "HealthTimeout={timeout}")?;
-        }
-
-        if let Some(ip) = &self.ip {
-            writeln!(f, "IP={ip}")?;
-        }
-
-        if let Some(ip6) = &self.ip6 {
-            writeln!(f, "IP6={ip6}")?;
-        }
-
-        if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
-        }
-
-        if let Some(log_driver) = &self.log_driver {
-            writeln!(f, "LogDriver={log_driver}")?;
-        }
-
-        for mount in &self.mount {
-            writeln!(f, "Mount={mount}")?;
-        }
-
-        for network in &self.network {
-            writeln!(f, "Network={network}")?;
-        }
-
-        match self.sdnotify {
-            Notify::Conmon => Ok(()),
-            Notify::Container => writeln!(f, "Notify=true"),
-        }?;
-
-        if let Some(rootfs) = &self.rootfs {
-            writeln!(f, "Rootfs={rootfs}")?;
-        }
-
-        for port in &self.publish {
-            writeln!(f, "PublishPort={port}")?;
-        }
-
-        if self.read_only {
-            writeln!(f, "ReadOnly=true")?;
-        }
-
-        if self.init {
-            writeln!(f, "RunInit=true")?;
-        }
-
-        for secret in &self.secret {
-            writeln!(f, "Secret={secret}")?;
-        }
-
-        for tmpfs in &self.tmpfs {
-            if tmpfs == "/tmp" {
-                writeln!(f, "VolatileTmp=true")?;
-            } else {
-                writeln!(f, "Tmpfs={tmpfs}")?;
-            }
-        }
-
-        if let Some(tz) = &self.tz {
-            writeln!(f, "Timezone={tz}")?;
-        }
-
-        if let Some(user) = &self.user {
+impl From<QuadletOptions> for crate::quadlet::Container {
+    fn from(value: QuadletOptions) -> Self {
+        let (user, group) = if let Some(user) = value.user {
             if let Some((uid, gid)) = user.split_once(':') {
-                writeln!(f, "User={uid}")?;
-                writeln!(f, "Group={gid}")?;
+                (Some(String::from(uid)), Some(String::from(gid)))
             } else {
-                writeln!(f, "User={user}")?;
+                (Some(user), None)
             }
+        } else {
+            (None, None)
+        };
+
+        let mut tmpfs = value.tmpfs;
+        let mut volatile_tmp = false;
+        tmpfs.retain(|tmpfs| {
+            if tmpfs == "/tmp" {
+                volatile_tmp = true;
+                false
+            } else {
+                true
+            }
+        });
+
+        Self {
+            add_capability: value.cap_add,
+            add_device: value.device,
+            annotation: value.annotation,
+            container_name: value.name,
+            drop_capability: value.cap_drop,
+            environment: value.env,
+            environment_file: value.env_file,
+            environment_host: value.env_host,
+            expose_host_port: value.expose,
+            group,
+            health_cmd: value.health_cmd,
+            health_interval: value.health_interval,
+            health_on_failure: value.health_on_failure,
+            health_retries: value.health_retries,
+            health_start_period: value.health_start_period,
+            health_startup_cmd: value.health_startup_cmd,
+            health_startup_interval: value.health_startup_interval,
+            health_startup_retries: value.health_startup_retries,
+            health_startup_success: value.health_startup_success,
+            health_startup_timeout: value.health_startup_timeout,
+            health_timeout: value.health_timeout,
+            ip: value.ip,
+            ip6: value.ip6,
+            label: value.label,
+            log_driver: value.log_driver,
+            mount: value.mount,
+            network: value.network,
+            rootfs: value.rootfs,
+            notify: match value.sdnotify {
+                Notify::Conmon => false,
+                Notify::Container => true,
+            },
+            publish_port: value.publish,
+            read_only: value.read_only,
+            run_init: value.init,
+            secret: value.secret,
+            tmpfs,
+            timezone: value.tz,
+            user,
+            user_ns: value.userns,
+            volatile_tmp,
+            volume: value.volume,
+            ..Self::default()
+        }
+    }
+}
+
+impl TryFrom<ComposeService> for QuadletOptions {
+    type Error = color_eyre::Report;
+
+    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
+        (&mut value).try_into()
+    }
+}
+
+impl TryFrom<&mut ComposeService> for QuadletOptions {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
+        let service = &mut value.service;
+
+        let Healthcheck {
+            health_cmd,
+            health_interval,
+            health_timeout,
+            health_retries,
+            health_start_period,
+        } = service
+            .healthcheck
+            .take()
+            .map(Healthcheck::from)
+            .unwrap_or_default();
+
+        let publish =
+            ports_try_into_publish(mem::take(&mut service.ports)).wrap_err("invalid port")?;
+
+        let env = match mem::take(&mut service.environment) {
+            docker_compose_types::Environment::List(list) => list,
+            docker_compose_types::Environment::KvPair(map) => map
+                .into_iter()
+                .map(|(key, value)| {
+                    let value = value.as_ref().map(ToString::to_string).unwrap_or_default();
+                    format!("{key}={value}")
+                })
+                .collect(),
+        };
+
+        let network = service
+            .network_mode
+            .take()
+            .map(|mode| match mode.as_str() {
+                "bridge" | "host" | "none" => Ok(mode),
+                s if s.starts_with("container") => Ok(mode),
+                _ => Err(unsupported_option(&format!("network_mode: {mode}"))),
+            })
+            .transpose()?
+            .into_iter()
+            .chain(map_networks(mem::take(&mut service.networks)))
+            .collect();
+
+        let label = match mem::take(&mut service.labels) {
+            docker_compose_types::Labels::List(vec) => vec,
+            docker_compose_types::Labels::Map(map) => map
+                .into_iter()
+                .map(|(key, value)| format!("{key}={value}"))
+                .collect(),
+        };
+
+        let mut tmpfs = service
+            .tmpfs
+            .take()
+            .map(|tmpfs| match tmpfs {
+                docker_compose_types::Tmpfs::Simple(tmpfs) => vec![tmpfs],
+                docker_compose_types::Tmpfs::List(tmpfs) => tmpfs,
+            })
+            .unwrap_or_default();
+
+        let mut mount = Vec::new();
+
+        let volume =
+            volumes_try_into_short(value, &mut tmpfs, &mut mount).wrap_err("invalid volume")?;
+
+        let service = &mut value.service;
+
+        let env_file = service
+            .env_file
+            .take()
+            .map(|env_file| match env_file {
+                docker_compose_types::EnvFile::Simple(s) => vec![s.into()],
+                docker_compose_types::EnvFile::List(list) => {
+                    list.into_iter().map(Into::into).collect()
+                }
+            })
+            .unwrap_or_default();
+
+        Ok(Self {
+            cap_add: mem::take(&mut service.cap_add),
+            name: service.container_name.take(),
+            publish,
+            env,
+            env_file,
+            network,
+            device: mem::take(&mut service.devices),
+            label,
+            health_cmd,
+            health_interval,
+            health_retries,
+            health_start_period,
+            health_timeout,
+            tmpfs,
+            mount,
+            user: service.user.take(),
+            expose: mem::take(&mut service.expose),
+            log_driver: service
+                .logging
+                .as_mut()
+                .map(|logging| mem::take(&mut logging.driver)),
+            init: service.init,
+            volume,
+            ..Self::default()
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+struct Healthcheck {
+    health_cmd: Option<String>,
+    health_interval: Option<String>,
+    health_timeout: Option<String>,
+    health_retries: Option<u32>,
+    health_start_period: Option<String>,
+}
+
+impl From<docker_compose_types::Healthcheck> for Healthcheck {
+    fn from(value: docker_compose_types::Healthcheck) -> Self {
+        let docker_compose_types::Healthcheck {
+            test,
+            interval,
+            timeout,
+            retries,
+            start_period,
+            mut disable,
+        } = value;
+
+        let mut command = test.and_then(|test| match test {
+            docker_compose_types::HealthcheckTest::Single(s) => Some(s),
+            docker_compose_types::HealthcheckTest::Multiple(test) => {
+                match test.first().map(String::as_str) {
+                    Some("NONE") => {
+                        disable = true;
+                        None
+                    }
+                    Some("CMD") => Some(format!("{:?}", &test[1..])),
+                    Some("CMD-SHELL") => Some(shlex::join(test[1..].iter().map(String::as_str))),
+                    _ => None,
+                }
+            }
+        });
+
+        if disable {
+            command = Some(String::from("none"));
         }
 
-        if let Some(userns) = &self.userns {
-            writeln!(f, "UserNS={userns}")?;
+        let retries = (retries > 0).then(|| u32::try_from(retries).unwrap_or_default());
+        Self {
+            health_cmd: command,
+            health_interval: interval,
+            health_timeout: timeout,
+            health_retries: retries,
+            health_start_period: start_period,
         }
+    }
+}
 
-        for volume in &self.volume {
-            writeln!(f, "Volume={volume}")?;
-        }
+fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Result<Vec<String>> {
+    match ports {
+        docker_compose_types::Ports::Short(ports) => Ok(ports),
+        docker_compose_types::Ports::Long(ports) => ports
+            .into_iter()
+            .map(|port| {
+                let docker_compose_types::Port {
+                    target,
+                    host_ip,
+                    published,
+                    protocol,
+                    mode,
+                } = port;
+                if let Some(mode) = mode {
+                    if mode != "host" {
+                        return Err(eyre::eyre!("unsupported port mode: {mode}"));
+                    }
+                }
 
-        Ok(())
+                let host_ip = host_ip.map(|host_ip| host_ip + ":").unwrap_or_default();
+
+                let host_port = published
+                        .map(|port| match port {
+                            docker_compose_types::PublishedPort::Single(port) => port.to_string(),
+                            docker_compose_types::PublishedPort::Range(range) => range,
+                        } + ":")
+                        .unwrap_or_default();
+
+                let protocol = protocol
+                    .map(|protocol| format!("/{protocol}"))
+                    .unwrap_or_default();
+
+                Ok(format!("{host_ip}{host_port}{target}{protocol}"))
+            })
+            .collect(),
+    }
+}
+
+fn volumes_try_into_short(
+    service: &mut ComposeService,
+    tmpfs: &mut Vec<String>,
+    mount: &mut Vec<String>,
+) -> color_eyre::Result<Vec<String>> {
+    let volumes = mem::take(&mut service.service.volumes);
+    match volumes {
+        docker_compose_types::Volumes::Simple(volumes) => Ok(volumes
+            .into_iter()
+            .map(|volume| match volume.split_once(':') {
+                Some((source, target))
+                    if !source.starts_with(['.', '/', '~']) // not bind mount or anonymous volume
+                        && service.volume_has_options(source) =>
+                {
+                    format!("{source}.volume:{target}")
+                }
+                _ => volume,
+            })
+            .collect()),
+        docker_compose_types::Volumes::Advanced(volumes) => volumes
+            .into_iter()
+            .filter_map(|volume| {
+                let docker_compose_types::AdvancedVolumes {
+                    source,
+                    target,
+                    _type: kind,
+                    read_only,
+                    bind,
+                    volume,
+                    tmpfs: tmpfs_settings,
+                } = volume;
+
+                match kind.as_str() {
+                    "bind" | "volume" if bind.is_none() => {
+                        let Some(mut source) = source else {
+                            return Some(Err(eyre::eyre!("{kind} mount without a source")));
+                        };
+                        if kind == "volume" && service.volume_has_options(&source) {
+                            source += ".volume";
+                        }
+                        source += ":";
+
+                        let mut options = Vec::new();
+                        if read_only {
+                            options.push("ro");
+                        }
+                        if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
+                            options.push("nocopy");
+                        }
+                        let options = if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        };
+
+                        Some(Ok(format!("{source}{target}{options}")))
+                    }
+                    "bind" => {
+                        let Some(source) = source else {
+                            return Some(Err(eyre::eyre!("bind mount without a source")))
+                        };
+                        let read_only = if read_only { ",ro" } else { "" };
+                        let propagation = bind
+                            .map(|bind| format!(",bind-propagation={}", bind.propagation))
+                            .unwrap_or_default();
+                        mount.push(format!(
+                            "type=bind,source={source},destination={target}{read_only}{propagation}"
+                        ));
+                        None
+                    }
+                    "tmpfs" => {
+                        let mut options = Vec::new();
+                        if read_only {
+                            options.push(String::from("ro"));
+                        }
+                        if let Some(docker_compose_types::TmpfsSettings { size }) = tmpfs_settings {
+                            options.push(format!("size={size}"));
+                        }
+                        let options = if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        };
+                        tmpfs.push(format!("{target}{options}"));
+                        None
+                    }
+                    _ => Some(Err(eyre::eyre!("unsupported volume type: {kind}"))),
+                }
+            })
+            .collect(),
+    }
+}
+
+fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
+    match networks {
+        docker_compose_types::Networks::Simple(networks) => networks
+            .into_iter()
+            .map(|network| network + ".network")
+            .collect(),
+        docker_compose_types::Networks::Advanced(networks) => networks
+            .0
+            .into_iter()
+            .map(|(network, settings)| {
+                let options =
+                    if let MapOrEmpty::Map(docker_compose_types::AdvancedNetworkSettings {
+                        ipv4_address,
+                        ipv6_address,
+                        aliases,
+                    }) = settings
+                    {
+                        let mut options = Vec::new();
+                        for ip in ipv4_address.into_iter().chain(ipv6_address) {
+                            options.push(format!("ip={ip}"));
+                        }
+                        for alias in aliases {
+                            options.push(format!("alias={alias}"));
+                        }
+                        if options.is_empty() {
+                            String::new()
+                        } else {
+                            format!(":{}", options.join(","))
+                        }
+                    } else {
+                        String::new()
+                    };
+                format!("{network}.network{options}")
+            })
+            .collect(),
     }
 }

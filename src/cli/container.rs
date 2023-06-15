@@ -1,12 +1,14 @@
 mod podman;
 mod quadlet;
-mod security_opt;
+pub mod security_opt;
 
-use std::fmt::{self, Display, Formatter};
+use std::mem;
 
 use clap::Args;
+use color_eyre::eyre::{self, Context};
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
+use super::{image_to_name, ComposeService};
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
@@ -39,66 +41,108 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl Display for Container {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Container]")?;
-        writeln!(f, "Image={}", self.image)?;
+impl TryFrom<ComposeService> for Container {
+    type Error = color_eyre::Report;
 
-        write!(f, "{}", self.quadlet_options)?;
-
-        let mut podman_args = self.podman_args.to_string();
-
-        for output in self.security_opt.iter().map(Output::from) {
-            output.write_or_add_arg("--security-opt", f, &mut podman_args)?;
+    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
+        let service = &value.service;
+        let unsupported_options = [
+            ("deploy", service.deploy.is_some()),
+            ("build", service.build_.is_some()),
+            ("profiles", !service.profiles.is_empty()),
+            ("links", !service.links.is_empty()),
+            ("net", service.net.is_some()),
+            ("volumes_from", !service.volumes_from.is_empty()),
+            ("extends", !service.extends.is_empty()),
+            ("scale", service.scale != 0),
+        ];
+        for (option, exists) in unsupported_options {
+            if exists {
+                return Err(unsupported_option(option));
+            }
+        }
+        if !service.extensions.is_empty() {
+            return Err(eyre::eyre!("compose extensions are not supported"));
         }
 
-        if !podman_args.is_empty() {
-            writeln!(f, "PodmanArgs={}", podman_args.trim())?;
+        let security_opt = mem::take(&mut value.service.security_opt)
+            .into_iter()
+            .filter_map(|s| {
+                if s == "no-new-privileges:true" {
+                    Some(Ok(SecurityOpt::NoNewPrivileges))
+                } else if s == "no-new-privileges:false" {
+                    None
+                } else {
+                    Some(s.replacen(':', "=", 1).parse())
+                }
+            })
+            .collect::<Result<_, _>>()
+            .wrap_err("invalid security option")?;
+
+        Ok(Self {
+            quadlet_options: (&mut value).try_into()?,
+            podman_args: (&mut value.service).try_into()?,
+            security_opt,
+            image: value
+                .service
+                .image
+                .ok_or(eyre::eyre!("image is required"))?,
+            command: value
+                .service
+                .command
+                .map(|command| match command {
+                    docker_compose_types::Command::Simple(s) => vec![s],
+                    docker_compose_types::Command::Args(args) => args,
+                })
+                .unwrap_or_default(),
+        })
+    }
+}
+
+fn unsupported_option(option: &str) -> color_eyre::Report {
+    eyre::eyre!("`{option}` is unsupported")
+}
+
+impl From<Container> for crate::quadlet::Container {
+    fn from(value: Container) -> Self {
+        let mut podman_args = value.podman_args.to_string();
+
+        let mut security_options = security_opt::QuadletOptions::default();
+        for security_opt in value.security_opt {
+            security_options.add_security_opt(security_opt);
+        }
+        for arg in security_options.podman_args {
+            podman_args += &format!(" --security-opt {arg}");
         }
 
-        if !self.command.is_empty() {
-            let command = shlex::join(self.command.iter().map(String::as_str));
-            writeln!(f, "Exec={command}")?;
+        Self {
+            image: value.image,
+            no_new_privileges: security_options.no_new_privileges,
+            seccomp_profile: security_options.seccomp_profile,
+            security_label_disable: security_options.security_label_disable,
+            security_label_file_type: security_options.security_label_file_type,
+            security_label_level: security_options.security_label_level,
+            security_label_type: security_options.security_label_type,
+            podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
+            exec: (!value.command.is_empty())
+                .then(|| shlex::join(value.command.iter().map(String::as_str))),
+            ..value.quadlet_options.into()
         }
+    }
+}
 
-        Ok(())
+impl From<Container> for crate::quadlet::Resource {
+    fn from(value: Container) -> Self {
+        crate::quadlet::Container::from(value).into()
     }
 }
 
 impl Container {
     pub fn name(&self) -> &str {
-        self.quadlet_options.name.as_deref().unwrap_or_else(|| {
-            let image = self
-                .image
-                .rsplit('/')
-                .next()
-                .expect("Split will have at least one element");
-            // Remove image tag
-            image.split_once(':').map_or(image, |(name, _)| name)
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum Output {
-    QuadletOptions(String),
-    PodmanArg(String),
-}
-
-impl Output {
-    fn write_or_add_arg(
-        &self,
-        arg: &str,
-        f: &mut Formatter,
-        args: &mut String,
-    ) -> Result<(), fmt::Error> {
-        match self {
-            Output::QuadletOptions(options) => writeln!(f, "{options}"),
-            Output::PodmanArg(arg_value) => {
-                *args += &format!(" {arg} {arg_value}");
-                Ok(())
-            }
-        }
+        self.quadlet_options
+            .name
+            .as_deref()
+            .unwrap_or_else(|| image_to_name(&self.image))
     }
 }
 

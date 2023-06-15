@@ -1,12 +1,14 @@
 use std::{
-    fmt::Display,
+    fmt::{self, Display, Formatter},
+    mem,
     path::{Path, PathBuf},
 };
 
 use clap::{ArgAction, Args};
+use color_eyre::eyre::Context;
 
 #[allow(clippy::struct_excessive_bools, clippy::module_name_repetitions)]
-#[derive(Args, Default, Debug, Clone, PartialEq)]
+#[derive(Args, Debug, Clone, PartialEq)]
 pub struct PodmanArgs {
     /// Add a custom host-to-IP mapping
     ///
@@ -150,7 +152,7 @@ pub struct PodmanArgs {
 
     /// Set custom DNS servers
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Option<String>,
+    dns: Vec<String>,
 
     /// Set custom DNS options
     #[arg(long, value_name = "OPTION")]
@@ -387,8 +389,10 @@ pub struct PodmanArgs {
     subuidname: Option<String>,
 
     /// Configure namespaced kernel parameters at runtime
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "NAME=VALUE")]
-    sysctl: Option<String>,
+    sysctl: Vec<String>,
 
     /// Run container in systemd mode
     ///
@@ -415,8 +419,10 @@ pub struct PodmanArgs {
     uidmap: Vec<String>,
 
     /// Ulimit options
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "OPTION")]
-    ulimit: Option<String>,
+    ulimit: Vec<String>,
 
     /// Set the umask inside the container
     #[arg(long)]
@@ -435,6 +441,110 @@ pub struct PodmanArgs {
     /// Working directory inside the container
     #[arg(short, long, value_name = "DIR")]
     workdir: Option<PathBuf>,
+}
+
+impl Default for PodmanArgs {
+    fn default() -> Self {
+        Self {
+            add_host: Vec::new(),
+            arch: None,
+            attach: Vec::new(),
+            authfile: None,
+            blkio_weight: None,
+            blkio_weight_device: None,
+            cgroup_conf: Vec::new(),
+            cgroup_parent: None,
+            cgroupns: None,
+            cgroups: None,
+            chrootdirs: None,
+            cidfile: None,
+            conmon_pidfile: None,
+            cpu_period: None,
+            cpu_quota: None,
+            cpu_rt_period: None,
+            cpu_rt_runtime: None,
+            cpu_shares: None,
+            cpus: None,
+            cpuset_cpus: None,
+            cpuset_mems: None,
+            decryption_key: None,
+            detach: false,
+            detach_keys: None,
+            device_cgroup_rule: Vec::new(),
+            device_read_bps: Vec::new(),
+            device_read_iops: Vec::new(),
+            device_write_bps: Vec::new(),
+            device_write_iops: Vec::new(),
+            disable_content_trust: false,
+            dns: Vec::new(),
+            dns_option: None,
+            dns_search: None,
+            entrypoint: None,
+            env_merge: Vec::new(),
+            gidmap: Vec::new(),
+            group_add: Vec::new(),
+            group_entry: None,
+            hostname: None,
+            hostuser: Vec::new(),
+            http_proxy: true,
+            image_volume: None,
+            init_path: None,
+            interactive: false,
+            ipc: None,
+            label_file: None,
+            link_local_ip: None,
+            log_opt: Vec::new(),
+            mac_address: None,
+            memory: None,
+            memory_reservation: None,
+            memory_swap: None,
+            memory_swappiness: None,
+            network_alias: None,
+            no_healthcheck: false,
+            no_hosts: false,
+            oom_kill_disable: false,
+            oom_score_adj: None,
+            os: None,
+            passwd: false,
+            passwd_entry: None,
+            personality: None,
+            pid: None,
+            pidfile: None,
+            pids_limit: None,
+            platform: None,
+            pod: None,
+            pod_id_file: None,
+            preserve_fds: None,
+            privileged: false,
+            publish_all: false,
+            pull: None,
+            quiet: false,
+            read_only_tmpfs: true,
+            replace: false,
+            requires: None,
+            rm: false,
+            rmi: false,
+            seccomp_policy: None,
+            shm_size: None,
+            shm_size_systemd: None,
+            sig_proxy: true,
+            stop_signal: None,
+            stop_timeout: None,
+            subgidname: None,
+            subuidname: None,
+            sysctl: Vec::new(),
+            systemd: None,
+            timeout: None,
+            tls_verify: None,
+            tty: false,
+            uidmap: Vec::new(),
+            ulimit: Vec::new(),
+            umask: None,
+            variant: None,
+            volumes_from: Vec::new(),
+            workdir: None,
+        }
+    }
 }
 
 impl PodmanArgs {
@@ -468,7 +578,7 @@ impl PodmanArgs {
             + self.device_read_iops.len()
             + self.device_write_bps.len()
             + self.device_write_iops.len()
-            + self.dns.iter().len()
+            + self.dns.len()
             + self.dns_option.iter().len()
             + self.dns_search.iter().len()
             + self.entrypoint.iter().len()
@@ -513,12 +623,12 @@ impl PodmanArgs {
             + self.stop_timeout.iter().len()
             + self.subgidname.iter().len()
             + self.subuidname.iter().len()
-            + self.sysctl.iter().len()
+            + self.sysctl.len()
             + self.systemd.iter().len()
             + self.timeout.iter().len()
             + self.tls_verify.iter().len()
             + self.uidmap.len()
-            + self.ulimit.iter().len()
+            + self.ulimit.len()
             + self.umask.iter().len()
             + self.variant.iter().len()
             + self.volumes_from.len()
@@ -547,7 +657,7 @@ where
 
 impl Display for PodmanArgs {
     #[allow(clippy::similar_names, clippy::too_many_lines)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let mut args = Vec::with_capacity(self.args_len());
 
         extend_args(&mut args, "--add-host", &self.add_host);
@@ -792,5 +902,95 @@ impl Display for PodmanArgs {
         debug_assert_eq!(args.len(), self.args_len());
 
         write!(f, "{}", shlex::join(args))
+    }
+}
+
+impl TryFrom<docker_compose_types::Service> for PodmanArgs {
+    type Error = color_eyre::Report;
+
+    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
+        (&mut value).try_into()
+    }
+}
+
+impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
+        let ulimit = mem::take(&mut value.ulimits)
+            .0
+            .into_iter()
+            .map(|(kind, ulimit)| match ulimit {
+                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
+                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
+                    if hard == 0 {
+                        format!("{kind}={soft}")
+                    } else {
+                        format!("{kind}={soft}:{hard}")
+                    }
+                }
+            })
+            .collect();
+
+        let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
+            docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
+            docker_compose_types::Entrypoint::List(list) => format!("{list:?}"),
+        });
+
+        let stop_timeout = value
+            .stop_grace_period
+            .take()
+            .map(|timeout| {
+                duration_str::parse(&timeout)
+                    .map(|duration| duration.as_secs().try_into().unwrap_or(u16::MAX))
+                    .wrap_err_with(|| {
+                        format!(
+                            "could not parse `stop_grace_period` value `{timeout}` as a duration"
+                        )
+                    })
+            })
+            .transpose()?;
+
+        let log_opt = value
+            .logging
+            .as_mut()
+            .and_then(|logging| logging.options.take())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect();
+
+        let sysctl = match mem::take(&mut value.sysctls) {
+            docker_compose_types::SysCtls::List(vec) => vec,
+            docker_compose_types::SysCtls::Map(map) => map
+                .into_iter()
+                .map(|(key, value)| {
+                    let value = value
+                        .as_ref()
+                        .map_or_else(|| String::from("null"), ToString::to_string);
+                    format!("{key}={value}")
+                })
+                .collect(),
+        };
+
+        Ok(Self {
+            hostname: value.hostname.take(),
+            privileged: value.privileged,
+            pid: value.pid.take(),
+            ulimit,
+            entrypoint,
+            stop_signal: value.stop_signal.take(),
+            stop_timeout,
+            dns: mem::take(&mut value.dns),
+            ipc: value.ipc.take(),
+            workdir: value.working_dir.take().map(Into::into),
+            interactive: value.stdin_open,
+            shm_size: value.shm_size.take(),
+            log_opt,
+            add_host: mem::take(&mut value.extra_hosts),
+            tty: value.tty,
+            sysctl,
+            ..Self::default()
+        })
     }
 }

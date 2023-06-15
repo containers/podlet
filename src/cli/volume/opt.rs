@@ -10,6 +10,34 @@ pub enum Opt {
     Mount(Vec<Mount>),
 }
 
+impl From<Vec<Opt>> for crate::quadlet::Volume {
+    fn from(value: Vec<Opt>) -> Self {
+        value.into_iter().fold(Self::default(), |mut volume, opt| {
+            match opt {
+                Opt::Type(fs_type) => volume.fs_type = Some(fs_type),
+                Opt::Device(device) => volume.device = Some(device),
+                Opt::Copy => volume.copy = true,
+                Opt::Mount(mount_opts) => {
+                    for opt in mount_opts {
+                        match opt {
+                            Mount::Uid(uid) => volume.user = Some(uid),
+                            Mount::Gid(gid) => volume.group = Some(gid),
+                            Mount::Other(mount_opt) => {
+                                if let Some(options) = volume.options.as_mut() {
+                                    *options = format!("{options},{mount_opt}");
+                                } else {
+                                    volume.options = Some(mount_opt);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            volume
+        })
+    }
+}
+
 impl FromStr for Opt {
     type Err = ParseOptError;
 
@@ -29,7 +57,7 @@ impl FromStr for Opt {
                 let options = options
                     .split(',')
                     .map(str::parse)
-                    .collect::<Result<Vec<_>, _>>()
+                    .collect::<Result<_, _>>()
                     .expect("Mount::from_str cannot error");
                 Ok(Self::Mount(options))
             }

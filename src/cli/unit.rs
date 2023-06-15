@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
 
@@ -51,10 +51,23 @@ impl Unit {
     pub fn is_empty(&self) -> bool {
         *self == Self::default()
     }
+
+    pub fn add_dependencies(&mut self, depends_on: docker_compose_types::DependsOnOptions) {
+        let depends_on = match depends_on {
+            docker_compose_types::DependsOnOptions::Simple(vec) => vec,
+            docker_compose_types::DependsOnOptions::Conditional(map) => map.into_keys().collect(),
+        };
+
+        self.requires.extend(
+            depends_on
+                .into_iter()
+                .map(|dependency| dependency + ".service"),
+        );
+    }
 }
 
 impl Display for Unit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "[Unit]")?;
 
         if let Some(description) = &self.description {
