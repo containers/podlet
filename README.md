@@ -128,14 +128,19 @@ Use the following commands for more usage information:
 - `podlet podman --help`
 - `podlet compose --help`
 
-## Podlet in a container
-While podlet can be run as-is in a podman or docker container, passing the run command through at the run time; if the user wants to utilize some of the write-to-file functionality or create quadlet files from compose files additional directories may need to be passed.
+### In a Container
 
-An example of a generic podman run command that should run the most up-to-date version of podlet with the current directory and user's quadlet directory passed to the container would be:
+While podlet can be used as-is in a container, passing the command to it; if you want to utilize some of the write-to-file functionality, or create quadlet files from compose files, additional volumes may need to be attached.
+
+An example of a generic podman command that runs the most up-to-date version of podlet with the current directory and user's quadlet directory attached to the container would be:
 
 `podman run --rm -v $PWD:$PWD -v $HOME/.config/containers/systemd/:/usr/share/containers/systemd/ -w $PWD --security-opt label=disable --pull=newer quay.io/k9withabone/podlet`
 
-Please note that --security-opt label=disable may be required for SELinux systems when using $PWD variables.  If your system does not use SELinux this may not be required.
+Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux this may not be required.
+
+Alternatively, if you just want podlet to read a specific compose file you can use:
+
+`podman run --rm -v ./compose.yaml:/compose.yaml:Z quay.io/k9withabone/podlet compose /compose.yaml`
 
 ## Cautions
 
