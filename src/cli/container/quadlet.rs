@@ -624,7 +624,7 @@ fn volumes_try_into_short(
                     }
                     "bind" => {
                         let Some(source) = source else {
-                            return Some(Err(eyre::eyre!("bind mount without a source")))
+                            return Some(Err(eyre::eyre!("bind mount without a source")));
                         };
                         let read_only = if read_only { ",ro" } else { "" };
                         let propagation = bind
