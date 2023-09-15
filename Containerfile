@@ -1,12 +1,13 @@
 FROM --platform=$BUILDPLATFORM docker.io/library/rust:1 AS chef
 WORKDIR /app
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
-RUN apt update && apt install -y gcc-aarch64-linux-gnu
-RUN cargo install cargo-chef
+RUN ["/bin/bash", "-c", "set -o pipefail && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash"]
+RUN cargo binstall -y cargo-chef
 ARG TARGETPLATFORM
 RUN case "$TARGETPLATFORM" in \
   "linux/amd64") echo x86_64-unknown-linux-musl > /rust_target.txt ;; \
-  "linux/arm64/v8") echo aarch64-unknown-linux-musl > /rust_target.txt ;; \
+  "linux/arm64/v8") echo aarch64-unknown-linux-musl > /rust_target.txt && \
+     apt update && apt install -y gcc-aarch64-linux-gnu ;; \
   *) exit 1 ;; \
 esac
 RUN rustup target add $(cat /rust_target.txt)
