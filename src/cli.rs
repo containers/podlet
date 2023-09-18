@@ -17,7 +17,7 @@ use std::{
     ffi::OsStr,
     fmt::{self, Display},
     fs,
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     iter, mem,
     path::{Path, PathBuf},
     rc::Rc,
@@ -300,7 +300,10 @@ enum Commands {
 
         /// The compose file to convert
         ///
-        /// If not provided, podlet will look for (in order)
+        /// If `-` or not provided and stdin is not a terminal,
+        /// the compose file will be read from stdin.
+        ///
+        /// If not provided, and stdin is a terminal, podlet will look for (in order)
         /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
         /// in the current working directory.
         compose_file: Option<PathBuf>,
@@ -512,24 +515,33 @@ impl ComposeService {
 
 fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compose> {
     let (compose_file, path) = if let Some(path) = compose_file {
+        if path.as_os_str() == "-" {
+            return compose_from_stdin();
+        }
         let compose_file = fs::File::open(path)
             .wrap_err("Could not open provided compose file")
             .suggestion("Make sure you have the proper permissions for the given file.")?;
-        (compose_file, path.display().to_string())
+        (compose_file, path.as_path())
     } else {
-        let file_names = [
+        const FILE_NAMES: [&str; 4] = [
             "compose.yaml",
             "compose.yml",
             "docker-compose.yaml",
             "docker-compose.yml",
         ];
+
+        if !io::stdin().is_terminal() {
+            return compose_from_stdin();
+        }
+
         let mut result = None;
-        for file_name in file_names {
+        for file_name in FILE_NAMES {
             if let Ok(compose_file) = fs::File::open(file_name) {
-                result = Some((compose_file, String::from(file_name)));
+                result = Some((compose_file, file_name.as_ref()));
                 break;
             }
         }
+
         result.ok_or_else(|| {
             eyre::eyre!(
                 "A compose file was not provided and none of \
@@ -540,7 +552,16 @@ fn compose_from_file(compose_file: &Option<PathBuf>) -> color_eyre::Result<Compo
     };
 
     serde_yaml::from_reader(compose_file)
-        .wrap_err_with(|| format!("File `{path}` is not a valid compose file"))
+        .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
+}
+
+fn compose_from_stdin() -> color_eyre::Result<Compose> {
+    let stdin = io::stdin();
+    if stdin.is_terminal() {
+        eyre::bail!("cannot read compose from stdin, stdin is a terminal");
+    }
+
+    serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
 }
 
 fn compose_try_into_quadlet_files<'a>(
