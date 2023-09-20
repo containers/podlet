@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 
-use super::escape_spaces_join;
+use super::writeln_escape_spaces;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Install {
@@ -13,11 +13,11 @@ impl Display for Install {
         writeln!(f, "[Install]")?;
 
         if !self.wanted_by.is_empty() {
-            writeln!(f, "WantedBy={}", escape_spaces_join(&self.wanted_by))?;
+            writeln_escape_spaces(f, "WantedBy", &self.wanted_by)?;
         }
 
         if !self.required_by.is_empty() {
-            writeln!(f, "RequiredBy={}", escape_spaces_join(&self.required_by))?;
+            writeln_escape_spaces(f, "RequiredBy", &self.required_by)?;
         }
 
         Ok(())

@@ -6,7 +6,7 @@ use std::{
 use color_eyre::eyre::{self, Context};
 use ipnet::IpNet;
 
-use super::escape_spaces_join;
+use super::writeln_escape_spaces;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Network {
@@ -122,7 +122,7 @@ impl Display for Network {
         }
 
         if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
+            writeln_escape_spaces(f, "Label", &self.label)?;
         }
 
         if let Some(options) = &self.options {
