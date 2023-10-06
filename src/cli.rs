@@ -186,9 +186,7 @@ impl Cli {
             }
 
             #[cfg(not(unix))]
-            return Err(eyre::eyre!(
-                "Cannot get podman unit directory on non-unix system"
-            ));
+            eyre::bail!("Cannot get podman unit directory on non-unix system");
         } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()
@@ -222,9 +220,10 @@ impl Cli {
             Commands::Compose { pod, compose_file } => {
                 let compose = compose_from_file(&compose_file)?;
 
-                if !compose.extensions.is_empty() {
-                    eyre::bail!("extensions are not supported");
-                }
+                eyre::ensure!(
+                    compose.extensions.is_empty(),
+                    "extensions are not supported"
+                );
 
                 if let Some(pod_name) = pod {
                     let (pod, persistent_volume_claims) =

@@ -27,15 +27,13 @@ impl TryFrom<docker_compose_types::NetworkSettings> for Network {
 
     fn try_from(value: docker_compose_types::NetworkSettings) -> Result<Self, Self::Error> {
         let unsupported_options = [
-            ("attachable", value.attachable),
-            ("internal", value.internal),
-            ("external", value.external.is_some()),
-            ("name", value.name.is_some()),
+            ("attachable", !value.attachable),
+            ("internal", !value.internal),
+            ("external", value.external.is_none()),
+            ("name", value.name.is_none()),
         ];
-        for (option, exists) in unsupported_options {
-            if exists {
-                return Err(eyre::eyre!("`{option}` is not supported"));
-            }
+        for (option, not_present) in unsupported_options {
+            eyre::ensure!(not_present, "`{option}` is not supported");
         }
 
         let options: Vec<String> = value

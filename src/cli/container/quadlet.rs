@@ -8,7 +8,6 @@ use clap::{Args, ValueEnum};
 use color_eyre::eyre::{self, Context};
 use docker_compose_types::MapOrEmpty;
 
-use super::unsupported_option;
 use crate::cli::ComposeService;
 
 #[allow(clippy::module_name_repetitions)]
@@ -406,7 +405,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             .map(|mode| match mode.as_str() {
                 "bridge" | "host" | "none" => Ok(mode),
                 s if s.starts_with("container") => Ok(mode),
-                _ => Err(unsupported_option(&format!("network_mode: {mode}"))),
+                _ => Err(eyre::eyre!("network_mode `{mode}` is unsupported")),
             })
             .transpose()?
             .into_iter()
@@ -541,9 +540,7 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
                     mode,
                 } = port;
                 if let Some(mode) = mode {
-                    if mode != "host" {
-                        return Err(eyre::eyre!("unsupported port mode: {mode}"));
-                    }
+                    eyre::ensure!(mode == "host", "unsupported port mode: {mode}");
                 }
 
                 let host_ip = host_ip.map(|host_ip| host_ip + ":").unwrap_or_default();

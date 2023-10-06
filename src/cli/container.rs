@@ -47,23 +47,22 @@ impl TryFrom<ComposeService> for Container {
     fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
         let service = &value.service;
         let unsupported_options = [
-            ("deploy", service.deploy.is_some()),
-            ("build", service.build_.is_some()),
-            ("profiles", !service.profiles.is_empty()),
-            ("links", !service.links.is_empty()),
-            ("net", service.net.is_some()),
-            ("volumes_from", !service.volumes_from.is_empty()),
-            ("extends", !service.extends.is_empty()),
-            ("scale", service.scale != 0),
+            ("deploy", service.deploy.is_none()),
+            ("build", service.build_.is_none()),
+            ("profiles", service.profiles.is_empty()),
+            ("links", service.links.is_empty()),
+            ("net", service.net.is_none()),
+            ("volumes_from", service.volumes_from.is_empty()),
+            ("extends", service.extends.is_empty()),
+            ("scale", service.scale == 0),
         ];
-        for (option, exists) in unsupported_options {
-            if exists {
-                return Err(unsupported_option(option));
-            }
+        for (option, not_present) in unsupported_options {
+            eyre::ensure!(not_present, "`{option}` is unsupported");
         }
-        if !service.extensions.is_empty() {
-            return Err(eyre::eyre!("compose extensions are not supported"));
-        }
+        eyre::ensure!(
+            service.extensions.is_empty(),
+            "compose extensions are not supported"
+        );
 
         let security_opt = mem::take(&mut value.service.security_opt)
             .into_iter()
@@ -97,10 +96,6 @@ impl TryFrom<ComposeService> for Container {
                 .unwrap_or_default(),
         })
     }
-}
-
-fn unsupported_option(option: &str) -> color_eyre::Report {
-    eyre::eyre!("`{option}` is unsupported")
 }
 
 impl From<Container> for crate::quadlet::Container {
