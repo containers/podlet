@@ -13,6 +13,19 @@ pub struct Kube {
     pub yaml: String,
 }
 
+impl Kube {
+    pub fn new(yaml: String) -> Self {
+        Self {
+            config_map: Vec::new(),
+            log_driver: None,
+            network: Vec::new(),
+            publish_port: Vec::new(),
+            user_ns: None,
+            yaml,
+        }
+    }
+}
+
 impl Display for Kube {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "[Kube]")?;

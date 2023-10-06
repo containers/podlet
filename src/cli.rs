@@ -229,17 +229,11 @@ impl Cli {
                     let (pod, persistent_volume_claims) =
                         k8s::compose_try_into_pod(compose, pod_name.clone())?;
 
-                    let kube = quadlet::Kube {
-                        config_map: Vec::new(),
-                        log_driver: None,
-                        network: Vec::new(),
-                        publish_port: Vec::new(),
-                        user_ns: None,
-                        yaml: format!("{pod_name}-kube.yaml"),
-                    };
+                    let kube_file_name = format!("{pod_name}-kube");
+                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml"));
 
                     let quadlet_file = quadlet::File {
-                        name: pod_name.clone(),
+                        name: pod_name,
                         unit,
                         resource: kube.into(),
                         service: None,
@@ -249,7 +243,7 @@ impl Cli {
                     Ok(vec![
                         quadlet_file.into(),
                         File::KubePod {
-                            name: format!("{pod_name}-kube"),
+                            name: kube_file_name,
                             pod,
                             persistent_volume_claims,
                         },
