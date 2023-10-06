@@ -461,6 +461,7 @@ impl File {
         let path_display = path.as_ref().display().to_string();
         let mut file = fs::File::options()
             .write(true)
+            .truncate(true)
             .create_new(!overwrite)
             .create(overwrite)
             .open(path)
