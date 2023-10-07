@@ -141,14 +141,6 @@ impl Cli {
             }
 
             for file in files {
-                let path: Cow<Path> = match &path {
-                    FilePath::Full(path) => path.into(),
-                    FilePath::Dir(path) => {
-                        let mut path = path.join(file.name());
-                        path.set_extension(file.extension());
-                        path.into()
-                    }
-                };
                 file.write(&path, overwrite)?;
             }
 
@@ -258,10 +250,29 @@ impl Cli {
     }
 }
 
+/// [`PathBuf`] pointing to a file or directory
 #[derive(Debug)]
 enum FilePath {
+    /// [`PathBuf`] pointing to a file
     Full(PathBuf),
+    /// [`PathBuf`] pointing to a directory
     Dir(PathBuf),
+}
+
+impl FilePath {
+    /// Convert to full file path
+    ///
+    /// If `self` is a directory, the [`File`] is used to set the filename.
+    fn to_full(&self, file: &File) -> Cow<Path> {
+        match self {
+            Self::Full(path) => path.into(),
+            Self::Dir(path) => {
+                let mut path = path.join(file.name());
+                path.set_extension(file.extension());
+                path.into()
+            }
+        }
+    }
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -450,46 +461,40 @@ impl File {
         }
     }
 
-    fn write(&self, path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<()> {
-        let path_display = path.as_ref().display().to_string();
-        let mut file = fs::File::options()
-            .write(true)
-            .truncate(true)
-            .create_new(!overwrite)
-            .create(overwrite)
-            .open(path)
-            .map_err(|error| match error.kind() {
+    fn write(&self, path: &FilePath, overwrite: bool) -> color_eyre::Result<()> {
+        let path = path.to_full(self);
+        let mut file = open_file(&path, overwrite)?;
+
+        let path = path.display();
+        write!(file, "{self}").wrap_err_with(|| format!("Failed to write to file: {path}"))?;
+        println!("Wrote to file: {path}");
+
+        Ok(())
+    }
+}
+
+fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::File> {
+    fs::File::options()
+        .write(true)
+        .truncate(true)
+        .create_new(!overwrite)
+        .create(overwrite)
+        .open(&path)
+        .map_err(|error| {
+            let path = path.as_ref().display();
+            match error.kind() {
                 io::ErrorKind::AlreadyExists => {
-                    eyre::eyre!("File already exists, not overwriting it: {path_display}")
+                    eyre::eyre!("File already exists, not overwriting it: {path}")
                         .suggestion("Use `--overwrite` if you wish overwrite existing files.")
                 }
                 _ => color_eyre::Report::new(error)
-                    .wrap_err(format!("Failed to create/open file: {path_display}"))
+                    .wrap_err(format!("Failed to create/open file: {path}"))
                     .suggestion(
                         "Make sure the directory exists \
                                 and you have write permissions for the file",
                     ),
-            })?;
-        match self {
-            Self::Quadlet(quadlet_file) => {
-                write!(file, "{quadlet_file}").map_err(color_eyre::Report::from)
             }
-            Self::KubePod {
-                name: _,
-                pod,
-                persistent_volume_claims,
-            } => {
-                for volume in persistent_volume_claims {
-                    serde_yaml::to_writer(&file, volume)?;
-                    writeln!(file, "---")?;
-                }
-                serde_yaml::to_writer(file, pod).map_err(color_eyre::Report::from)
-            }
-        }
-        .wrap_err_with(|| format!("Failed to write to file: {path_display}"))?;
-        println!("Wrote to file: {path_display}");
-        Ok(())
-    }
+        })
 }
 
 #[derive(Debug)]
