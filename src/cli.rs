@@ -28,7 +28,7 @@ use color_eyre::{
     eyre::{self, Context},
     Help,
 };
-use docker_compose_types::{Compose, MapOrEmpty};
+use docker_compose_types::{Compose, ComposeNetworks, MapOrEmpty};
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
 use crate::quadlet;
@@ -577,62 +577,25 @@ fn compose_try_into_quadlet_files<'a>(
     compose_services(&mut compose)
         .zip(iter::repeat(Rc::new(volume_has_options)))
         .map(|(result, volume_has_options)| {
-            result.and_then(|(name, mut service)| {
-                let mut unit = unit.clone();
-                if !service.depends_on.is_empty() {
-                    unit.get_or_insert(Unit::default())
-                        .add_dependencies(mem::take(&mut service.depends_on));
-                }
-
-                let service = ComposeService {
-                    service,
-                    volume_has_options,
-                };
-                let command: PodmanCommands = service.try_into().wrap_err_with(|| {
-                    format!("Could not parse service `{name}` as a valid podman command")
-                })?;
-
-                let service = command.service().cloned();
-
-                Ok(quadlet::File {
-                    name,
-                    unit,
-                    resource: command.into(),
-                    service,
-                    install: install.clone(),
-                })
-            })
-        })
-        .chain(compose.networks.0.into_iter().map(|(name, network)| {
-            let network = Option::<docker_compose_types::NetworkSettings>::from(network)
-                .map(quadlet::Network::try_from)
-                .transpose()
-                .wrap_err_with(|| {
-                    format!("Could not parse network `{name}` as a valid podman network")
-                })?
-                .unwrap_or_default();
-            Ok(quadlet::File {
+            let (name, service) = result?;
+            compose_service_try_into_quadlet_file(
+                service,
                 name,
-                unit: unit.clone(),
-                resource: network.into(),
-                service: None,
-                install: install.clone(),
-            })
-        }))
-        .chain(compose.volumes.0.into_iter().filter_map(|(name, volume)| {
-            Option::<docker_compose_types::ComposeVolume>::from(volume).map(|volume| {
-                let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
-                    format!("could not parse volume `{name}` as a valid podman volume")
-                })?;
-                Ok(quadlet::File {
-                    name,
-                    unit: unit.clone(),
-                    resource: volume.into(),
-                    service: None,
-                    install: install.clone(),
-                })
-            })
-        }))
+                volume_has_options,
+                unit.clone(),
+                install.clone(),
+            )
+        })
+        .chain(compose_networks_try_into_quadlet_files(
+            compose.networks,
+            unit,
+            install,
+        ))
+        .chain(compose_volumes_try_into_quadlet_files(
+            compose.volumes,
+            unit,
+            install,
+        ))
 }
 
 fn compose_services(
@@ -665,6 +628,80 @@ fn image_to_name(image: &str) -> &str {
         .expect("Split will have at least one element");
     // Remove image tag
     image.split_once(':').map_or(image, |(name, _)| name)
+}
+
+fn compose_service_try_into_quadlet_file(
+    mut service: docker_compose_types::Service,
+    name: String,
+    volume_has_options: Rc<HashMap<String, bool>>,
+    mut unit: Option<Unit>,
+    install: Option<quadlet::Install>,
+) -> color_eyre::Result<quadlet::File> {
+    if !service.depends_on.is_empty() {
+        unit.get_or_insert(Unit::default())
+            .add_dependencies(mem::take(&mut service.depends_on));
+    }
+
+    let service = ComposeService {
+        service,
+        volume_has_options,
+    };
+    let command = PodmanCommands::try_from(service)
+        .wrap_err_with(|| format!("Could not parse service `{name}` as a valid podman command"))?;
+
+    let service = command.service().cloned();
+
+    Ok(quadlet::File {
+        name,
+        unit,
+        resource: command.into(),
+        service,
+        install,
+    })
+}
+
+fn compose_networks_try_into_quadlet_files<'a>(
+    networks: ComposeNetworks,
+    unit: &'a Option<Unit>,
+    install: &'a Option<quadlet::Install>,
+) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+    networks.0.into_iter().map(|(name, network)| {
+        let network = Option::<docker_compose_types::NetworkSettings>::from(network)
+            .map(quadlet::Network::try_from)
+            .transpose()
+            .wrap_err_with(|| {
+                format!("Could not parse network `{name}` as a valid podman network")
+            })?
+            .unwrap_or_default();
+        Ok(quadlet::File {
+            name,
+            unit: unit.clone(),
+            resource: network.into(),
+            service: None,
+            install: install.clone(),
+        })
+    })
+}
+
+fn compose_volumes_try_into_quadlet_files<'a>(
+    volumes: docker_compose_types::TopLevelVolumes,
+    unit: &'a Option<Unit>,
+    install: &'a Option<quadlet::Install>,
+) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+    volumes.0.into_iter().filter_map(|(name, volume)| {
+        Option::<docker_compose_types::ComposeVolume>::from(volume).map(|volume| {
+            let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
+                format!("could not parse volume `{name}` as a valid podman volume")
+            })?;
+            Ok(quadlet::File {
+                name,
+                unit: unit.clone(),
+                resource: volume.into(),
+                service: None,
+                install: install.clone(),
+            })
+        })
+    })
 }
 
 #[cfg(unix)]
