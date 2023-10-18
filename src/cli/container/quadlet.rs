@@ -237,6 +237,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
 
+    /// Configures namespaced kernel parameters for the container.
+    ///
+    /// Converts to "Sysctl=NAME=VALUE"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "NAME=VALUE")]
+    sysctl: Vec<String>,
+
     /// Create a tmpfs mount
     ///
     /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
@@ -348,6 +356,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,
+            sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
             user,

@@ -51,6 +51,7 @@ pub struct Container {
     pub security_label_level: Option<String>,
     pub security_label_type: Option<String>,
     pub secret: Vec<String>,
+    pub sysctl: Vec<String>,
     pub tmpfs: Vec<String>,
     pub timezone: Option<String>,
     pub user: Option<String>,
@@ -220,6 +221,10 @@ impl Display for Container {
 
         for secret in &self.secret {
             writeln!(f, "Secret={secret}")?;
+        }
+        
+        if !self.sysctl.is_empty() {
+            writeln!(f, "Sysctl={}", escape_spaces_join(&self.sysctl))?;
         }
 
         for tmpfs in &self.tmpfs {

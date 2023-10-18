@@ -388,12 +388,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "NAME")]
     subuidname: Option<String>,
 
-    /// Configure namespaced kernel parameters at runtime
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "NAME=VALUE")]
-    sysctl: Vec<String>,
-
     /// Run container in systemd mode
     ///
     /// Default is true
@@ -532,7 +526,6 @@ impl Default for PodmanArgs {
             stop_timeout: None,
             subgidname: None,
             subuidname: None,
-            sysctl: Vec::new(),
             systemd: None,
             timeout: None,
             tls_verify: None,
@@ -623,7 +616,6 @@ impl PodmanArgs {
             + self.stop_timeout.iter().len()
             + self.subgidname.iter().len()
             + self.subuidname.iter().len()
-            + self.sysctl.len()
             + self.systemd.iter().len()
             + self.timeout.iter().len()
             + self.tls_verify.iter().len()
@@ -874,8 +866,6 @@ impl Display for PodmanArgs {
 
         extend_args(&mut args, "--subuidname", &self.subuidname);
 
-        extend_args(&mut args, "--sysctl", &self.sysctl);
-
         extend_args(&mut args, "--systemd", &self.systemd);
 
         let timeout = self.timeout.map(|timeout| timeout.to_string());
@@ -960,19 +950,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             .map(|(key, value)| format!("{key}={value}"))
             .collect();
 
-        let sysctl = match mem::take(&mut value.sysctls) {
-            docker_compose_types::SysCtls::List(vec) => vec,
-            docker_compose_types::SysCtls::Map(map) => map
-                .into_iter()
-                .map(|(key, value)| {
-                    let value = value
-                        .as_ref()
-                        .map_or_else(|| String::from("null"), ToString::to_string);
-                    format!("{key}={value}")
-                })
-                .collect(),
-        };
-
         Ok(Self {
             hostname: value.hostname.take(),
             privileged: value.privileged,
@@ -989,7 +966,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             log_opt,
             add_host: mem::take(&mut value.extra_hosts),
             tty: value.tty,
-            sysctl,
             ..Self::default()
         })
     }
