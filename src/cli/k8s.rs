@@ -20,7 +20,7 @@ use k8s_openapi::{
 };
 
 use super::{
-    compose_services,
+    compose,
     container::security_opt::{LabelOpt, SecurityOpt},
 };
 
@@ -30,7 +30,7 @@ pub fn compose_try_into_pod(
 ) -> color_eyre::Result<(Pod, Vec<PersistentVolumeClaim>)> {
     let mut volumes = Vec::new();
 
-    let containers = compose_services(&mut compose)
+    let containers = compose::services(&mut compose)
         .map(|result| {
             result.and_then(|(name, service)| {
                 let (container, container_volumes) =
