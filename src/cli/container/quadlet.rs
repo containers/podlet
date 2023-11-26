@@ -499,6 +499,7 @@ impl From<docker_compose_types::Healthcheck> for Healthcheck {
         let mut command = test.and_then(|test| match test {
             docker_compose_types::HealthcheckTest::Single(s) => Some(s),
             docker_compose_types::HealthcheckTest::Multiple(test) => {
+                #[allow(clippy::indexing_slicing)]
                 match test.first().map(String::as_str) {
                     Some("NONE") => {
                         disable = true;

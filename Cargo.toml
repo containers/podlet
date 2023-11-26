@@ -10,6 +10,53 @@ license = "MPL-2.0"
 keywords = ["podman", "quadlet"]
 categories = ["command-line-utilities"]
 
+[lints.rust]
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+pedantic = "warn"
+
+cargo = { level = "warn", priority = -1 }
+multiple_crate_versions = "allow"
+
+# restriction lint group
+clone_on_ref_ptr = "warn"
+dbg_macro = "warn"
+empty_drop = "warn"
+empty_structs_with_brackets = "warn"
+exit = "warn"
+format_push_string = "warn"
+if_then_some_else_none = "warn"
+indexing_slicing = "warn"
+integer_division = "warn"
+mixed_read_write_in_expression = "warn"
+mod_module_files = "warn"
+multiple_inherent_impl = "warn"
+needless_raw_strings = "warn"
+panic = "warn"
+pub_without_shorthand = "warn"
+rc_buffer = "warn"
+rc_mutex = "warn"
+redundant_type_annotations = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+same_name_method = "warn"
+semicolon_outside_block = "warn"
+string_slice = "warn"
+string_to_string = "warn"
+suspicious_xor_used_as_pow = "warn"
+tests_outside_test_module = "warn"
+todo = "warn"
+try_err = "warn"
+unimplemented = "warn"
+unnecessary_self_imports = "warn"
+unreachable = "warn"
+unwrap_used = "warn"
+verbose_file_reads = "warn"
+
 [dependencies]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
