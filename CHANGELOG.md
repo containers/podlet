@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.2.1] - 2023-11-28
+
+### Features
+
+- Compose: Read compose file from stdin ([#18](https://github.com/k9withabone/podlet/discussions/18))
+    - For `podlet compose`, if a compose file is not provided and stdin is not a terminal, or `-` is provided, podlet will attempt to read a compose file from stdin.
+    - For example `cat compose-example.yaml | podlet compose` or `cat compose-example.yaml | podlet compose -`
+
+### Bug Fixes
+
+- Truncate when overwriting existing files
+- Compose service volumes can be mixed long and short form ([#26](https://github.com/k9withabone/podlet/issues/26))
+
+### Documentation
+
+- Readme: Add sample podlet container usage instructions ([#17](https://github.com/k9withabone/podlet/pull/17), thanks [@Nitrousoxide](https://github.com/Nitrousoxide)!)
+- Readme: Update description, add build and local ci instructions
+
+### Miscellaneous Tasks
+
+- CI: Update podman for build and publish of container
+- CI: Add container builds to regular checks
+- Update dependencies
+- CI: Update cargo-dist to v0.5.0
+
+### Refactor
+
+- `quadlet::writeln_escape_spaces` write to formatter
+- Consistent use of `eyre::bail` and `eyre::ensure`
+- Add `quadlet::Kube::new()`
+- Simplify `cli::File::write()`
+- Split `compose_try_into_quadlet_files()`
+- Move compose functions into their own module
+- Move lints to Cargo.toml, add additional lints
+
+### Styling
+
+- Fix let-else formatting
+
 ## [0.2.0] - 2023-06-15
 
 ### Added
