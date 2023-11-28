@@ -1,13 +1,13 @@
 [package]
 name = "podlet"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
-description = "Podlet generates podman quadlet (systemd-like) files from a podman command."
+description = "Generate podman quadlet files from a podman command or a compose file"
 readme = "README.md"
 repository = "https://github.com/k9withabone/podlet"
 license = "MPL-2.0"
-keywords = ["podman", "quadlet"]
+keywords = ["podman", "quadlet", "containers"]
 categories = ["command-line-utilities"]
 
 [lints.rust]
