@@ -4,7 +4,7 @@
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/k9withabone/podlet/format-clippy-test.yaml?event=push&label=ci&logo=github&style=flat-square)
 ![Crates.io License](https://img.shields.io/crates/l/podlet?style=flat-square)
 
-Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) (systemd-like) files from a podman command.
+Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files from a podman command or a compose file.
 
 [![demo.gif](./demo.gif)](https://asciinema.org/a/591369)
 You can also view the demo on [asciinema](https://asciinema.org/a/591369).
@@ -154,7 +154,35 @@ Podlet is meant to be used with podman v4.5.0 or newer. Some quadlet options are
 
 ## Contribution
 
-This is my (@k9withabone) first real rust project and is mostly meant as a learning project for myself. That said, contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/k9withabone/podlet/issues), [discussion](https://github.com/k9withabone/podlet/discussions), or [pull request](https://github.com/k9withabone/podlet/pulls).
+Contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/k9withabone/podlet/issues), [discussion](https://github.com/k9withabone/podlet/discussions), or [pull request](https://github.com/k9withabone/podlet/pulls).
+
+### Building
+
+Podlet is a normal Rust project, so once [Rust is installed](https://www.rust-lang.org/tools/install), the source code can be cloned and built with:
+
+```shell
+git clone git@github.com:k9withabone/podlet.git
+cd podlet
+cargo build
+```
+
+Release builds are created with the `dist` profile:
+
+```shell
+cargo build --profile dist
+```
+
+### Local CI
+
+If you are submitting code changes in a pull request and would like to run the CI jobs locally, you can run the following commands:
+
+- format: `cargo fmt --check`
+- clippy: `cargo clippy`
+- test: `cargo test`
+- build-container:
+    - Ensure the container builds for both x86 and ARM platforms.
+    - `podman build --platform linux/amd64 -t podlet .`
+    - `podman build --platform linux/arm64/v8 -t podlet .`
 
 ## License
 
