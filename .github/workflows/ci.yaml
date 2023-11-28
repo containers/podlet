@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --verbose --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy -- -Dwarnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --verbose
+
+  build-container:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # From https://podman.io/docs/installation#ubuntu
+      # There is a bug in earlier versions of buildah/podman where the TARGETPLATFORM arg is not set correctly
+      - name: Upgrade podman
+        run: |
+          sudo mkdir -p /etc/apt/keyrings && \
+          curl -fsSL \
+            "https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key" \
+            | gpg --dearmor \
+            | sudo tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null && \
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" \
+            | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null && \
+          sudo apt update && \
+          sudo apt install -y podman
+
+      - run: podman version
+
+      - name: Build ARM image
+        run: podman build --platform linux/arm64/v8 -t podlet .
+
+      - name: Build x86 image
+        run: podman build --platform linux/amd64 -t podlet .
+
+      - name: Test run image
+        run: podman run localhost/podlet -h

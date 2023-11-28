@@ -20,7 +20,7 @@ use k8s_openapi::{
 };
 
 use super::{
-    compose_services,
+    compose,
     container::security_opt::{LabelOpt, SecurityOpt},
 };
 
@@ -30,7 +30,7 @@ pub fn compose_try_into_pod(
 ) -> color_eyre::Result<(Pod, Vec<PersistentVolumeClaim>)> {
     let mut volumes = Vec::new();
 
-    let containers = compose_services(&mut compose)
+    let containers = compose::services(&mut compose)
         .map(|result| {
             result.and_then(|(name, service)| {
                 let (container, container_volumes) =
@@ -490,19 +490,18 @@ fn parse_tmpfs_volume_mount(tmpfs: &str, container_name: &str) -> (VolumeMount, 
 }
 
 fn compose_volumes_try_into_volume_mounts(
-    volumes: ComposeVolumes,
+    volumes: Vec<ComposeVolumes>,
     container_name: &str,
 ) -> color_eyre::Result<Vec<(VolumeMount, Volume)>> {
-    match volumes {
-        ComposeVolumes::Simple(volumes) => volumes
-            .into_iter()
-            .map(|volume| parse_short_volume(volume, container_name))
-            .collect(),
-        ComposeVolumes::Advanced(volumes) => volumes
-            .into_iter()
-            .map(|volume| advanced_volume_try_into_volume_mount(volume, container_name))
-            .collect(),
-    }
+    volumes
+        .into_iter()
+        .map(|volume| match volume {
+            ComposeVolumes::Simple(volume) => parse_short_volume(volume, container_name),
+            ComposeVolumes::Advanced(volume) => {
+                advanced_volume_try_into_volume_mount(volume, container_name)
+            }
+        })
+        .collect()
 }
 
 fn parse_short_volume(

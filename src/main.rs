@@ -12,10 +12,6 @@
 //!
 //! Run `podlet --help` for more information.
 
-#![warn(clippy::pedantic, clippy::cargo)]
-// zbus uses some old dependencies, this is ok for now
-#![allow(clippy::multiple_crate_versions)]
-
 mod cli;
 mod quadlet;
 

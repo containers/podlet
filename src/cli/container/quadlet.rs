@@ -6,9 +6,8 @@ use std::{
 
 use clap::{Args, ValueEnum};
 use color_eyre::eyre::{self, Context};
-use docker_compose_types::MapOrEmpty;
+use docker_compose_types::{MapOrEmpty, Volumes};
 
-use super::unsupported_option;
 use crate::cli::ComposeService;
 
 #[allow(clippy::module_name_repetitions)]
@@ -406,7 +405,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             .map(|mode| match mode.as_str() {
                 "bridge" | "host" | "none" => Ok(mode),
                 s if s.starts_with("container") => Ok(mode),
-                _ => Err(unsupported_option(&format!("network_mode: {mode}"))),
+                _ => Err(eyre::eyre!("network_mode `{mode}` is unsupported")),
             })
             .transpose()?
             .into_iter()
@@ -500,6 +499,7 @@ impl From<docker_compose_types::Healthcheck> for Healthcheck {
         let mut command = test.and_then(|test| match test {
             docker_compose_types::HealthcheckTest::Single(s) => Some(s),
             docker_compose_types::HealthcheckTest::Multiple(test) => {
+                #[allow(clippy::indexing_slicing)]
                 match test.first().map(String::as_str) {
                     Some("NONE") => {
                         disable = true;
@@ -541,9 +541,7 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
                     mode,
                 } = port;
                 if let Some(mode) = mode {
-                    if mode != "host" {
-                        return Err(eyre::eyre!("unsupported port mode: {mode}"));
-                    }
+                    eyre::ensure!(mode == "host", "unsupported port mode: {mode}");
                 }
 
                 let host_ip = host_ip.map(|host_ip| host_ip + ":").unwrap_or_default();
@@ -565,28 +563,28 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
     }
 }
 
+/// Takes the [`Volumes`] from a service and converts them to short form if possible, or adds
+/// them to the `tmpfs` or `mount` options if not.
 fn volumes_try_into_short(
     service: &mut ComposeService,
     tmpfs: &mut Vec<String>,
     mount: &mut Vec<String>,
 ) -> color_eyre::Result<Vec<String>> {
-    let volumes = mem::take(&mut service.service.volumes);
-    match volumes {
-        docker_compose_types::Volumes::Simple(volumes) => Ok(volumes
-            .into_iter()
-            .map(|volume| match volume.split_once(':') {
+    mem::take(&mut service.service.volumes)
+        .into_iter()
+        .filter_map(|volume| match volume {
+            Volumes::Simple(volume) => match volume.split_once(':') {
                 Some((source, target))
-                    if !source.starts_with(['.', '/', '~']) // not bind mount or anonymous volume
+                    if !source.starts_with(['.', '/', '~'])
                         && service.volume_has_options(source) =>
                 {
-                    format!("{source}.volume:{target}")
+                    // not bind mount or anonymous volume which has options which require a
+                    // serparate volume unit to define
+                    Some(Ok(format!("{source}.volume:{target}")))
                 }
-                _ => volume,
-            })
-            .collect()),
-        docker_compose_types::Volumes::Advanced(volumes) => volumes
-            .into_iter()
-            .filter_map(|volume| {
+                _ => Some(Ok(volume)),
+            },
+            Volumes::Advanced(volume) => {
                 let docker_compose_types::AdvancedVolumes {
                     source,
                     target,
@@ -598,6 +596,7 @@ fn volumes_try_into_short(
                 } = volume;
 
                 match kind.as_str() {
+                    // volume or bind mount without extra options
                     "bind" | "volume" if bind.is_none() => {
                         let Some(mut source) = source else {
                             return Some(Err(eyre::eyre!("{kind} mount without a source")));
@@ -622,6 +621,7 @@ fn volumes_try_into_short(
 
                         Some(Ok(format!("{source}{target}{options}")))
                     }
+                    // bind mount with extra options
                     "bind" => {
                         let Some(source) = source else {
                             return Some(Err(eyre::eyre!("bind mount without a source")));
@@ -653,9 +653,9 @@ fn volumes_try_into_short(
                     }
                     _ => Some(Err(eyre::eyre!("unsupported volume type: {kind}"))),
                 }
-            })
-            .collect(),
-    }
+            }
+        })
+        .collect()
 }
 
 fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {

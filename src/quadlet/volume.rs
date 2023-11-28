@@ -4,7 +4,7 @@ use color_eyre::eyre::{self, Context};
 
 use crate::cli::volume::opt::Opt;
 
-use super::escape_spaces_join;
+use super::writeln_escape_spaces;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Volume {
@@ -78,7 +78,7 @@ impl Display for Volume {
         }
 
         if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
+            writeln_escape_spaces(f, "Label", &self.label)?;
         }
 
         if let Some(options) = &self.options {

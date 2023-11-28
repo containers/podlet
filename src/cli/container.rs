@@ -47,23 +47,22 @@ impl TryFrom<ComposeService> for Container {
     fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
         let service = &value.service;
         let unsupported_options = [
-            ("deploy", service.deploy.is_some()),
-            ("build", service.build_.is_some()),
-            ("profiles", !service.profiles.is_empty()),
-            ("links", !service.links.is_empty()),
-            ("net", service.net.is_some()),
-            ("volumes_from", !service.volumes_from.is_empty()),
-            ("extends", !service.extends.is_empty()),
-            ("scale", service.scale != 0),
+            ("deploy", service.deploy.is_none()),
+            ("build", service.build_.is_none()),
+            ("profiles", service.profiles.is_empty()),
+            ("links", service.links.is_empty()),
+            ("net", service.net.is_none()),
+            ("volumes_from", service.volumes_from.is_empty()),
+            ("extends", service.extends.is_empty()),
+            ("scale", service.scale == 0),
         ];
-        for (option, exists) in unsupported_options {
-            if exists {
-                return Err(unsupported_option(option));
-            }
+        for (option, not_present) in unsupported_options {
+            eyre::ensure!(not_present, "`{option}` is unsupported");
         }
-        if !service.extensions.is_empty() {
-            return Err(eyre::eyre!("compose extensions are not supported"));
-        }
+        eyre::ensure!(
+            service.extensions.is_empty(),
+            "compose extensions are not supported"
+        );
 
         let security_opt = mem::take(&mut value.service.security_opt)
             .into_iter()
@@ -99,34 +98,50 @@ impl TryFrom<ComposeService> for Container {
     }
 }
 
-fn unsupported_option(option: &str) -> color_eyre::Report {
-    eyre::eyre!("`{option}` is unsupported")
-}
-
 impl From<Container> for crate::quadlet::Container {
-    fn from(value: Container) -> Self {
-        let mut podman_args = value.podman_args.to_string();
+    fn from(
+        Container {
+            quadlet_options,
+            podman_args,
+            security_opt,
+            image,
+            command,
+        }: Container,
+    ) -> Self {
+        let mut podman_args = podman_args.to_string();
 
-        let mut security_options = security_opt::QuadletOptions::default();
-        for security_opt in value.security_opt {
-            security_options.add_security_opt(security_opt);
-        }
-        for arg in security_options.podman_args {
-            podman_args += &format!(" --security-opt {arg}");
+        let security_opt::QuadletOptions {
+            no_new_privileges,
+            seccomp_profile,
+            security_label_disable,
+            security_label_file_type,
+            security_label_level,
+            security_label_type,
+            podman_args: security_podman_args,
+        } = security_opt.into_iter().fold(
+            security_opt::QuadletOptions::default(),
+            |mut security_options, security_opt| {
+                security_options.add_security_opt(security_opt);
+                security_options
+            },
+        );
+
+        for arg in security_podman_args {
+            podman_args.push_str(" --security-opt ");
+            podman_args.push_str(&arg);
         }
 
         Self {
-            image: value.image,
-            no_new_privileges: security_options.no_new_privileges,
-            seccomp_profile: security_options.seccomp_profile,
-            security_label_disable: security_options.security_label_disable,
-            security_label_file_type: security_options.security_label_file_type,
-            security_label_level: security_options.security_label_level,
-            security_label_type: security_options.security_label_type,
+            image,
+            no_new_privileges,
+            seccomp_profile,
+            security_label_disable,
+            security_label_file_type,
+            security_label_level,
+            security_label_type,
             podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
-            exec: (!value.command.is_empty())
-                .then(|| shlex::join(value.command.iter().map(String::as_str))),
-            ..value.quadlet_options.into()
+            exec: (!command.is_empty()).then(|| shlex::join(command.iter().map(String::as_str))),
+            ..quadlet_options.into()
         }
     }
 }

@@ -4,10 +4,7 @@ mod kube;
 mod network;
 mod volume;
 
-use std::{
-    borrow::Cow,
-    fmt::{self, Display, Formatter},
-};
+use std::fmt::{self, Display, Formatter, Write};
 
 pub use self::{
     container::Container, install::Install, kube::Kube, network::Network, volume::Volume,
@@ -123,16 +120,56 @@ impl Resource {
     }
 }
 
-fn escape_spaces_join<'a>(words: impl IntoIterator<Item = &'a String>) -> String {
-    words
-        .into_iter()
-        .map(|word| {
-            if word.contains(' ') {
-                format!("\"{word}\"").into()
-            } else {
-                word.into()
+fn writeln_escape_spaces<I>(f: &mut Formatter, key: &str, words: I) -> fmt::Result
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    write!(f, "{key}=")?;
+
+    let mut words = words.into_iter();
+
+    if let Some(first) = words.next() {
+        escape_spaces(f, first.as_ref())?;
+    }
+
+    for word in words {
+        f.write_char(' ')?;
+        escape_spaces(f, word.as_ref())?;
+    }
+
+    writeln!(f)
+}
+
+fn escape_spaces(f: &mut Formatter, word: &str) -> fmt::Result {
+    if word.contains(' ') {
+        write!(f, "\"{word}\"")
+    } else {
+        f.write_str(word)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escape_spaces() {
+        struct Foo([&'static str; 3]);
+
+        impl Display for Foo {
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                writeln_escape_spaces(f, "Foo", self.0)
             }
-        })
-        .collect::<Vec<Cow<_>>>()
-        .join(" ")
+        }
+
+        assert_eq!(
+            Foo(["one", "two", "three"]).to_string(),
+            "Foo=one two three\n"
+        );
+        assert_eq!(
+            Foo(["one", "two three", "four"]).to_string(),
+            "Foo=one \"two three\" four\n"
+        );
+    }
 }

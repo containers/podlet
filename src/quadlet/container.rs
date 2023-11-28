@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use super::escape_spaces_join;
+use super::writeln_escape_spaces;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 #[allow(clippy::struct_excessive_bools)]
@@ -75,7 +75,7 @@ impl Display for Container {
         }
 
         if !self.annotation.is_empty() {
-            writeln!(f, "Annotation={}", escape_spaces_join(&self.annotation))?;
+            writeln_escape_spaces(f, "Annotation", &self.annotation)?;
         }
 
         if let Some(name) = &self.container_name {
@@ -87,7 +87,7 @@ impl Display for Container {
         }
 
         if !self.environment.is_empty() {
-            writeln!(f, "Environment={}", escape_spaces_join(&self.environment))?;
+            writeln_escape_spaces(f, "Environment", &self.environment)?;
         }
 
         for file in &self.environment_file {
@@ -159,7 +159,7 @@ impl Display for Container {
         }
 
         if !self.label.is_empty() {
-            writeln!(f, "Label={}", escape_spaces_join(&self.label))?;
+            writeln_escape_spaces(f, "Label", &self.label)?;
         }
 
         if let Some(log_driver) = &self.log_driver {
