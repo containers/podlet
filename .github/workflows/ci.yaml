@@ -68,4 +68,4 @@ jobs:
         run: podman build --platform linux/amd64 -t podlet .
 
       - name: Test run image
-        run: podman run localhost/podlet
+        run: podman run localhost/podlet -h
