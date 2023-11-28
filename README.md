@@ -1,7 +1,7 @@
 # Podlet
 
 ![Crates.io](https://img.shields.io/crates/v/podlet?style=flat-square)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/k9withabone/podlet/format-clippy-test.yaml?event=push&label=ci&logo=github&style=flat-square)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/k9withabone/podlet/ci.yaml?event=push&label=ci&logo=github&style=flat-square)
 ![Crates.io License](https://img.shields.io/crates/l/podlet?style=flat-square)
 
 Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files from a podman command or a compose file.
