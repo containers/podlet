@@ -222,9 +222,9 @@ impl Display for Container {
         for secret in &self.secret {
             writeln!(f, "Secret={secret}")?;
         }
-        
+
         if !self.sysctl.is_empty() {
-            writeln!(f, "Sysctl={}", escape_spaces_join(&self.sysctl))?;
+            writeln_escape_spaces(f, "Sysctl", &self.sysctl)?;
         }
 
         for tmpfs in &self.tmpfs {
