@@ -237,6 +237,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
 
+    /// Configures namespaced kernel parameters for the container.
+    ///
+    /// Converts to "Sysctl=NAME=VALUE"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "NAME=VALUE")]
+    sysctl: Vec<String>,
+
     /// Create a tmpfs mount
     ///
     /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
@@ -348,6 +356,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,
+            sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
             user,
@@ -370,6 +379,7 @@ impl TryFrom<ComposeService> for QuadletOptions {
 impl TryFrom<&mut ComposeService> for QuadletOptions {
     type Error = color_eyre::Report;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
         let service = &mut value.service;
 
@@ -420,6 +430,20 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
                 .collect(),
         };
 
+        let sysctl = match mem::take(&mut service.sysctls) {
+            docker_compose_types::SysCtls::List(vec) => vec,
+            docker_compose_types::SysCtls::Map(map) => map
+                .into_iter()
+                .map(|(key, value)| {
+                    if let Some(value) = value {
+                        format!("{key}={value}")
+                    } else {
+                        key + "=null"
+                    }
+                })
+                .collect(),
+        };
+
         let mut tmpfs = service
             .tmpfs
             .take()
@@ -461,6 +485,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             health_retries,
             health_start_period,
             health_timeout,
+            sysctl,
             tmpfs,
             mount,
             user: service.user.take(),
