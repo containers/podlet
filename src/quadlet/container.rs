@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use super::writeln_escape_spaces;
+use super::{writeln_escape_spaces, AutoUpdate};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 #[allow(clippy::struct_excessive_bools)]
@@ -12,6 +12,7 @@ pub struct Container {
     pub add_capability: Vec<String>,
     pub add_device: Vec<String>,
     pub annotation: Vec<String>,
+    pub auto_update: Option<AutoUpdate>,
     pub container_name: Option<String>,
     pub drop_capability: Vec<String>,
     pub environment: Vec<String>,
@@ -77,6 +78,10 @@ impl Display for Container {
 
         if !self.annotation.is_empty() {
             writeln_escape_spaces(f, "Annotation", &self.annotation)?;
+        }
+
+        if let Some(auto_update) = self.auto_update {
+            writeln!(f, "AutoUpdate={auto_update}")?;
         }
 
         if let Some(name) = &self.container_name {

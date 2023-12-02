@@ -8,7 +8,7 @@ use clap::{Args, ValueEnum};
 use color_eyre::eyre::{self, Context};
 use docker_compose_types::{MapOrEmpty, Volumes};
 
-use crate::cli::ComposeService;
+use crate::{cli::ComposeService, quadlet::AutoUpdate};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -290,6 +290,16 @@ enum Notify {
     Container,
 }
 
+impl Notify {
+    /// Returns `true` if the notify is [`Container`].
+    ///
+    /// [`Container`]: Notify::Container
+    #[must_use]
+    fn is_container(self) -> bool {
+        matches!(self, Self::Container)
+    }
+}
+
 impl Default for Notify {
     fn default() -> Self {
         Self::Conmon
@@ -298,15 +308,17 @@ impl Default for Notify {
 
 impl From<QuadletOptions> for crate::quadlet::Container {
     fn from(value: QuadletOptions) -> Self {
-        let (user, group) = if let Some(user) = value.user {
+        let mut label = value.label;
+        let auto_update = AutoUpdate::extract_from_labels(&mut label);
+
+        // `--user` is in the format: `uid[:gid]`
+        let (user, group) = value.user.map_or((None, None), |user| {
             if let Some((uid, gid)) = user.split_once(':') {
-                (Some(String::from(uid)), Some(String::from(gid)))
+                (Some(uid.into()), Some(gid.into()))
             } else {
                 (Some(user), None)
             }
-        } else {
-            (None, None)
-        };
+        });
 
         let mut tmpfs = value.tmpfs;
         let mut volatile_tmp = false;
@@ -323,6 +335,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             add_capability: value.cap_add,
             add_device: value.device,
             annotation: value.annotation,
+            auto_update,
             container_name: value.name,
             drop_capability: value.cap_drop,
             environment: value.env,
@@ -343,15 +356,12 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_timeout: value.health_timeout,
             ip: value.ip,
             ip6: value.ip6,
-            label: value.label,
+            label,
             log_driver: value.log_driver,
             mount: value.mount,
             network: value.network,
             rootfs: value.rootfs,
-            notify: match value.sdnotify {
-                Notify::Conmon => false,
-                Notify::Container => true,
-            },
+            notify: value.sdnotify.is_container(),
             publish_port: value.publish,
             read_only: value.read_only,
             run_init: value.init,
@@ -604,7 +614,7 @@ fn volumes_try_into_short(
                         && service.volume_has_options(source) =>
                 {
                     // not bind mount or anonymous volume which has options which require a
-                    // serparate volume unit to define
+                    // separate volume unit to define
                     Some(Ok(format!("{source}.volume:{target}")))
                 }
                 _ => Some(Ok(volume)),
