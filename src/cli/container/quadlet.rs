@@ -297,6 +297,12 @@ pub struct QuadletOptions {
         value_name = "[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]"
     )]
     volume: Vec<String>,
+
+    /// Working directory inside the container
+    ///
+    /// Converts to "WorkingDir=DIR"
+    #[arg(short, long, value_name = "DIR")]
+    workdir: Option<PathBuf>,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
@@ -390,6 +396,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             user_ns: value.userns,
             volatile_tmp,
             volume: value.volume,
+            working_dir: value.workdir,
             ..Self::default()
         }
     }
@@ -524,6 +531,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
                 .map(|logging| mem::take(&mut logging.driver)),
             init: service.init,
             volume,
+            workdir: service.working_dir.take().map(Into::into),
             ..Self::default()
         })
     }

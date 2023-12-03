@@ -63,6 +63,7 @@ pub struct Container {
     pub user_ns: Option<String>,
     pub volatile_tmp: bool,
     pub volume: Vec<String>,
+    pub working_dir: Option<PathBuf>,
 }
 
 impl Display for Container {
@@ -266,6 +267,10 @@ impl Display for Container {
 
         for volume in &self.volume {
             writeln!(f, "Volume={volume}")?;
+        }
+
+        if let Some(working_dir) = &self.working_dir {
+            writeln!(f, "WorkingDir={}", working_dir.display())?;
         }
 
         if let Some(podman_args) = &self.podman_args {

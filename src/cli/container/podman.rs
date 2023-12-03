@@ -423,10 +423,6 @@ pub struct PodmanArgs {
     /// Can be specified multiple times
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
-
-    /// Working directory inside the container
-    #[arg(short, long, value_name = "DIR")]
-    workdir: Option<PathBuf>,
 }
 
 impl Default for PodmanArgs {
@@ -525,7 +521,6 @@ impl Default for PodmanArgs {
             umask: None,
             variant: None,
             volumes_from: Vec::new(),
-            workdir: None,
         }
     }
 }
@@ -611,8 +606,7 @@ impl PodmanArgs {
             + self.ulimit.len()
             + self.umask.iter().len()
             + self.variant.iter().len()
-            + self.volumes_from.len()
-            + self.workdir.iter().len())
+            + self.volumes_from.len())
             * 2
             + usize::from(self.interactive)
             + usize::from(self.no_healthcheck)
@@ -870,9 +864,6 @@ impl Display for PodmanArgs {
 
         extend_args(&mut args, "--volumes-from", &self.volumes_from);
 
-        let workdir = self.workdir.as_deref().map(Path::to_string_lossy);
-        extend_args(&mut args, "--workdir", &workdir);
-
         debug_assert_eq!(args.len(), self.args_len());
 
         write!(f, "{}", shlex::join(args))
@@ -943,7 +934,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             stop_timeout,
             dns: mem::take(&mut value.dns),
             ipc: value.ipc.take(),
-            workdir: value.working_dir.take().map(Into::into),
             interactive: value.stdin_open,
             shm_size: value.shm_size.take(),
             log_opt,
