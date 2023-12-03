@@ -188,10 +188,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENTRY")]
     group_entry: Option<String>,
 
-    /// Set container hostname
-    #[arg(long, value_name = "NAME")]
-    hostname: Option<String>,
-
     /// Add a user account to /etc/passwd from the host to the container
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
@@ -478,7 +474,6 @@ impl Default for PodmanArgs {
             gidmap: Vec::new(),
             group_add: Vec::new(),
             group_entry: None,
-            hostname: None,
             hostuser: Vec::new(),
             http_proxy: true,
             image_volume: None,
@@ -579,7 +574,6 @@ impl PodmanArgs {
             + self.gidmap.len()
             + self.group_add.len()
             + self.group_entry.iter().len()
-            + self.hostname.iter().len()
             + self.hostuser.len()
             + usize::from(!self.http_proxy)
             + self.image_volume.iter().len()
@@ -738,8 +732,6 @@ impl Display for PodmanArgs {
         extend_args(&mut args, "--group-add", &self.group_add);
 
         extend_args(&mut args, "--group-entry", &self.group_entry);
-
-        extend_args(&mut args, "--hostname", &self.hostname);
 
         extend_args(&mut args, "--hostuser", &self.hostuser);
 
@@ -951,7 +943,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             .collect();
 
         Ok(Self {
-            hostname: value.hostname.take(),
             privileged: value.privileged,
             pid: value.pid.take(),
             ulimit,

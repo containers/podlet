@@ -151,6 +151,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "TIMEOUT")]
     health_timeout: Option<String>,
 
+    /// Set the host name that is available inside the container
+    ///
+    /// Converts to "HostName=NAME"
+    #[arg(long, value_name = "NAME")]
+    hostname: Option<String>,
+
     /// Specify a static IPv4 address for the container
     ///
     /// Converts to "IP=IPV4"
@@ -354,6 +360,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_startup_success: value.health_startup_success,
             health_startup_timeout: value.health_startup_timeout,
             health_timeout: value.health_timeout,
+            host_name: value.hostname,
             ip: value.ip,
             ip6: value.ip6,
             label,
@@ -495,6 +502,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             health_retries,
             health_start_period,
             health_timeout,
+            hostname: service.hostname.take(),
             sysctl,
             tmpfs,
             mount,

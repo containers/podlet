@@ -32,6 +32,7 @@ pub struct Container {
     pub health_startup_success: Option<u16>,
     pub health_startup_timeout: Option<String>,
     pub health_timeout: Option<String>,
+    pub host_name: Option<String>,
     pub image: String,
     pub ip: Option<Ipv4Addr>,
     pub ip6: Option<Ipv6Addr>,
@@ -154,6 +155,10 @@ impl Display for Container {
 
         if let Some(timeout) = &self.health_timeout {
             writeln!(f, "HealthTimeout={timeout}")?;
+        }
+
+        if let Some(host_name) = &self.host_name {
+            writeln!(f, "HostName={host_name}")?;
         }
 
         if let Some(ip) = &self.ip {
