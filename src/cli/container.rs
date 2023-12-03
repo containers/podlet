@@ -116,6 +116,7 @@ impl From<Container> for crate::quadlet::Container {
             security_label_disable,
             security_label_file_type,
             security_label_level,
+            security_label_nested,
             security_label_type,
             podman_args: security_podman_args,
         } = security_opt.into_iter().fold(
@@ -138,6 +139,7 @@ impl From<Container> for crate::quadlet::Container {
             security_label_disable,
             security_label_file_type,
             security_label_level,
+            security_label_nested,
             security_label_type,
             podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
             exec: (!command.is_empty()).then(|| shlex::join(command.iter().map(String::as_str))),

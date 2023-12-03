@@ -110,6 +110,7 @@ pub struct QuadletOptions {
     pub security_label_disable: bool,
     pub security_label_file_type: Option<String>,
     pub security_label_level: Option<String>,
+    pub security_label_nested: bool,
     pub security_label_type: Option<String>,
     pub podman_args: Vec<String>,
 }
@@ -137,7 +138,7 @@ impl QuadletOptions {
             LabelOpt::Level(level) => self.security_label_level = Some(level),
             LabelOpt::Filetype(file_type) => self.security_label_file_type = Some(file_type),
             LabelOpt::Disable => self.security_label_disable = true,
-            LabelOpt::Nested => self.podman_args.push(String::from("nested")),
+            LabelOpt::Nested => self.security_label_nested = true,
         }
     }
 }

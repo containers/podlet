@@ -54,6 +54,7 @@ pub struct Container {
     pub security_label_disable: bool,
     pub security_label_file_type: Option<String>,
     pub security_label_level: Option<String>,
+    pub security_label_nested: bool,
     pub security_label_type: Option<String>,
     pub secret: Vec<String>,
     pub sysctl: Vec<String>,
@@ -231,6 +232,10 @@ impl Display for Container {
 
         if let Some(level) = &self.security_label_level {
             writeln!(f, "SecurityLabelLevel={level}")?;
+        }
+
+        if self.security_label_nested {
+            writeln!(f, "SecurityLabelNested=true")?;
         }
 
         if let Some(label_type) = &self.security_label_type {
