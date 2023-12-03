@@ -8,7 +8,10 @@ use clap::{Args, ValueEnum};
 use color_eyre::eyre::{self, Context};
 use docker_compose_types::{MapOrEmpty, Volumes};
 
-use crate::{cli::ComposeService, quadlet::AutoUpdate};
+use crate::{
+    cli::ComposeService,
+    quadlet::{AutoUpdate, PullPolicy},
+};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -223,6 +226,12 @@ pub struct QuadletOptions {
     )]
     publish: Vec<String>,
 
+    /// Pull image policy
+    ///
+    /// Converts to "Pull=POLICY"
+    #[arg(long, value_name = "POLICY")]
+    pull: Option<PullPolicy>,
+
     /// Mount the container's root filesystem as read-only
     ///
     /// Converts to "ReadOnly=true"
@@ -370,6 +379,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             rootfs: value.rootfs,
             notify: value.sdnotify.is_container(),
             publish_port: value.publish,
+            pull: value.pull,
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,

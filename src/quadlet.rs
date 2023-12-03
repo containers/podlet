@@ -12,7 +12,11 @@ use std::{
 use thiserror::Error;
 
 pub use self::{
-    container::Container, install::Install, kube::Kube, network::Network, volume::Volume,
+    container::{Container, PullPolicy},
+    install::Install,
+    kube::Kube,
+    network::Network,
+    volume::Volume,
 };
 use crate::cli::{service::Service, unit::Unit};
 

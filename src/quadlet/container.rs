@@ -4,6 +4,8 @@ use std::{
     path::PathBuf,
 };
 
+use clap::ValueEnum;
+
 use super::{writeln_escape_spaces, AutoUpdate};
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -45,6 +47,7 @@ pub struct Container {
     pub notify: bool,
     pub podman_args: Option<String>,
     pub publish_port: Vec<String>,
+    pub pull: Option<PullPolicy>,
     pub read_only: bool,
     pub run_init: bool,
     pub seccomp_profile: Option<String>,
@@ -201,6 +204,10 @@ impl Display for Container {
             writeln!(f, "PublishPort={port}")?;
         }
 
+        if let Some(pull) = self.pull {
+            writeln!(f, "Pull={pull}")?;
+        }
+
         if self.read_only {
             writeln!(f, "ReadOnly=true")?;
         }
@@ -270,5 +277,37 @@ impl Display for Container {
         }
 
         Ok(())
+    }
+}
+
+/// Valid pull policies for container images.
+///
+/// See the `--pull` [section](https://docs.podman.io/en/latest/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PullPolicy {
+    /// Always pull the image and throw an error if the pull fails.
+    Always,
+    /// Pull the image only when the image is not in the local containers storage.
+    Missing,
+    /// Never pull the image but use the one from the local containers storage.
+    Never,
+    /// Pull if the image on the registry is newer than the one in the local containers storage.
+    Newer,
+}
+
+impl AsRef<str> for PullPolicy {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Always => "always",
+            Self::Missing => "missing",
+            Self::Never => "never",
+            Self::Newer => "newer",
+        }
+    }
+}
+
+impl Display for PullPolicy {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str(self.as_ref())
     }
 }

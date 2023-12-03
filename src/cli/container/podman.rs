@@ -318,10 +318,6 @@ pub struct PodmanArgs {
     #[arg(short = 'P', long)]
     publish_all: bool,
 
-    /// Pull image policy
-    #[arg(long, value_name = "POLICY")]
-    pull: Option<String>,
-
     /// Suppress output information when pulling images
     #[arg(short, long)]
     quiet: bool,
@@ -506,7 +502,6 @@ impl Default for PodmanArgs {
             preserve_fds: None,
             privileged: false,
             publish_all: false,
-            pull: None,
             quiet: false,
             read_only_tmpfs: true,
             replace: false,
@@ -599,7 +594,6 @@ impl PodmanArgs {
             + self.pod.iter().len()
             + self.pod_id_file.iter().len()
             + self.preserve_fds.iter().len()
-            + self.pull.iter().len()
             + usize::from(!self.read_only_tmpfs)
             + self.requires.iter().len()
             + self.seccomp_policy.iter().len()
@@ -822,8 +816,6 @@ impl Display for PodmanArgs {
         if self.publish_all {
             args.push("--publish-all");
         }
-
-        extend_args(&mut args, "--pull", &self.pull);
 
         if self.quiet {
             args.push("--quiet");
