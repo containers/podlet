@@ -1070,6 +1070,7 @@ dependencies = [
  "ipnet",
  "k8s-openapi",
  "nix",
+ "serde",
  "serde_yaml",
  "shlex",
  "thiserror",

@@ -14,6 +14,9 @@
 
 mod cli;
 mod quadlet;
+mod serde {
+    pub mod args;
+}
 
 use clap::Parser;
 use color_eyre::eyre;
