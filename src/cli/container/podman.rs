@@ -480,7 +480,7 @@ pub struct PodmanArgs {
     timeout: Option<u16>,
 
     /// Require HTTPS and verify certificates when contacting registries
-    #[arg(long)]
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_verify: Option<bool>,
 

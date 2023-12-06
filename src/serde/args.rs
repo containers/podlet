@@ -143,7 +143,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         if v {
             self.push_flag()
         } else {
-            self.push_value("false")
+            self.push_flag()?;
+            self.output.push_str("=false");
+            Ok(())
         }
     }
 
@@ -701,7 +703,7 @@ mod tests {
             yes: true,
             no: false,
         };
-        assert_eq!(to_string(sut).unwrap(), "--yes --no false");
+        assert_eq!(to_string(sut).unwrap(), "--yes --no=false");
     }
 
     #[test]
