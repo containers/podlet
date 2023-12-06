@@ -1,5 +1,6 @@
 use std::{
     fmt::{self, Display, Formatter},
+    iter,
     net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
 };
@@ -61,6 +62,7 @@ pub struct Container {
     pub sysctl: Vec<String>,
     pub tmpfs: Vec<String>,
     pub timezone: Option<String>,
+    pub unmask: Option<Unmask>,
     pub user: Option<String>,
     pub user_ns: Option<String>,
     pub volatile_tmp: bool,
@@ -264,6 +266,10 @@ impl Display for Container {
             writeln!(f, "Timezone={timezone}")?;
         }
 
+        if let Some(unmask) = &self.unmask {
+            writeln_escape_spaces::<':', _>(f, "Unmask", unmask)?;
+        }
+
         if let Some(user) = &self.user {
             writeln!(f, "User={user}")?;
         }
@@ -325,5 +331,112 @@ impl AsRef<str> for PullPolicy {
 impl Display for PullPolicy {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.write_str(self.as_ref())
+    }
+}
+
+/// Options for the `Unmask=` quadlet option.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Unmask {
+    All,
+    Paths(Vec<String>),
+}
+
+impl Unmask {
+    /// Create a new [`Unmask`].
+    pub fn new() -> Self {
+        Self::Paths(Vec::new())
+    }
+
+    /// Add a path to the unmask list.
+    ///
+    /// If the path is `ALL`, the unmask list will always be `ALL`.
+    pub fn add_path(&mut self, path: impl Into<String>) {
+        match self {
+            Unmask::All => {}
+            Unmask::Paths(paths) => {
+                let path: String = path.into();
+                if path.to_lowercase() == "all" {
+                    *self = Self::All;
+                } else {
+                    paths.push(path);
+                }
+            }
+        }
+    }
+}
+
+impl Default for Unmask {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<A: Into<String>> Extend<A> for Unmask {
+    fn extend<T: IntoIterator<Item = A>>(&mut self, iter: T) {
+        for path in iter {
+            self.add_path(path);
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a Unmask {
+    type Item = &'a str;
+
+    type IntoIter = UnmaskIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Unmask::All => UnmaskIter::All(iter::once("ALL")),
+            Unmask::Paths(paths) => UnmaskIter::Paths(paths.iter()),
+        }
+    }
+}
+
+/// Iterator for [`Unmask`].
+pub enum UnmaskIter<'a> {
+    All(iter::Once<&'a str>),
+    Paths(std::slice::Iter<'a, String>),
+}
+
+impl<'a> Iterator for UnmaskIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::All(once) => once.next(),
+            Self::Paths(iter) => iter.next().map(String::as_str),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod unmask {
+        use super::*;
+
+        #[test]
+        fn add_path() {
+            let mut unmask = Unmask::new();
+
+            unmask.add_path("/1");
+            assert_eq!(unmask, Unmask::Paths(vec![String::from("/1")]));
+
+            unmask.add_path("ALL");
+            assert_eq!(unmask, Unmask::All);
+
+            unmask.add_path("/2");
+            assert_eq!(unmask, Unmask::All);
+        }
+
+        #[test]
+        fn iter() {
+            let unmask = Unmask::Paths(vec![String::from("/1"), String::from("/2")]);
+            assert_eq!(unmask.into_iter().collect::<Vec<_>>(), ["/1", "/2"]);
+
+            let unmask = Unmask::All;
+            assert_eq!(unmask.into_iter().collect::<Vec<_>>(), ["ALL"]);
+        }
     }
 }

@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+use crate::quadlet::Unmask;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SecurityOpt {
     Apparmor(String),
@@ -113,6 +115,7 @@ pub struct QuadletOptions {
     pub security_label_level: Option<String>,
     pub security_label_nested: bool,
     pub security_label_type: Option<String>,
+    pub unmask: Option<Unmask>,
     pub podman_args: Vec<String>,
 }
 
@@ -127,7 +130,10 @@ impl QuadletOptions {
             SecurityOpt::ProcOpts(proc_opts) => {
                 self.podman_args.push(format!("proc-opts={proc_opts}"));
             }
-            SecurityOpt::Unmask(unmask) => self.podman_args.push(format!("unmask={unmask}")),
+            SecurityOpt::Unmask(paths) => self
+                .unmask
+                .get_or_insert_with(Unmask::new)
+                .extend(paths.split(':')),
         }
     }
 

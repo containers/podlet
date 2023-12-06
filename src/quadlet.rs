@@ -12,7 +12,7 @@ use std::{
 use thiserror::Error;
 
 pub use self::{
-    container::{Container, PullPolicy},
+    container::{Container, PullPolicy, Unmask},
     install::Install,
     kube::Kube,
     network::Network,
