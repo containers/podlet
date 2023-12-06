@@ -8,6 +8,7 @@ pub struct Kube {
     pub config_map: Vec<PathBuf>,
     pub log_driver: Option<String>,
     pub network: Vec<String>,
+    pub podman_args: Option<String>,
     pub publish_port: Vec<String>,
     pub user_ns: Option<String>,
     pub yaml: String,
@@ -19,6 +20,7 @@ impl Kube {
             config_map: Vec::new(),
             log_driver: None,
             network: Vec::new(),
+            podman_args: None,
             publish_port: Vec::new(),
             user_ns: None,
             yaml,
@@ -42,6 +44,10 @@ impl Display for Kube {
 
         for network in &self.network {
             writeln!(f, "Network={network}")?;
+        }
+
+        if let Some(podman_args) = &self.podman_args {
+            writeln!(f, "PodmanArgs={podman_args}")?;
         }
 
         for port in &self.publish_port {
