@@ -192,7 +192,9 @@ impl FromStr for AutoUpdate {
 #[error("unknown auto update variant `{0}`, must be `registry` or `local`")]
 pub struct ParseAutoUpdateError(String);
 
-fn writeln_escape_spaces<I>(f: &mut Formatter, key: &str, words: I) -> fmt::Result
+/// Writes the line `key=joined_words` to the [`Formatter`]. `joined_words` is the given `words`,
+/// where each word is escaped and joined together with the const parameter `C` as a separator.
+fn writeln_escape_spaces<const C: char, I>(f: &mut Formatter, key: &str, words: I) -> fmt::Result
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
@@ -206,7 +208,7 @@ where
     }
 
     for word in words {
-        f.write_char(' ')?;
+        f.write_char(C)?;
         escape_spaces(f, word.as_ref())?;
     }
 
@@ -231,7 +233,7 @@ mod tests {
 
         impl Display for Foo {
             fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                writeln_escape_spaces(f, "Foo", self.0)
+                writeln_escape_spaces::<' ', _>(f, "Foo", self.0)
             }
         }
 

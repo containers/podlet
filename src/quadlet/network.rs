@@ -120,7 +120,7 @@ impl Display for Network {
         }
 
         if !self.label.is_empty() {
-            writeln_escape_spaces(f, "Label", &self.label)?;
+            writeln_escape_spaces::<' ', _>(f, "Label", &self.label)?;
         }
 
         if let Some(options) = &self.options {

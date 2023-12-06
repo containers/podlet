@@ -105,6 +105,7 @@ pub struct InvalidLabelOpt(pub String);
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct QuadletOptions {
+    pub mask: Vec<String>,
     pub no_new_privileges: bool,
     pub seccomp_profile: Option<String>,
     pub security_label_disable: bool,
@@ -120,7 +121,7 @@ impl QuadletOptions {
         match security_opt {
             SecurityOpt::Apparmor(policy) => self.podman_args.push(format!("apparmor={policy}")),
             SecurityOpt::Label(label_opt) => self.add_label_opt(label_opt),
-            SecurityOpt::Mask(mask) => self.podman_args.push(format!("mask={mask}")),
+            SecurityOpt::Mask(mask) => self.mask.extend(mask.split(':').map(Into::into)),
             SecurityOpt::NoNewPrivileges => self.no_new_privileges = true,
             SecurityOpt::Seccomp(profile) => self.seccomp_profile = Some(profile),
             SecurityOpt::ProcOpts(proc_opts) => {

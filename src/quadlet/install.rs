@@ -13,11 +13,11 @@ impl Display for Install {
         writeln!(f, "[Install]")?;
 
         if !self.wanted_by.is_empty() {
-            writeln_escape_spaces(f, "WantedBy", &self.wanted_by)?;
+            writeln_escape_spaces::<' ', _>(f, "WantedBy", &self.wanted_by)?;
         }
 
         if !self.required_by.is_empty() {
-            writeln_escape_spaces(f, "RequiredBy", &self.required_by)?;
+            writeln_escape_spaces::<' ', _>(f, "RequiredBy", &self.required_by)?;
         }
 
         Ok(())

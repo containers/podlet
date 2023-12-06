@@ -111,6 +111,7 @@ impl From<Container> for crate::quadlet::Container {
         let mut podman_args = podman_args.to_string();
 
         let security_opt::QuadletOptions {
+            mask,
             no_new_privileges,
             seccomp_profile,
             security_label_disable,
@@ -134,6 +135,7 @@ impl From<Container> for crate::quadlet::Container {
 
         Self {
             image,
+            mask,
             no_new_privileges,
             seccomp_profile,
             security_label_disable,

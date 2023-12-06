@@ -78,7 +78,7 @@ impl Display for Volume {
         }
 
         if !self.label.is_empty() {
-            writeln_escape_spaces(f, "Label", &self.label)?;
+            writeln_escape_spaces::<' ', _>(f, "Label", &self.label)?;
         }
 
         if let Some(options) = &self.options {

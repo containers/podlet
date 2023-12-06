@@ -40,6 +40,7 @@ pub struct Container {
     pub ip6: Option<Ipv6Addr>,
     pub label: Vec<String>,
     pub log_driver: Option<String>,
+    pub mask: Vec<String>,
     pub mount: Vec<String>,
     pub network: Vec<String>,
     pub no_new_privileges: bool,
@@ -83,7 +84,7 @@ impl Display for Container {
         }
 
         if !self.annotation.is_empty() {
-            writeln_escape_spaces(f, "Annotation", &self.annotation)?;
+            writeln_escape_spaces::<' ', _>(f, "Annotation", &self.annotation)?;
         }
 
         if let Some(auto_update) = self.auto_update {
@@ -99,7 +100,7 @@ impl Display for Container {
         }
 
         if !self.environment.is_empty() {
-            writeln_escape_spaces(f, "Environment", &self.environment)?;
+            writeln_escape_spaces::<' ', _>(f, "Environment", &self.environment)?;
         }
 
         for file in &self.environment_file {
@@ -175,11 +176,16 @@ impl Display for Container {
         }
 
         if !self.label.is_empty() {
-            writeln_escape_spaces(f, "Label", &self.label)?;
+            writeln_escape_spaces::<' ', _>(f, "Label", &self.label)?;
         }
 
         if let Some(log_driver) = &self.log_driver {
             writeln!(f, "LogDriver={log_driver}")?;
+        }
+
+        // each mask item is a separate path, to be escaped and joined
+        if !self.mask.is_empty() {
+            writeln_escape_spaces::<':', _>(f, "Mask", &self.mask)?;
         }
 
         for mount in &self.mount {
@@ -247,7 +253,7 @@ impl Display for Container {
         }
 
         if !self.sysctl.is_empty() {
-            writeln_escape_spaces(f, "Sysctl", &self.sysctl)?;
+            writeln_escape_spaces::<' ', _>(f, "Sysctl", &self.sysctl)?;
         }
 
         for tmpfs in &self.tmpfs {
