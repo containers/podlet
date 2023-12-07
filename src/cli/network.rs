@@ -138,7 +138,7 @@ impl From<Create> for crate::quadlet::Network {
             ip_range: value.ip_range,
             ipv6: value.ipv6,
             label: value.label,
-            options: Some(value.opt.join(",")),
+            options: (!value.opt.is_empty()).then(|| value.opt.join(",")),
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             subnet: value.subnet,
         }
