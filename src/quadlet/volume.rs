@@ -13,6 +13,7 @@ pub struct Volume {
     pub group: Option<String>,
     pub label: Vec<String>,
     pub options: Option<String>,
+    pub podman_args: Option<String>,
     pub fs_type: Option<String>,
     pub user: Option<String>,
 }
@@ -83,6 +84,10 @@ impl Display for Volume {
 
         if let Some(options) = &self.options {
             writeln!(f, "Options={options}")?;
+        }
+
+        if let Some(podman_args) = &self.podman_args {
+            writeln!(f, "PodmanArgs={podman_args}")?;
         }
 
         if let Some(fs_type) = &self.fs_type {
