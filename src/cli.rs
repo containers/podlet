@@ -346,7 +346,7 @@ enum PodmanCommands {
     Network {
         /// The \[Network\] section
         #[command(subcommand)]
-        network: Network,
+        network: Box<Network>,
     },
 
     /// Generate a podman quadlet `.volume` file
@@ -377,7 +377,7 @@ impl From<PodmanCommands> for quadlet::Resource {
         match value {
             PodmanCommands::Run { container, .. } => (*container).into(),
             PodmanCommands::Kube { kube } => (*kube).into(),
-            PodmanCommands::Network { network } => network.into(),
+            PodmanCommands::Network { network } => (*network).into(),
             PodmanCommands::Volume { volume } => volume.into(),
         }
     }

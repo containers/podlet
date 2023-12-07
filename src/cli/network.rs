@@ -1,7 +1,11 @@
-use std::net::IpAddr;
+use std::{
+    fmt::{self, Display, Formatter},
+    net::IpAddr,
+};
 
 use clap::{Args, Subcommand};
 use ipnet::IpNet;
+use serde::Serialize;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Network {
@@ -111,6 +115,10 @@ pub struct Create {
     #[arg(long)]
     subnet: Vec<IpNet>,
 
+    /// Converts to "PodmanArgs=ARGS"
+    #[command(flatten)]
+    podman_args: PodmanArgs,
+
     /// The name of the network to create
     ///
     /// This will be used as the name of the generated file when used with
@@ -120,6 +128,7 @@ pub struct Create {
 
 impl From<Create> for crate::quadlet::Network {
     fn from(value: Create) -> Self {
+        let podman_args = value.podman_args.to_string();
         Self {
             disable_dns: value.disable_dns,
             driver: value.driver,
@@ -130,7 +139,37 @@ impl From<Create> for crate::quadlet::Network {
             ipv6: value.ipv6,
             label: value.label,
             options: Some(value.opt.join(",")),
+            podman_args: (!podman_args.is_empty()).then_some(podman_args),
             subnet: value.subnet,
         }
+    }
+}
+
+#[derive(Args, Serialize, Debug, Clone, PartialEq)]
+struct PodmanArgs {
+    /// Set network-scoped DNS resolver/nameserver for containers in this network
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "IP")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    dns: Vec<String>,
+
+    /// Maps to the `network_interface` option in the network config
+    #[arg(long, value_name = "NAME")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    interface_name: Option<String>,
+
+    /// A static route to add to every container in this network
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    route: Vec<String>,
+}
+
+impl Display for PodmanArgs {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&args)
     }
 }

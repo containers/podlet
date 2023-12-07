@@ -19,6 +19,7 @@ pub struct Network {
     pub ipv6: bool,
     pub label: Vec<String>,
     pub options: Option<String>,
+    pub podman_args: Option<String>,
     pub subnet: Vec<IpNet>,
 }
 
@@ -125,6 +126,10 @@ impl Display for Network {
 
         if let Some(options) = &self.options {
             writeln!(f, "Options={options}")?;
+        }
+
+        if let Some(podman_args) = &self.podman_args {
+            writeln!(f, "PodmanArgs={podman_args}")?;
         }
 
         for subnet in &self.subnet {
