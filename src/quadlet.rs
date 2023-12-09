@@ -5,10 +5,11 @@ mod network;
 mod volume;
 
 use std::{
-    fmt::{self, Display, Formatter, Write},
+    fmt::{self, Display, Formatter},
     str::FromStr,
 };
 
+use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 pub use self::{
@@ -174,6 +175,12 @@ impl Display for AutoUpdate {
     }
 }
 
+impl Serialize for AutoUpdate {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_ref())
+    }
+}
+
 impl FromStr for AutoUpdate {
     type Err = ParseAutoUpdateError;
 
@@ -191,59 +198,3 @@ impl FromStr for AutoUpdate {
 #[derive(Debug, Error)]
 #[error("unknown auto update variant `{0}`, must be `registry` or `local`")]
 pub struct ParseAutoUpdateError(String);
-
-/// Writes the line `key=joined_words` to the [`Formatter`]. `joined_words` is the given `words`,
-/// where each word is escaped and joined together with the const parameter `C` as a separator.
-fn writeln_escape_spaces<const C: char, I>(f: &mut Formatter, key: &str, words: I) -> fmt::Result
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
-    write!(f, "{key}=")?;
-
-    let mut words = words.into_iter();
-
-    if let Some(first) = words.next() {
-        escape_spaces(f, first.as_ref())?;
-    }
-
-    for word in words {
-        f.write_char(C)?;
-        escape_spaces(f, word.as_ref())?;
-    }
-
-    writeln!(f)
-}
-
-fn escape_spaces(f: &mut Formatter, word: &str) -> fmt::Result {
-    if word.contains(' ') {
-        write!(f, "\"{word}\"")
-    } else {
-        f.write_str(word)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn escape_spaces() {
-        struct Foo([&'static str; 3]);
-
-        impl Display for Foo {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                writeln_escape_spaces::<' ', _>(f, "Foo", self.0)
-            }
-        }
-
-        assert_eq!(
-            Foo(["one", "two", "three"]).to_string(),
-            "Foo=one two three\n"
-        );
-        assert_eq!(
-            Foo(["one", "two three", "four"]).to_string(),
-            "Foo=one \"two three\" four\n"
-        );
-    }
-}

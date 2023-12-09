@@ -1,20 +1,46 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    ops::Not,
+};
 
 use color_eyre::eyre::{self, Context};
+use serde::Serialize;
 
-use crate::cli::volume::opt::Opt;
+use crate::{cli::volume::opt::Opt, serde::quadlet::quote_spaces_join_space};
 
-use super::writeln_escape_spaces;
-
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, Debug, Default, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub struct Volume {
+    /// If enabled, the content of the image located at the mount point of the volume
+    /// is copied into the volume on the first run.
+    #[serde(skip_serializing_if = "Not::not")]
     pub copy: bool,
+
+    /// The path of a device which is mounted for the volume.
     pub device: Option<String>,
+
+    /// The host (numeric) GID, or group name to use as the group for the volume.
     pub group: Option<String>,
+
+    /// Set one or more OCI labels on the volume.
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub label: Vec<String>,
+
+    /// The mount options to use for a filesystem as used by the `mount` command -o option.
     pub options: Option<String>,
+
+    /// This key contains a list of arguments passed directly to the end of the `podman volume create`
+    /// command in the generated file, right before the name of the network in the command line.
     pub podman_args: Option<String>,
+
+    /// The filesystem type of `Device` as used by the `mount` commands `-t` option.
+    #[serde(rename = "Type")]
     pub fs_type: Option<String>,
+
+    /// The host (numeric) UID, or user name to use as the owner for the volume.
     pub user: Option<String>,
 }
 
@@ -64,40 +90,18 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
 
 impl Display for Volume {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Volume]")?;
+        let volume = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&volume)
+    }
+}
 
-        if self.copy {
-            writeln!(f, "Copy=true")?;
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        if let Some(device) = &self.device {
-            writeln!(f, "Device={device}")?;
-        }
-
-        if let Some(group) = &self.group {
-            writeln!(f, "Group={group}")?;
-        }
-
-        if !self.label.is_empty() {
-            writeln_escape_spaces::<' ', _>(f, "Label", &self.label)?;
-        }
-
-        if let Some(options) = &self.options {
-            writeln!(f, "Options={options}")?;
-        }
-
-        if let Some(podman_args) = &self.podman_args {
-            writeln!(f, "PodmanArgs={podman_args}")?;
-        }
-
-        if let Some(fs_type) = &self.fs_type {
-            writeln!(f, "Type={fs_type}")?;
-        }
-
-        if let Some(user) = &self.user {
-            writeln!(f, "User={user}")?;
-        }
-
-        Ok(())
+    #[test]
+    fn volume_default_empty() {
+        let volume = Volume::default();
+        assert_eq!(volume.to_string(), "[Volume]\n");
     }
 }

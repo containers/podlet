@@ -1,25 +1,59 @@
 use std::{
     fmt::{self, Display, Formatter},
     net::IpAddr,
+    ops::Not,
 };
 
 use color_eyre::eyre::{self, Context};
 use ipnet::IpNet;
+use serde::Serialize;
 
-use super::writeln_escape_spaces;
+use crate::serde::quadlet::quote_spaces_join_space;
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, Debug, Default, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub struct Network {
+    /// If enabled, disables the DNS plugin for this network.
+    #[serde(skip_serializing_if = "Not::not")]
     pub disable_dns: bool,
+
+    /// Driver to manage the network.
     pub driver: Option<String>,
+
+    /// Define a gateway for the subnet.
     pub gateway: Vec<IpAddr>,
+
+    /// Restrict external access of this network.
+    #[serde(skip_serializing_if = "Not::not")]
     pub internal: bool,
+
+    /// Set the ipam driver (IP Address Management Driver) for the network.
+    #[serde(rename = "IPAMDriver")]
     pub ipam_driver: Option<String>,
+
+    /// Allocate container IP from a range.
+    #[serde(rename = "IPRange")]
     pub ip_range: Vec<IpNet>,
+
+    /// Enable IPv6 (Dual Stack) networking.
+    #[serde(rename = "IPv6", skip_serializing_if = "Not::not")]
     pub ipv6: bool,
+
+    /// Set one or more OCI labels on the network.
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub label: Vec<String>,
+
+    /// Set driver specific options.
     pub options: Option<String>,
+
+    /// This key contains a list of arguments passed directly to the end of the `podman network create`
+    /// command in the generated file, right before the name of the network in the command line.
     pub podman_args: Option<String>,
+
+    /// The subnet in CIDR notation.
     pub subnet: Vec<IpNet>,
 }
 
@@ -90,52 +124,18 @@ impl TryFrom<docker_compose_types::NetworkSettings> for Network {
 
 impl Display for Network {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Network]")?;
+        let network = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&network)
+    }
+}
 
-        if self.disable_dns {
-            writeln!(f, "DisableDNS=true")?;
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        if let Some(driver) = &self.driver {
-            writeln!(f, "Driver={driver}")?;
-        }
-
-        for gateway in &self.gateway {
-            writeln!(f, "Gateway={gateway}")?;
-        }
-
-        if self.internal {
-            writeln!(f, "Internal=true")?;
-        }
-
-        if let Some(driver) = &self.ipam_driver {
-            writeln!(f, "IPAMDriver={driver}")?;
-        }
-
-        for ip_range in &self.ip_range {
-            writeln!(f, "IPRange={ip_range}")?;
-        }
-
-        if self.ipv6 {
-            writeln!(f, "IPv6=true")?;
-        }
-
-        if !self.label.is_empty() {
-            writeln_escape_spaces::<' ', _>(f, "Label", &self.label)?;
-        }
-
-        if let Some(options) = &self.options {
-            writeln!(f, "Options={options}")?;
-        }
-
-        if let Some(podman_args) = &self.podman_args {
-            writeln!(f, "PodmanArgs={podman_args}")?;
-        }
-
-        for subnet in &self.subnet {
-            writeln!(f, "Subnet={subnet}")?;
-        }
-
-        Ok(())
+    #[test]
+    fn network_default_empty() {
+        let network = Network::default();
+        assert_eq!(network.to_string(), "[Network]\n");
     }
 }
