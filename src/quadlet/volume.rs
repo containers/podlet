@@ -49,7 +49,6 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
 
     fn try_from(value: docker_compose_types::ComposeVolume) -> Result<Self, Self::Error> {
         let unsupported_options = [
-            ("driver", value.driver.is_none()),
             ("external", value.external.is_none()),
             ("name", value.name.is_none()),
         ];
@@ -83,6 +82,7 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
 
         Ok(Self {
             label,
+            podman_args: value.driver.map(|driver| format!("--driver {driver}")),
             ..options.into()
         })
     }
