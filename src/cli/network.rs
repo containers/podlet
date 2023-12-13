@@ -146,6 +146,7 @@ impl From<Create> for crate::quadlet::Network {
 }
 
 #[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
     /// Set network-scoped DNS resolver/nameserver for containers in this network
     ///

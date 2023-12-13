@@ -113,6 +113,7 @@ impl From<Play> for crate::quadlet::Kube {
 }
 
 #[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
     /// Add an annotation to the container or pod
     ///
