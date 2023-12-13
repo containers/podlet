@@ -57,9 +57,14 @@ where
 
 /// Appends `item` to `output`, quoting it if it contains spaces.
 fn quote_spaces_push(output: &mut String, item: &str) {
-    if item.contains(' ') {
+    if item.contains(char::is_whitespace) {
         output.push('"');
-        output.push_str(item);
+        for char in item.chars() {
+            match char {
+                '\n' => output.push_str(r"\n"),
+                _ => output.push(char),
+            }
+        }
         output.push('"');
     } else {
         output.push_str(item);
@@ -646,5 +651,16 @@ mod tests {
             map: [("one", "one")].into(),
         };
         assert_eq!(to_string(sut).unwrap_err(), Error::InvalidType);
+    }
+
+    #[test]
+    fn quote_spaces() {
+        let mut output = String::new();
+        quote_spaces_push(&mut output, "test1 test2");
+        assert_eq!(output, r#""test1 test2""#);
+
+        output.clear();
+        quote_spaces_push(&mut output, "test1\ntest2");
+        assert_eq!(output, r#""test1\ntest2""#);
     }
 }
