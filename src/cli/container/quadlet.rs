@@ -508,6 +508,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
         Ok(Self {
             cap_add: mem::take(&mut service.cap_add),
             name: service.container_name.take(),
+            cap_drop: mem::take(&mut service.cap_drop),
             publish,
             env,
             env_file,
@@ -524,6 +525,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             tmpfs,
             mount,
             user: service.user.take(),
+            userns: service.userns_mode.take(),
             expose: mem::take(&mut service.expose),
             log_driver: service
                 .logging

@@ -694,6 +694,7 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             pid: value.pid.take(),
             ulimit,
             entrypoint,
+            group_add: mem::take(&mut value.group_add),
             stop_signal: value.stop_signal.take(),
             stop_timeout,
             dns: mem::take(&mut value.dns),
