@@ -60,7 +60,7 @@ verbose_file_reads = "warn"
 [dependencies]
 clap = { version = "4.2", features = ["derive"] }
 color-eyre = "0.6"
-docker-compose-types = "0.6.1"
+docker-compose-types = "0.7.0"
 duration-str = { version = "0.7", default-features = false }
 indexmap = "2"
 ipnet = { version = "2.7", features = ["serde"] }
