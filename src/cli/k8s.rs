@@ -5,8 +5,8 @@ use color_eyre::{
     Help,
 };
 use docker_compose_types::{
-    AdvancedVolumes, Command, Compose, ComposeVolume, Entrypoint, Environment, Healthcheck,
-    HealthcheckTest, Labels, Ports, PublishedPort, Service, SingleValue, Tmpfs, Ulimit, Ulimits,
+    AdvancedVolumes, Compose, ComposeVolume, Entrypoint, Environment, Healthcheck, HealthcheckTest,
+    Labels, Ports, PublishedPort, Service, SingleValue, Tmpfs, Ulimit, Ulimits,
     Volumes as ComposeVolumes,
 };
 use indexmap::IndexMap;
@@ -132,10 +132,10 @@ fn service_try_into_container(
         )
         .unzip();
 
-    let args = service.command.map(|command| match command {
-        Command::Simple(command) => vec![command],
-        Command::Args(command) => command,
-    });
+    let args = service
+        .command
+        .map(compose::command_try_into_vec)
+        .transpose()?;
 
     let command = service.entrypoint.map(|entrypoint| match entrypoint {
         Entrypoint::Simple(entrypoint) => vec![entrypoint],

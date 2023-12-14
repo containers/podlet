@@ -7,6 +7,8 @@ use std::mem;
 use clap::Args;
 use color_eyre::eyre::{self, Context};
 
+use crate::cli::compose;
+
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 use super::{image_to_name, ComposeService};
 
@@ -89,10 +91,8 @@ impl TryFrom<ComposeService> for Container {
             command: value
                 .service
                 .command
-                .map(|command| match command {
-                    docker_compose_types::Command::Simple(s) => vec![s],
-                    docker_compose_types::Command::Args(args) => args,
-                })
+                .map(compose::command_try_into_vec)
+                .transpose()?
                 .unwrap_or_default(),
         })
     }
