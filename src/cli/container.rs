@@ -7,6 +7,8 @@ use std::mem;
 use clap::Args;
 use color_eyre::eyre::{self, Context};
 
+use crate::cli::compose;
+
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 use super::{image_to_name, ComposeService};
 
@@ -89,10 +91,8 @@ impl TryFrom<ComposeService> for Container {
             command: value
                 .service
                 .command
-                .map(|command| match command {
-                    docker_compose_types::Command::Simple(s) => vec![s],
-                    docker_compose_types::Command::Args(args) => args,
-                })
+                .map(compose::command_try_into_vec)
+                .transpose()?
                 .unwrap_or_default(),
         })
     }
@@ -111,12 +111,15 @@ impl From<Container> for crate::quadlet::Container {
         let mut podman_args = podman_args.to_string();
 
         let security_opt::QuadletOptions {
+            mask,
             no_new_privileges,
             seccomp_profile,
             security_label_disable,
             security_label_file_type,
             security_label_level,
+            security_label_nested,
             security_label_type,
+            unmask,
             podman_args: security_podman_args,
         } = security_opt.into_iter().fold(
             security_opt::QuadletOptions::default(),
@@ -133,12 +136,15 @@ impl From<Container> for crate::quadlet::Container {
 
         Self {
             image,
+            mask,
             no_new_privileges,
             seccomp_profile,
             security_label_disable,
             security_label_file_type,
             security_label_level,
+            security_label_nested,
             security_label_type,
+            unmask,
             podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
             exec: (!command.is_empty()).then(|| shlex::join(command.iter().map(String::as_str))),
             ..quadlet_options.into()

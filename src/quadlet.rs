@@ -4,10 +4,20 @@ mod kube;
 mod network;
 mod volume;
 
-use std::fmt::{self, Display, Formatter, Write};
+use std::{
+    fmt::{self, Display, Formatter},
+    str::FromStr,
+};
+
+use serde::{Serialize, Serializer};
+use thiserror::Error;
 
 pub use self::{
-    container::Container, install::Install, kube::Kube, network::Network, volume::Volume,
+    container::{Container, PullPolicy, Unmask},
+    install::Install,
+    kube::Kube,
+    network::Network,
+    volume::Volume,
 };
 use crate::cli::{service::Service, unit::Unit};
 
@@ -120,56 +130,71 @@ impl Resource {
     }
 }
 
-fn writeln_escape_spaces<I>(f: &mut Formatter, key: &str, words: I) -> fmt::Result
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
-    write!(f, "{key}=")?;
-
-    let mut words = words.into_iter();
-
-    if let Some(first) = words.next() {
-        escape_spaces(f, first.as_ref())?;
-    }
-
-    for word in words {
-        f.write_char(' ')?;
-        escape_spaces(f, word.as_ref())?;
-    }
-
-    writeln!(f)
+/// Valid values for the `AutoUpdate=` quadlet option.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutoUpdate {
+    Registry,
+    Local,
 }
 
-fn escape_spaces(f: &mut Formatter, word: &str) -> fmt::Result {
-    if word.contains(' ') {
-        write!(f, "\"{word}\"")
-    } else {
-        f.write_str(word)
+impl AutoUpdate {
+    /// Extracts all valid values of the `io.containers.autoupdate` label from `labels`,
+    /// the last value of which is parsed into an [`AutoUpdate`].
+    ///
+    /// Returns `None` if no valid `io.containers.autoupdate` label is found.
+    ///
+    /// `io.containers.autoupdate` labels with invalid values are retained in `labels`.
+    pub fn extract_from_labels(labels: &mut Vec<String>) -> Option<Self> {
+        let mut auto_update = None;
+        labels.retain(|label| {
+            label
+                .strip_prefix("io.containers.autoupdate=")
+                .and_then(|value| value.parse().ok())
+                .map_or(true, |value| {
+                    auto_update = Some(value);
+                    false
+                })
+        });
+
+        auto_update
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn escape_spaces() {
-        struct Foo([&'static str; 3]);
-
-        impl Display for Foo {
-            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-                writeln_escape_spaces(f, "Foo", self.0)
-            }
+impl AsRef<str> for AutoUpdate {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Registry => "registry",
+            Self::Local => "local",
         }
-
-        assert_eq!(
-            Foo(["one", "two", "three"]).to_string(),
-            "Foo=one two three\n"
-        );
-        assert_eq!(
-            Foo(["one", "two three", "four"]).to_string(),
-            "Foo=one \"two three\" four\n"
-        );
     }
 }
+
+impl Display for AutoUpdate {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
+
+impl Serialize for AutoUpdate {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_ref())
+    }
+}
+
+impl FromStr for AutoUpdate {
+    type Err = ParseAutoUpdateError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "registry" => Ok(Self::Registry),
+            "local" => Ok(Self::Local),
+            s => Err(ParseAutoUpdateError(s.into())),
+        }
+    }
+}
+
+/// Error returned when attempting to parse an invalid [`AutoUpdate`] variant,
+/// see [`AutoUpdate::from_str()`].
+#[derive(Debug, Error)]
+#[error("unknown auto update variant `{0}`, must be `registry` or `local`")]
+pub struct ParseAutoUpdateError(String);

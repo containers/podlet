@@ -8,7 +8,10 @@ use clap::{Args, ValueEnum};
 use color_eyre::eyre::{self, Context};
 use docker_compose_types::{MapOrEmpty, Volumes};
 
-use crate::cli::ComposeService;
+use crate::{
+    cli::ComposeService,
+    quadlet::{AutoUpdate, PullPolicy},
+};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
@@ -151,6 +154,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "TIMEOUT")]
     health_timeout: Option<String>,
 
+    /// Set the host name that is available inside the container
+    ///
+    /// Converts to "HostName=NAME"
+    #[arg(long, value_name = "NAME")]
+    hostname: Option<String>,
+
     /// Specify a static IPv4 address for the container
     ///
     /// Converts to "IP=IPV4"
@@ -217,6 +226,12 @@ pub struct QuadletOptions {
     )]
     publish: Vec<String>,
 
+    /// Pull image policy
+    ///
+    /// Converts to "Pull=POLICY"
+    #[arg(long, value_name = "POLICY")]
+    pull: Option<PullPolicy>,
+
     /// Mount the container's root filesystem as read-only
     ///
     /// Converts to "ReadOnly=true"
@@ -282,12 +297,28 @@ pub struct QuadletOptions {
         value_name = "[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]"
     )]
     volume: Vec<String>,
+
+    /// Working directory inside the container
+    ///
+    /// Converts to "WorkingDir=DIR"
+    #[arg(short, long, value_name = "DIR")]
+    workdir: Option<PathBuf>,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 enum Notify {
     Conmon,
     Container,
+}
+
+impl Notify {
+    /// Returns `true` if the notify is [`Container`].
+    ///
+    /// [`Container`]: Notify::Container
+    #[must_use]
+    fn is_container(self) -> bool {
+        matches!(self, Self::Container)
+    }
 }
 
 impl Default for Notify {
@@ -298,15 +329,17 @@ impl Default for Notify {
 
 impl From<QuadletOptions> for crate::quadlet::Container {
     fn from(value: QuadletOptions) -> Self {
-        let (user, group) = if let Some(user) = value.user {
+        let mut label = value.label;
+        let auto_update = AutoUpdate::extract_from_labels(&mut label);
+
+        // `--user` is in the format: `uid[:gid]`
+        let (user, group) = value.user.map_or((None, None), |user| {
             if let Some((uid, gid)) = user.split_once(':') {
-                (Some(String::from(uid)), Some(String::from(gid)))
+                (Some(uid.into()), Some(gid.into()))
             } else {
                 (Some(user), None)
             }
-        } else {
-            (None, None)
-        };
+        });
 
         let mut tmpfs = value.tmpfs;
         let mut volatile_tmp = false;
@@ -323,6 +356,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             add_capability: value.cap_add,
             add_device: value.device,
             annotation: value.annotation,
+            auto_update,
             container_name: value.name,
             drop_capability: value.cap_drop,
             environment: value.env,
@@ -341,18 +375,17 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_startup_success: value.health_startup_success,
             health_startup_timeout: value.health_startup_timeout,
             health_timeout: value.health_timeout,
+            host_name: value.hostname,
             ip: value.ip,
             ip6: value.ip6,
-            label: value.label,
+            label,
             log_driver: value.log_driver,
             mount: value.mount,
             network: value.network,
             rootfs: value.rootfs,
-            notify: match value.sdnotify {
-                Notify::Conmon => false,
-                Notify::Container => true,
-            },
+            notify: value.sdnotify.is_container(),
             publish_port: value.publish,
+            pull: value.pull,
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,
@@ -363,6 +396,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             user_ns: value.userns,
             volatile_tmp,
             volume: value.volume,
+            working_dir: value.workdir,
             ..Self::default()
         }
     }
@@ -474,6 +508,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
         Ok(Self {
             cap_add: mem::take(&mut service.cap_add),
             name: service.container_name.take(),
+            cap_drop: mem::take(&mut service.cap_drop),
             publish,
             env,
             env_file,
@@ -485,10 +520,12 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             health_retries,
             health_start_period,
             health_timeout,
+            hostname: service.hostname.take(),
             sysctl,
             tmpfs,
             mount,
             user: service.user.take(),
+            userns: service.userns_mode.take(),
             expose: mem::take(&mut service.expose),
             log_driver: service
                 .logging
@@ -496,6 +533,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
                 .map(|logging| mem::take(&mut logging.driver)),
             init: service.init,
             volume,
+            workdir: service.working_dir.take().map(Into::into),
             ..Self::default()
         })
     }
@@ -604,7 +642,7 @@ fn volumes_try_into_short(
                         && service.volume_has_options(source) =>
                 {
                     // not bind mount or anonymous volume which has options which require a
-                    // serparate volume unit to define
+                    // separate volume unit to define
                     Some(Ok(format!("{source}.volume:{target}")))
                 }
                 _ => Some(Ok(volume)),

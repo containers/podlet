@@ -2,11 +2,14 @@ use std::{
     convert::Infallible,
     ffi::OsStr,
     fmt::{self, Display, Formatter},
+    net::IpAddr,
+    ops::Not,
     path::PathBuf,
     str::FromStr,
 };
 
 use clap::{Args, Subcommand};
+use serde::Serialize;
 use url::Url;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -84,6 +87,10 @@ pub struct Play {
     #[arg(long, value_name = "MODE")]
     userns: Option<String>,
 
+    /// Converts to "PodmanArgs=ARGS"
+    #[command(flatten)]
+    podman_args: PodmanArgs,
+
     /// The path to the Kubernetes YAML file to use
     ///
     /// Converts to "Yaml=FILE"
@@ -92,14 +99,92 @@ pub struct Play {
 
 impl From<Play> for crate::quadlet::Kube {
     fn from(value: Play) -> Self {
+        let podman_args = value.podman_args.to_string();
         Self {
             config_map: value.configmap,
             log_driver: value.log_driver,
             network: value.network,
+            podman_args: (!podman_args.is_empty()).then_some(podman_args),
             publish_port: value.publish,
             user_ns: value.userns,
             yaml: value.file.to_string(),
         }
+    }
+}
+
+#[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct PodmanArgs {
+    /// Add an annotation to the container or pod
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "KEY=VALUE")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    annotation: Vec<String>,
+
+    /// Build images even if they are found in the local storage
+    ///
+    /// Use `--build=false` to completely disable builds
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build: Option<bool>,
+
+    /// Use certificates at `path` (*.crt, *.cert, *.key) to connect to the registry
+    #[arg(long, value_name = "PATH")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cert_dir: Option<PathBuf>,
+
+    /// Use `path` as the build context directory for each image
+    #[arg(long, requires = "build", value_name = "PATH")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_dir: Option<PathBuf>,
+
+    /// The username and password to use to authenticate with the registry, if required
+    #[arg(long, value_name = "USERNAME[:PASSWORD]")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    creds: Option<String>,
+
+    /// Assign a static ip address to the pod
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    ip: Vec<IpAddr>,
+
+    /// Logging driver specific options
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "NAME=VALUE")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    log_opt: Vec<String>,
+
+    /// Assign a static mac address to the pod
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    mac_address: Vec<String>,
+
+    /// Do not create `/etc/hosts` for the pod
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hosts: bool,
+
+    /// Directory path for seccomp profiles
+    #[arg(long, value_name = "PATH")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seccomp_profile_root: Option<PathBuf>,
+
+    /// Require HTTPS and verify certificates when contacting registries
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tls_verify: Option<bool>,
+}
+
+impl Display for PodmanArgs {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&args)
     }
 }
 

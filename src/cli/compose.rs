@@ -10,7 +10,7 @@ use color_eyre::{
     eyre::{self, WrapErr},
     Help,
 };
-use docker_compose_types::{Compose, ComposeNetworks, MapOrEmpty};
+use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
 
 use crate::quadlet;
 
@@ -71,6 +71,24 @@ fn from_stdin() -> color_eyre::Result<Compose> {
     }
 
     serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
+}
+
+/// Converts a [`Command`] into a `Vec<String>`, splitting the `String` variant as a shell would.
+///
+/// # Errors
+///
+/// Returns an error if, while splitting the string variant, the command ends while in a quote or
+/// has a trailing unescaped '\\'.
+pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>> {
+    match command {
+        Command::Simple(s) => shlex::split(&s)
+            .ok_or_else(|| eyre::eyre!("invalid command: `{s}`"))
+            .suggestion(
+                "In the command, make sure quotes are closed properly and there are no \
+                trailing \\. Alternatively, use an array instead of a string.",
+            ),
+        Command::Args(args) => Ok(args),
+    }
 }
 
 /// Attempt to convert a [`Compose`] into an iterator of [`quadlet::File`].

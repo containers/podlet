@@ -3,13 +3,33 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+use serde::Serialize;
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub struct Kube {
+    /// Pass the Kubernetes ConfigMap YAML at path to `podman kube play`.
     pub config_map: Vec<PathBuf>,
+
+    /// Set the log-driver Podman uses when running the container.
     pub log_driver: Option<String>,
+
+    /// Specify a custom network for the container.
     pub network: Vec<String>,
+
+    /// This key contains a list of arguments passed directly to the end of the `podman kube play`
+    /// command in the generated file, right before the path to the yaml file in the command line.
+    pub podman_args: Option<String>,
+
+    /// Exposes a port, or a range of ports, from the container to the host.
     pub publish_port: Vec<String>,
+
+    /// Set the user namespace mode for the container.
+    #[serde(rename = "UserNS")]
     pub user_ns: Option<String>,
+
+    /// The path, absolute or relative to the location of the unit file,
+    /// to the Kubernetes YAML file to use.
     pub yaml: String,
 }
 
@@ -19,6 +39,7 @@ impl Kube {
             config_map: Vec::new(),
             log_driver: None,
             network: Vec::new(),
+            podman_args: None,
             publish_port: Vec::new(),
             user_ns: None,
             yaml,
@@ -28,30 +49,18 @@ impl Kube {
 
 impl Display for Kube {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Kube]")?;
+        let kube = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&kube)
+    }
+}
 
-        writeln!(f, "Yaml={}", self.yaml)?;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        for config_map in &self.config_map {
-            writeln!(f, "ConfigMap={}", config_map.display())?;
-        }
-
-        if let Some(log_driver) = &self.log_driver {
-            writeln!(f, "LogDriver={log_driver}")?;
-        }
-
-        for network in &self.network {
-            writeln!(f, "Network={network}")?;
-        }
-
-        for port in &self.publish_port {
-            writeln!(f, "PublishPort={port}")?;
-        }
-
-        if let Some(user_ns) = &self.user_ns {
-            writeln!(f, "UserNS={user_ns}")?;
-        }
-
-        Ok(())
+    #[test]
+    fn kube_default_empty() {
+        let kube = Kube::new(String::from("yaml"));
+        assert_eq!(kube.to_string(), "[Kube]\nYaml=yaml\n");
     }
 }

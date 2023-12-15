@@ -11,7 +11,7 @@ You can also view the demo on [asciinema](https://asciinema.org/a/591369).
 
 ## Features
 
-- Designed for podman v4.5.0 and newer
+- Designed for podman v4.6.0 and newer
 - Supports the following podman commands:
     - `podman run`
     - `podman kube play`
@@ -146,11 +146,9 @@ Alternatively, if you just want podlet to read a specific compose file you can u
 
 Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
 
-For the `kube play`, `network create`, and `volume create` commands, not all of podman's options are available as not all options are supported by quadlet.
-
 When converting compose files, not all options are supported by podman/quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
-Podlet is meant to be used with podman v4.5.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
+Podlet is meant to be used with podman v4.6.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
 
 ## Contribution
 

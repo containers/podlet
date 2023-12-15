@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
+use crate::quadlet::Unmask;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SecurityOpt {
     Apparmor(String),
@@ -105,12 +107,15 @@ pub struct InvalidLabelOpt(pub String);
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct QuadletOptions {
+    pub mask: Vec<String>,
     pub no_new_privileges: bool,
     pub seccomp_profile: Option<String>,
     pub security_label_disable: bool,
     pub security_label_file_type: Option<String>,
     pub security_label_level: Option<String>,
+    pub security_label_nested: bool,
     pub security_label_type: Option<String>,
+    pub unmask: Option<Unmask>,
     pub podman_args: Vec<String>,
 }
 
@@ -119,13 +124,16 @@ impl QuadletOptions {
         match security_opt {
             SecurityOpt::Apparmor(policy) => self.podman_args.push(format!("apparmor={policy}")),
             SecurityOpt::Label(label_opt) => self.add_label_opt(label_opt),
-            SecurityOpt::Mask(mask) => self.podman_args.push(format!("mask={mask}")),
+            SecurityOpt::Mask(mask) => self.mask.extend(mask.split(':').map(Into::into)),
             SecurityOpt::NoNewPrivileges => self.no_new_privileges = true,
             SecurityOpt::Seccomp(profile) => self.seccomp_profile = Some(profile),
             SecurityOpt::ProcOpts(proc_opts) => {
                 self.podman_args.push(format!("proc-opts={proc_opts}"));
             }
-            SecurityOpt::Unmask(unmask) => self.podman_args.push(format!("unmask={unmask}")),
+            SecurityOpt::Unmask(paths) => self
+                .unmask
+                .get_or_insert_with(Unmask::new)
+                .extend(paths.split(':')),
         }
     }
 
@@ -137,7 +145,7 @@ impl QuadletOptions {
             LabelOpt::Level(level) => self.security_label_level = Some(level),
             LabelOpt::Filetype(file_type) => self.security_label_file_type = Some(file_type),
             LabelOpt::Disable => self.security_label_disable = true,
-            LabelOpt::Nested => self.podman_args.push(String::from("nested")),
+            LabelOpt::Nested => self.security_label_nested = true,
         }
     }
 }
