@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.2.2] - 2023-12-15
+
+### Features
+
+- Add support for quadlet options introduced in podman v4.6.0 ([#28](https://github.com/k9withabone/podlet/issues/28))
+    - Container
+        - `Sysctl=` ([#22](https://github.com/k9withabone/podlet/pull/22), thanks [@b-rad15](https://github.com/b-rad15)!)
+        - `AutoUpdate=`
+        - `HostName=`
+        - `Pull=`
+        - `WorkingDir=`
+        - `SecurityLabelNested=`
+        - `Mask=`
+        - `Unmask=`
+    - Kube, Network, and Volume
+        - `PodmanArgs=`
+- *(compose)* Support volume `driver` field
+
+### Bug Fixes
+
+- *(container)* Arg `--tls-verify` requires =
+- *(network)* Filter out empty `Options=` quadlet option
+- Escape newlines in joined quadlet values ([#32](https://github.com/k9withabone/podlet/issues/32))
+- *(compose)* Support `cap_drop`, `userns_mode`, and `group_add` service fields ([#31](https://github.com/k9withabone/podlet/issues/31), [#34](https://github.com/k9withabone/podlet/issues/34))
+- *(compose)* Split `command` string ([#36](https://github.com/k9withabone/podlet/issues/36))
+    - When the command is converted to the `Exec=` quadlet option, it is now properly quoted. When converting to k8s, it is properly split into args.
+
+### Documentation
+
+- *(readme)* Podman v4.6.0
+- *(changelog)* Add `git-cliff` configuration
+
+### Refactor
+
+- Use custom serializer for `PodmanArgs=`
+- Use custom serializer for quadlet sections
+
+### Miscellaneous Tasks
+
+- Update dependencies
+
 ## [0.2.1] - 2023-11-28
 
 ### Features
