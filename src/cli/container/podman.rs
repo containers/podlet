@@ -183,11 +183,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     disable_content_trust: bool,
 
-    /// Set custom DNS options
-    #[arg(long, value_name = "OPTION")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dns_option: Option<String>,
-
     /// Set custom DNS search domains
     #[arg(long, value_name = "DOMAIN")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -555,7 +550,6 @@ impl Default for PodmanArgs {
             device_write_bps: Vec::new(),
             device_write_iops: Vec::new(),
             disable_content_trust: false,
-            dns_option: None,
             dns_search: None,
             entrypoint: None,
             env_merge: Vec::new(),

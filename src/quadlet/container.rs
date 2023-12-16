@@ -44,6 +44,10 @@ pub struct Container {
     #[serde(rename = "DNS")]
     pub dns: Vec<String>,
 
+    /// Set custom DNS options.
+    #[serde(rename = "DNSOption")]
+    pub dns_option: Vec<String>,
+
     /// Drop these capabilities from the default podman capability set, or `all` to drop all capabilities.
     #[serde(
         serialize_with = "quote_spaces_join_space",
