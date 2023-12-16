@@ -51,14 +51,26 @@ pub struct QuadletOptions {
     /// Set custom DNS servers
     ///
     /// Converts to "DNS=IP_ADDRESS"
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "IP_ADDRESS")]
     dns: Vec<String>,
 
     /// Set custom DNS options
     ///
     /// Converts to "DNSOption=OPTION"
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "OPTION")]
     dns_option: Vec<String>,
+
+    /// Set custom DNS search domains
+    ///
+    /// Converts to "DNSSearch=DOMAIN"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "DOMAIN")]
+    dns_search: Vec<String>,
 
     /// Drop Linux capability from the default podman capability set
     ///
@@ -372,6 +384,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             container_name: value.name,
             dns: value.dns,
             dns_option: value.dns_option,
+            dns_search: value.dns_search,
             drop_capability: value.cap_drop,
             environment: value.env,
             environment_file: value.env_file,

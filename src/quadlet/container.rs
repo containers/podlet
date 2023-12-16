@@ -48,6 +48,10 @@ pub struct Container {
     #[serde(rename = "DNSOption")]
     pub dns_option: Vec<String>,
 
+    /// Set custom DNS search domains.
+    #[serde(rename = "DNSSearch")]
+    pub dns_search: Vec<String>,
+
     /// Drop these capabilities from the default podman capability set, or `all` to drop all capabilities.
     #[serde(
         serialize_with = "quote_spaces_join_space",
