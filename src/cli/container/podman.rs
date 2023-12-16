@@ -183,11 +183,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     disable_content_trust: bool,
 
-    /// Set custom DNS servers
-    #[arg(long, value_name = "IP_ADDRESS")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    dns: Vec<String>,
-
     /// Set custom DNS options
     #[arg(long, value_name = "OPTION")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -560,7 +555,6 @@ impl Default for PodmanArgs {
             device_write_bps: Vec::new(),
             device_write_iops: Vec::new(),
             disable_content_trust: false,
-            dns: Vec::new(),
             dns_option: None,
             dns_search: None,
             entrypoint: None,
@@ -697,7 +691,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             group_add: mem::take(&mut value.group_add),
             stop_signal: value.stop_signal.take(),
             stop_timeout,
-            dns: mem::take(&mut value.dns),
             ipc: value.ipc.take(),
             interactive: value.stdin_open,
             shm_size: value.shm_size.take(),

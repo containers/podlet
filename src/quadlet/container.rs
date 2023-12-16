@@ -40,6 +40,10 @@ pub struct Container {
     /// The (optional) name of the Podman container.
     pub container_name: Option<String>,
 
+    /// Set network-scoped DNS resolver/nameserver for containers in this network.
+    #[serde(rename = "DNS")]
+    pub dns: Vec<String>,
+
     /// Drop these capabilities from the default podman capability set, or `all` to drop all capabilities.
     #[serde(
         serialize_with = "quote_spaces_join_space",
