@@ -410,11 +410,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     seccomp_policy: Option<String>,
 
-    /// Size of /dev/shm
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    shm_size: Option<String>,
-
     /// Size of systemd-specific tmpfs mounts: /run, /run/lock, /var/log/journal, and /tmp
     #[arg(long, value_name = "NUMBER[UNIT]")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -583,7 +578,6 @@ impl Default for PodmanArgs {
             rm: false,
             rmi: false,
             seccomp_policy: None,
-            shm_size: None,
             shm_size_systemd: None,
             sig_proxy: true,
             stop_signal: None,
@@ -675,7 +669,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
             stop_timeout,
             ipc: value.ipc.take(),
             interactive: value.stdin_open,
-            shm_size: value.shm_size.take(),
             log_opt,
             add_host: mem::take(&mut value.extra_hosts),
             tty: value.tty,

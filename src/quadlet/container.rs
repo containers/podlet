@@ -210,6 +210,9 @@ pub struct Container {
     /// Use a Podman secret in the container either as a file or an environment variable.
     pub secret: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    pub shm_size: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",

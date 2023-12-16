@@ -282,6 +282,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
 
+    /// Size of /dev/shm
+    ///
+    /// Converts to "ShmSize=NUMBER[UNIT]"
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     ///
     /// Converts to "Sysctl=NAME=VALUE"
@@ -423,6 +429,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,
+            shm_size: value.shm_size,
             sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
@@ -556,6 +563,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             health_start_period,
             health_timeout,
             hostname: service.hostname.take(),
+            shm_size: service.shm_size.take(),
             sysctl,
             tmpfs,
             mount,
