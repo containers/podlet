@@ -165,6 +165,9 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub notify: bool,
 
+    /// Tune the container’s pids limit.
+    pub pids_limit: Option<i16>,
+
     /// A list of arguments passed directly to the end of the `podman run` command
     /// in the generated file, right before the image name in the command line.
     pub podman_args: Option<String>,

@@ -341,11 +341,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     pidfile: Option<PathBuf>,
 
-    /// Tune the container’s pids limit
-    #[arg(long, value_name = "LIMIT")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pids_limit: Option<i16>,
-
     /// Specify the platform for selecting the image
     #[arg(long, value_name = "OS/ARCH")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -575,7 +570,6 @@ impl Default for PodmanArgs {
             personality: None,
             pid: None,
             pidfile: None,
-            pids_limit: None,
             platform: None,
             pod: None,
             pod_id_file: None,

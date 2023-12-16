@@ -232,6 +232,12 @@ pub struct QuadletOptions {
     #[arg(long, value_enum, default_value_t)]
     sdnotify: Notify,
 
+    /// Tune the container’s pids limit
+    ///
+    /// Converts to "PidsLimit=LIMIT"
+    #[arg(long, value_name = "LIMIT")]
+    pids_limit: Option<i16>,
+
     /// The rootfs to use for the container
     ///
     /// Converts to "Rootfs=PATH"
@@ -411,6 +417,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             network: value.network,
             rootfs: value.rootfs,
             notify: value.sdnotify.is_container(),
+            pids_limit: value.pids_limit,
             publish_port: value.publish,
             pull: value.pull,
             read_only: value.read_only,
