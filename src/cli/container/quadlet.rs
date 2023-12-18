@@ -449,6 +449,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             .map(|mode| match mode.as_str() {
                 "bridge" | "host" | "none" => Ok(mode),
                 s if s.starts_with("container") => Ok(mode),
+                s if s.starts_with("service") => Ok(mode),
                 _ => Err(eyre::eyre!("network_mode `{mode}` is unsupported")),
             })
             .transpose()?
