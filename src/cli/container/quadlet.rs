@@ -310,6 +310,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "TIMEZONE")]
     tz: Option<String>,
 
+    /// Ulimit options; set the ulimit values inside of the container
+    ///
+    /// Converts to "Ulimit=OPTION"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "OPTION")]
+    ulimit: Vec<String>,
+
     /// Set the UID and, optionally, the GID used in the container
     ///
     /// Converts to "User=UID" and "Group=GID"
@@ -433,6 +441,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
+            ulimit: value.ulimit,
             user,
             user_ns: value.userns,
             volatile_tmp,
@@ -519,6 +528,21 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
                 .collect(),
         };
 
+        let ulimit = mem::take(&mut service.ulimits)
+            .0
+            .into_iter()
+            .map(|(kind, ulimit)| match ulimit {
+                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
+                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
+                    if hard == 0 {
+                        format!("{kind}={soft}")
+                    } else {
+                        format!("{kind}={soft}:{hard}")
+                    }
+                }
+            })
+            .collect();
+
         let mut tmpfs = service
             .tmpfs
             .take()
@@ -567,6 +591,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             sysctl,
             tmpfs,
             mount,
+            ulimit,
             user: service.user.take(),
             userns: service.userns_mode.take(),
             expose: mem::take(&mut service.expose),

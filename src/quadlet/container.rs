@@ -226,6 +226,9 @@ pub struct Container {
     /// The timezone to run the container in.
     pub timezone: Option<String>,
 
+    /// Ulimit options. Sets the ulimits values inside of the container.
+    pub ulimit: Vec<String>,
+
     /// The paths to unmask.
     pub unmask: Option<Unmask>,
 

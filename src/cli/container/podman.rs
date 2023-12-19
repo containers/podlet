@@ -471,13 +471,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     uidmap: Vec<String>,
 
-    /// Ulimit options
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "OPTION")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    ulimit: Vec<String>,
-
     /// Set the umask inside the container
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -589,7 +582,6 @@ impl Default for PodmanArgs {
             tls_verify: None,
             tty: false,
             uidmap: Vec::new(),
-            ulimit: Vec::new(),
             umask: None,
             variant: None,
             volumes_from: Vec::new(),
@@ -616,21 +608,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
     type Error = color_eyre::Report;
 
     fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let ulimit = mem::take(&mut value.ulimits)
-            .0
-            .into_iter()
-            .map(|(kind, ulimit)| match ulimit {
-                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
-                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
-                    if hard == 0 {
-                        format!("{kind}={soft}")
-                    } else {
-                        format!("{kind}={soft}:{hard}")
-                    }
-                }
-            })
-            .collect();
-
         let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
             docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
             docker_compose_types::Entrypoint::List(list) => format!("{list:?}"),
@@ -662,7 +639,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
         Ok(Self {
             privileged: value.privileged,
             pid: value.pid.take(),
-            ulimit,
             entrypoint,
             group_add: mem::take(&mut value.group_add),
             stop_signal: value.stop_signal.take(),
