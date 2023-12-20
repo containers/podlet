@@ -51,6 +51,14 @@ pub struct Create {
     #[arg(long)]
     disable_dns: bool,
 
+    /// Set network-scoped DNS resolver/nameserver for containers in this network
+    ///
+    /// Converts to "DNS=IP"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "IP")]
+    dns: Vec<String>,
+
     /// Driver to manage the network
     ///
     /// Converts to "Driver=DRIVER"
@@ -131,6 +139,7 @@ impl From<Create> for crate::quadlet::Network {
         let podman_args = value.podman_args.to_string();
         Self {
             disable_dns: value.disable_dns,
+            dns: value.dns,
             driver: value.driver,
             gateway: value.gateway,
             internal: value.internal,
@@ -148,13 +157,6 @@ impl From<Create> for crate::quadlet::Network {
 #[derive(Args, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
-    /// Set network-scoped DNS resolver/nameserver for containers in this network
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "IP")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    dns: Vec<String>,
-
     /// Maps to the `network_interface` option in the network config
     #[arg(long, value_name = "NAME")]
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -14,8 +14,12 @@ use crate::serde::quadlet::quote_spaces_join_space;
 #[serde(rename_all = "PascalCase")]
 pub struct Network {
     /// If enabled, disables the DNS plugin for this network.
-    #[serde(skip_serializing_if = "Not::not")]
+    #[serde(rename = "DisableDNS", skip_serializing_if = "Not::not")]
     pub disable_dns: bool,
+
+    /// Set network-scoped DNS resolver/nameserver for containers in this network.
+    #[serde(rename = "DNS")]
+    pub dns: Vec<String>,
 
     /// Driver to manage the network.
     pub driver: Option<String>,
