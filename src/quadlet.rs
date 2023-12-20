@@ -15,7 +15,7 @@ use thiserror::Error;
 pub use self::{
     container::{Container, PullPolicy, Unmask},
     install::Install,
-    kube::Kube,
+    kube::{AutoUpdate as KubeAutoUpdate, Kube},
     network::Network,
     volume::Volume,
 };
