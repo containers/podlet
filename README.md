@@ -11,7 +11,7 @@ You can also view the demo on [asciinema](https://asciinema.org/a/591369).
 
 ## Features
 
-- Designed for podman v4.6.0 and newer
+- Designed for podman v4.7.0 and newer
 - Supports the following podman commands:
     - `podman run`
     - `podman kube play`
@@ -148,7 +148,7 @@ Podlet is not (yet) a validator for podman commands. Some podman options are inc
 
 When converting compose files, not all options are supported by podman/quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
-Podlet is meant to be used with podman v4.6.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
+Podlet is meant to be used with podman v4.7.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
 
 ## Contribution
 

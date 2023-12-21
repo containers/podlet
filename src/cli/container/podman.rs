@@ -183,21 +183,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     disable_content_trust: bool,
 
-    /// Set custom DNS servers
-    #[arg(long, value_name = "IP_ADDRESS")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    dns: Vec<String>,
-
-    /// Set custom DNS options
-    #[arg(long, value_name = "OPTION")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dns_option: Option<String>,
-
-    /// Set custom DNS search domains
-    #[arg(long, value_name = "DOMAIN")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dns_search: Option<String>,
-
     /// Override the default entrypoint of the image
     #[arg(long, value_name = "\"COMMAND\" | '[\"COMMAND\", \"ARG1\", ...]'")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -356,11 +341,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     pidfile: Option<PathBuf>,
 
-    /// Tune the container’s pids limit
-    #[arg(long, value_name = "LIMIT")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pids_limit: Option<i16>,
-
     /// Specify the platform for selecting the image
     #[arg(long, value_name = "OS/ARCH")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -430,11 +410,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Option::is_none")]
     seccomp_policy: Option<String>,
 
-    /// Size of /dev/shm
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    shm_size: Option<String>,
-
     /// Size of systemd-specific tmpfs mounts: /run, /run/lock, /var/log/journal, and /tmp
     #[arg(long, value_name = "NUMBER[UNIT]")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -496,13 +471,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     uidmap: Vec<String>,
 
-    /// Ulimit options
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "OPTION")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    ulimit: Vec<String>,
-
     /// Set the umask inside the container
     #[arg(long)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -560,9 +528,6 @@ impl Default for PodmanArgs {
             device_write_bps: Vec::new(),
             device_write_iops: Vec::new(),
             disable_content_trust: false,
-            dns: Vec::new(),
-            dns_option: None,
-            dns_search: None,
             entrypoint: None,
             env_merge: Vec::new(),
             gidmap: Vec::new(),
@@ -593,7 +558,6 @@ impl Default for PodmanArgs {
             personality: None,
             pid: None,
             pidfile: None,
-            pids_limit: None,
             platform: None,
             pod: None,
             pod_id_file: None,
@@ -607,7 +571,6 @@ impl Default for PodmanArgs {
             rm: false,
             rmi: false,
             seccomp_policy: None,
-            shm_size: None,
             shm_size_systemd: None,
             sig_proxy: true,
             stop_signal: None,
@@ -619,7 +582,6 @@ impl Default for PodmanArgs {
             tls_verify: None,
             tty: false,
             uidmap: Vec::new(),
-            ulimit: Vec::new(),
             umask: None,
             variant: None,
             volumes_from: Vec::new(),
@@ -646,21 +608,6 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
     type Error = color_eyre::Report;
 
     fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let ulimit = mem::take(&mut value.ulimits)
-            .0
-            .into_iter()
-            .map(|(kind, ulimit)| match ulimit {
-                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
-                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
-                    if hard == 0 {
-                        format!("{kind}={soft}")
-                    } else {
-                        format!("{kind}={soft}:{hard}")
-                    }
-                }
-            })
-            .collect();
-
         let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
             docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
             docker_compose_types::Entrypoint::List(list) => format!("{list:?}"),
@@ -692,15 +639,12 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
         Ok(Self {
             privileged: value.privileged,
             pid: value.pid.take(),
-            ulimit,
             entrypoint,
             group_add: mem::take(&mut value.group_add),
             stop_signal: value.stop_signal.take(),
             stop_timeout,
-            dns: mem::take(&mut value.dns),
             ipc: value.ipc.take(),
             interactive: value.stdin_open,
-            shm_size: value.shm_size.take(),
             log_opt,
             add_host: mem::take(&mut value.extra_hosts),
             tty: value.tty,

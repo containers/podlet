@@ -48,6 +48,30 @@ pub struct QuadletOptions {
     #[arg(long)]
     pub name: Option<String>,
 
+    /// Set custom DNS servers
+    ///
+    /// Converts to "DNS=IP_ADDRESS"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "IP_ADDRESS")]
+    dns: Vec<String>,
+
+    /// Set custom DNS options
+    ///
+    /// Converts to "DNSOption=OPTION"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "OPTION")]
+    dns_option: Vec<String>,
+
+    /// Set custom DNS search domains
+    ///
+    /// Converts to "DNSSearch=DOMAIN"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "DOMAIN")]
+    dns_search: Vec<String>,
+
     /// Drop Linux capability from the default podman capability set
     ///
     /// If unspecified, the default is `all`
@@ -208,6 +232,12 @@ pub struct QuadletOptions {
     #[arg(long, value_enum, default_value_t)]
     sdnotify: Notify,
 
+    /// Tune the container’s pids limit
+    ///
+    /// Converts to "PidsLimit=LIMIT"
+    #[arg(long, value_name = "LIMIT")]
+    pids_limit: Option<i16>,
+
     /// The rootfs to use for the container
     ///
     /// Converts to "Rootfs=PATH"
@@ -252,6 +282,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "SECRET[,OPT=OPT,...]")]
     secret: Vec<String>,
 
+    /// Size of /dev/shm
+    ///
+    /// Converts to "ShmSize=NUMBER[UNIT]"
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     ///
     /// Converts to "Sysctl=NAME=VALUE"
@@ -273,6 +309,14 @@ pub struct QuadletOptions {
     /// Converts to "Timezone=TIMEZONE"
     #[arg(long, value_name = "TIMEZONE")]
     tz: Option<String>,
+
+    /// Ulimit options; set the ulimit values inside of the container
+    ///
+    /// Converts to "Ulimit=OPTION"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "OPTION")]
+    ulimit: Vec<String>,
 
     /// Set the UID and, optionally, the GID used in the container
     ///
@@ -358,6 +402,9 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             annotation: value.annotation,
             auto_update,
             container_name: value.name,
+            dns: value.dns,
+            dns_option: value.dns_option,
+            dns_search: value.dns_search,
             drop_capability: value.cap_drop,
             environment: value.env,
             environment_file: value.env_file,
@@ -384,14 +431,17 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             network: value.network,
             rootfs: value.rootfs,
             notify: value.sdnotify.is_container(),
+            pids_limit: value.pids_limit,
             publish_port: value.publish,
             pull: value.pull,
             read_only: value.read_only,
             run_init: value.init,
             secret: value.secret,
+            shm_size: value.shm_size,
             sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
+            ulimit: value.ulimit,
             user,
             user_ns: value.userns,
             volatile_tmp,
@@ -478,6 +528,21 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
                 .collect(),
         };
 
+        let ulimit = mem::take(&mut service.ulimits)
+            .0
+            .into_iter()
+            .map(|(kind, ulimit)| match ulimit {
+                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
+                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
+                    if hard == 0 {
+                        format!("{kind}={soft}")
+                    } else {
+                        format!("{kind}={soft}:{hard}")
+                    }
+                }
+            })
+            .collect();
+
         let mut tmpfs = service
             .tmpfs
             .take()
@@ -508,6 +573,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
         Ok(Self {
             cap_add: mem::take(&mut service.cap_add),
             name: service.container_name.take(),
+            dns: mem::take(&mut service.dns),
             cap_drop: mem::take(&mut service.cap_drop),
             publish,
             env,
@@ -521,9 +587,11 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             health_start_period,
             health_timeout,
             hostname: service.hostname.take(),
+            shm_size: service.shm_size.take(),
             sysctl,
             tmpfs,
             mount,
+            ulimit,
             user: service.user.take(),
             userns: service.userns_mode.take(),
             expose: mem::take(&mut service.expose),

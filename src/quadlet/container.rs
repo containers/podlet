@@ -40,6 +40,18 @@ pub struct Container {
     /// The (optional) name of the Podman container.
     pub container_name: Option<String>,
 
+    /// Set network-scoped DNS resolver/nameserver for containers in this network.
+    #[serde(rename = "DNS")]
+    pub dns: Vec<String>,
+
+    /// Set custom DNS options.
+    #[serde(rename = "DNSOption")]
+    pub dns_option: Vec<String>,
+
+    /// Set custom DNS search domains.
+    #[serde(rename = "DNSSearch")]
+    pub dns_search: Vec<String>,
+
     /// Drop these capabilities from the default podman capability set, or `all` to drop all capabilities.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -153,6 +165,9 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub notify: bool,
 
+    /// Tune the container’s pids limit.
+    pub pids_limit: Option<i16>,
+
     /// A list of arguments passed directly to the end of the `podman run` command
     /// in the generated file, right before the image name in the command line.
     pub podman_args: Option<String>,
@@ -195,6 +210,9 @@ pub struct Container {
     /// Use a Podman secret in the container either as a file or an environment variable.
     pub secret: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    pub shm_size: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -207,6 +225,9 @@ pub struct Container {
 
     /// The timezone to run the container in.
     pub timezone: Option<String>,
+
+    /// Ulimit options. Sets the ulimits values inside of the container.
+    pub ulimit: Vec<String>,
 
     /// The paths to unmask.
     pub unmask: Option<Unmask>,

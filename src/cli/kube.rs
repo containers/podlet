@@ -12,6 +12,8 @@ use clap::{Args, Subcommand};
 use serde::Serialize;
 use url::Url;
 
+use crate::quadlet::KubeAutoUpdate;
+
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Kube {
     /// Generate a podman quadlet `.kube` file
@@ -98,9 +100,12 @@ pub struct Play {
 }
 
 impl From<Play> for crate::quadlet::Kube {
-    fn from(value: Play) -> Self {
+    fn from(mut value: Play) -> Self {
+        let auto_update =
+            KubeAutoUpdate::extract_from_annotations(&mut value.podman_args.annotation);
         let podman_args = value.podman_args.to_string();
         Self {
+            auto_update,
             config_map: value.configmap,
             log_driver: value.log_driver,
             network: value.network,
