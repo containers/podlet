@@ -61,6 +61,9 @@ jobs:
 
       - run: podman version
 
+      - id: conmon_version
+        run: echo version="$(conmon --version | head -n 1)" >> $GITHUB_OUTPUT
+
       - name: Build ARM image
         run: podman build --platform linux/arm64/v8 -t podlet .
 
@@ -68,4 +71,7 @@ jobs:
         run: podman build --platform linux/amd64 -t podlet .
 
       - name: Test run image
+        # There is a regression in conmon v2.1.9 which causes this step to fail.
+        # See https://github.com/containers/conmon/issues/475
+        if: ${{ ! contains(steps.conmon_version.outputs.version, '2.1.9') }}
         run: podman run localhost/podlet -h
