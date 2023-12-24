@@ -5,7 +5,11 @@ use std::{
 };
 
 use clap::{Args, ValueEnum};
-use color_eyre::eyre::{self, Context};
+use color_eyre::{
+    eyre::{self, Context},
+    owo_colors::OwoColorize,
+    Section,
+};
 use docker_compose_types::{MapOrEmpty, Volumes};
 
 use crate::{
@@ -496,11 +500,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
         let network = service
             .network_mode
             .take()
-            .map(|mode| match mode.as_str() {
-                "bridge" | "host" | "none" => Ok(mode),
-                s if s.starts_with("container") => Ok(mode),
-                _ => Err(eyre::eyre!("network_mode `{mode}` is unsupported")),
-            })
+            .map(filter_network_mode)
             .transpose()?
             .into_iter()
             .chain(map_networks(mem::take(&mut service.networks)))
@@ -787,6 +787,36 @@ fn volumes_try_into_short(
             }
         })
         .collect()
+}
+
+/// Filters out unsupported compose service `network_mode`s.
+///
+/// # Errors
+///
+/// Returns an error if the given `mode` is not supported by `podman run --network`.
+fn filter_network_mode(mode: String) -> color_eyre::Result<String> {
+    match mode.as_str() {
+        "host" | "none" | "private" => Ok(mode),
+        s if s.starts_with("bridge")
+            || s.starts_with("container")
+            || s.starts_with("slirp4netns")
+            || s.starts_with("pasta") =>
+        {
+            Ok(mode)
+        }
+        s if s.starts_with("service") => Err(eyre::eyre!(
+            "network_mode `service:` is not supported by podman"
+        ))
+        .suggestion("try using the `container:` network_mode instead"),
+        _ => Err(eyre::eyre!("network_mode `{mode}` is not supported")),
+    }
+    .with_suggestion(|| {
+        format!(
+            "see the --network section of the {} documentation for supported values: \
+                https://docs.podman.io/en/stable/markdown/podman-run.1.html#network-mode-net",
+            "podman-run(1)".bold()
+        )
+    })
 }
 
 fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
