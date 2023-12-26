@@ -1,5 +1,6 @@
 mod compose;
 mod container;
+mod generate;
 mod install;
 mod k8s;
 mod kube;
@@ -33,8 +34,8 @@ use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 use crate::quadlet;
 
 use self::{
-    container::Container, install::Install, kube::Kube, network::Network, service::Service,
-    unit::Unit, volume::Volume,
+    container::Container, generate::Generate, install::Install, kube::Kube, network::Network,
+    service::Service, unit::Unit, volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -192,60 +193,12 @@ impl Cli {
         Ok(FilePath::Dir(path))
     }
 
+    /// Convert into [`File`]s
     fn try_into_files(self) -> color_eyre::Result<Vec<File>> {
         let unit = (!self.unit.is_empty()).then_some(self.unit);
         let install = self.install.install.then(|| self.install.into());
 
-        match self.command {
-            Commands::Podman { command } => {
-                let service = command.service().cloned();
-                let file = quadlet::File {
-                    name: self.name.unwrap_or_else(|| String::from(command.name())),
-                    unit,
-                    resource: command.into(),
-                    service,
-                    install,
-                };
-                Ok(vec![file.into()])
-            }
-            Commands::Compose { pod, compose_file } => {
-                let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
-
-                eyre::ensure!(
-                    compose.extensions.is_empty(),
-                    "extensions are not supported"
-                );
-
-                if let Some(pod_name) = pod {
-                    let (pod, persistent_volume_claims) =
-                        k8s::compose_try_into_pod(compose, pod_name.clone())?;
-
-                    let kube_file_name = format!("{pod_name}-kube");
-                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml"));
-
-                    let quadlet_file = quadlet::File {
-                        name: pod_name,
-                        unit,
-                        resource: kube.into(),
-                        service: None,
-                        install,
-                    };
-
-                    Ok(vec![
-                        quadlet_file.into(),
-                        File::KubePod {
-                            name: kube_file_name,
-                            pod,
-                            persistent_volume_claims,
-                        },
-                    ])
-                } else {
-                    compose::try_into_quadlet_files(compose, unit.as_ref(), install.as_ref())
-                        .map(|result| result.map(Into::into))
-                        .collect()
-                }
-            }
-        }
+        self.command.try_into_files(self.name, unit, install)
     }
 }
 
@@ -311,6 +264,73 @@ enum Commands {
         /// in the current working directory.
         compose_file: Option<PathBuf>,
     },
+
+    /// Generate a podman quadlet file from an existing container.
+    ///
+    /// Note: these commands require that podman is installed and is searchable
+    /// from the `PATH` environment variable.
+    #[command(subcommand)]
+    Generate(Generate),
+}
+
+impl Commands {
+    /// Convert into [`File`]s
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there was an error reading the compose file,
+    /// converting the compose file to a podman command,
+    /// or getting the podman command from the existing resource.
+    fn try_into_files(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<quadlet::Install>,
+    ) -> color_eyre::Result<Vec<File>> {
+        match self {
+            Self::Podman { command } => Ok(vec![command.into_quadlet(name, unit, install).into()]),
+            Self::Compose { pod, compose_file } => {
+                let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
+
+                eyre::ensure!(
+                    compose.extensions.is_empty(),
+                    "extensions are not supported"
+                );
+
+                if let Some(pod_name) = pod {
+                    let (pod, persistent_volume_claims) =
+                        k8s::compose_try_into_pod(compose, pod_name.clone())?;
+
+                    let kube_file_name = format!("{pod_name}-kube");
+                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml"));
+
+                    let quadlet_file = quadlet::File {
+                        name: pod_name,
+                        unit,
+                        resource: kube.into(),
+                        service: None,
+                        install,
+                    };
+
+                    Ok(vec![
+                        quadlet_file.into(),
+                        File::KubePod {
+                            name: kube_file_name,
+                            pod,
+                            persistent_volume_claims,
+                        },
+                    ])
+                } else {
+                    compose::try_into_quadlet_files(compose, unit.as_ref(), install.as_ref())
+                        .map(|result| result.map(Into::into))
+                        .collect()
+                }
+            }
+            Self::Generate(command) => Ok(vec![PodmanCommands::try_from(command)?
+                .into_quadlet(name, unit, install)
+                .into()]),
+        }
+    }
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -384,6 +404,23 @@ impl From<PodmanCommands> for quadlet::Resource {
 }
 
 impl PodmanCommands {
+    /// Convert the podman command into a [`quadlet::File`].
+    fn into_quadlet(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<quadlet::Install>,
+    ) -> quadlet::File {
+        let service = self.service().cloned();
+        quadlet::File {
+            name: name.unwrap_or_else(|| self.name().into()),
+            unit,
+            resource: self.into(),
+            service,
+            install,
+        }
+    }
+
     fn service(&self) -> Option<&Service> {
         match self {
             Self::Run { service, .. } => (!service.is_empty()).then_some(service),
