@@ -7,6 +7,8 @@ use clap::{Args, Subcommand};
 use ipnet::IpNet;
 use serde::Serialize;
 
+use crate::quadlet::IpRange;
+
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Network {
     /// Generate a podman quadlet `.network` file
@@ -87,11 +89,12 @@ pub struct Create {
 
     /// Allocate container IP from a range
     ///
-    /// The range must be a complete subnet and in CIDR notation
+    /// The range must be a complete subnet in CIDR notation, or be in the `<startIP>-<endIP>`
+    /// syntax which allows for a more flexible range compared to the CIDR subnet.
     ///
     /// Converts to "IPRange=IP_RANGE"
     #[arg(long)]
-    ip_range: Vec<IpNet>,
+    ip_range: Vec<IpRange>,
 
     /// Enable IPv6 (Dual Stack) networking
     ///
