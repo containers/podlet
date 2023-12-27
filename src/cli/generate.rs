@@ -25,6 +25,7 @@ use super::{
     container::Container,
     network::{self, Network},
     service::Service,
+    volume::{self, Volume},
     PodmanCommands,
 };
 
@@ -51,6 +52,12 @@ pub enum Generate {
         /// Name of the network
         network: String,
     },
+
+    /// Generate a quadlet file from an existing volume
+    Volume {
+        /// Name of the volume
+        volume: String,
+    },
 }
 
 impl TryFrom<Generate> for PodmanCommands {
@@ -63,6 +70,9 @@ impl TryFrom<Generate> for PodmanCommands {
             }
             Generate::Network { network } => Ok(Self::Network {
                 network: Box::new(NetworkInspect::from_network(&network)?.into()),
+            }),
+            Generate::Volume { volume } => Ok(Self::Volume {
+                volume: VolumeInspect::from_volume(&volume)?.into(),
             }),
         }
     }
@@ -356,6 +366,64 @@ impl From<NetworkInspect> for Network {
     }
 }
 
+/// Output of `podman volume inspect`.
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct VolumeInspect {
+    /// name
+    name: String,
+
+    /// --driver
+    driver: String,
+
+    /// --label
+    labels: IndexMap<String, String>,
+
+    /// --opt
+    options: IndexMap<String, String>,
+}
+
+impl VolumeInspect {
+    /// Runs `podman volume inspect` on the volume and deserializes the output into [`Self`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is problem running `podman volume inspect`,
+    /// it doesn't complete successfully,
+    /// or if the output cannot be properly deserialized.
+    fn from_volume(volume: &str) -> color_eyre::Result<Self> {
+        podman_inspect(ResourceKind::Volume, volume)
+    }
+}
+
+impl From<VolumeInspect> for Volume {
+    fn from(
+        VolumeInspect {
+            name,
+            driver,
+            labels,
+            options,
+        }: VolumeInspect,
+    ) -> Self {
+        Volume::Create {
+            create: volume::Create {
+                driver: Some(driver),
+                opt: options
+                    .into_iter()
+                    .filter_map(|(option, value)| {
+                        volume::Opt::parse(&option, (!value.is_empty()).then_some(value)).ok()
+                    })
+                    .collect(),
+                label: labels
+                    .into_iter()
+                    .map(|(label, value)| format!("{label}={value}"))
+                    .collect(),
+                name,
+            },
+        }
+    }
+}
+
 /// Runs `podman {resource_kind} inspect` on the resource and deserializes the output.
 ///
 /// # Errors
@@ -412,13 +480,15 @@ fn podman_inspect<T: DeserializeOwned>(
 enum ResourceKind {
     Container,
     Network,
+    Volume,
 }
 
 impl ResourceKind {
     const fn as_str(self) -> &'static str {
         match self {
-            ResourceKind::Container => "container",
-            ResourceKind::Network => "network",
+            Self::Container => "container",
+            Self::Network => "network",
+            Self::Volume => "volume",
         }
     }
 }

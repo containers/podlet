@@ -265,7 +265,7 @@ enum Commands {
         compose_file: Option<PathBuf>,
     },
 
-    /// Generate a podman quadlet file from an existing container or network.
+    /// Generate a podman quadlet file from an existing container, network, or volume.
     ///
     /// Note: these commands require that podman is installed and is searchable
     /// from the `PATH` environment variable.
