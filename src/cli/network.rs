@@ -7,6 +7,8 @@ use clap::{Args, Subcommand};
 use ipnet::IpNet;
 use serde::Serialize;
 
+use crate::quadlet::IpRange;
+
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Network {
     /// Generate a podman quadlet `.network` file
@@ -49,7 +51,7 @@ pub struct Create {
     ///
     /// Converts to "DisableDNS=true"
     #[arg(long)]
-    disable_dns: bool,
+    pub disable_dns: bool,
 
     /// Set network-scoped DNS resolver/nameserver for containers in this network
     ///
@@ -57,13 +59,13 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "IP")]
-    dns: Vec<String>,
+    pub dns: Vec<String>,
 
     /// Driver to manage the network
     ///
     /// Converts to "Driver=DRIVER"
     #[arg(short, long)]
-    driver: Option<String>,
+    pub driver: Option<String>,
 
     /// Define a gateway for the subnet
     ///
@@ -71,33 +73,34 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    gateway: Vec<IpAddr>,
+    pub gateway: Vec<IpAddr>,
 
     /// Restrict external access of the network
     ///
     /// Converts to "Internal=true"
     #[arg(long)]
-    internal: bool,
+    pub internal: bool,
 
     /// Set the IPAM driver (IP Address Management Driver) for the network
     ///
     /// Converts to "IPAMDriver=DRIVER"
     #[arg(long, value_name = "DRIVER")]
-    ipam_driver: Option<String>,
+    pub ipam_driver: Option<String>,
 
     /// Allocate container IP from a range
     ///
-    /// The range must be a complete subnet and in CIDR notation
+    /// The range must be a complete subnet in CIDR notation, or be in the `<startIP>-<endIP>`
+    /// syntax which allows for a more flexible range compared to the CIDR subnet.
     ///
     /// Converts to "IPRange=IP_RANGE"
     #[arg(long)]
-    ip_range: Vec<IpNet>,
+    pub ip_range: Vec<IpRange>,
 
     /// Enable IPv6 (Dual Stack) networking
     ///
     /// Converts to "IPv6=true"
     #[arg(long)]
-    ipv6: bool,
+    pub ipv6: bool,
 
     /// Set one or more OCI labels on the network
     ///
@@ -105,7 +108,7 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "KEY=VALUE")]
-    label: Vec<String>,
+    pub label: Vec<String>,
 
     /// Set driver specific options
     ///
@@ -113,7 +116,7 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(short, long, value_name = "OPTION", value_delimiter = ',')]
-    opt: Vec<String>,
+    pub opt: Vec<String>,
 
     /// The subnet in CIDR notation
     ///
@@ -121,17 +124,17 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    subnet: Vec<IpNet>,
+    pub subnet: Vec<IpNet>,
 
     /// Converts to "PodmanArgs=ARGS"
     #[command(flatten)]
-    podman_args: PodmanArgs,
+    pub podman_args: PodmanArgs,
 
     /// The name of the network to create
     ///
     /// This will be used as the name of the generated file when used with
     /// the --file option without a filename
-    name: String,
+    pub name: String,
 }
 
 impl From<Create> for crate::quadlet::Network {
@@ -156,18 +159,18 @@ impl From<Create> for crate::quadlet::Network {
 
 #[derive(Args, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
-struct PodmanArgs {
+pub struct PodmanArgs {
     /// Maps to the `network_interface` option in the network config
     #[arg(long, value_name = "NAME")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    interface_name: Option<String>,
+    pub interface_name: Option<String>,
 
     /// A static route to add to every container in this network
     ///
     /// Can be specified multiple times
     #[arg(long)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    route: Vec<String>,
+    pub route: Vec<String>,
 }
 
 impl Display for PodmanArgs {

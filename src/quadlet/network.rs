@@ -1,12 +1,14 @@
 use std::{
     fmt::{self, Display, Formatter},
-    net::IpAddr,
-    ops::Not,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    ops::{Not, Range},
+    str::FromStr,
 };
 
 use color_eyre::eyre::{self, Context};
 use ipnet::IpNet;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
+use thiserror::Error;
 
 use crate::serde::quadlet::quote_spaces_join_space;
 
@@ -37,7 +39,7 @@ pub struct Network {
 
     /// Allocate container IP from a range.
     #[serde(rename = "IPRange")]
-    pub ip_range: Vec<IpNet>,
+    pub ip_range: Vec<IpRange>,
 
     /// Enable IPv6 (Dual Stack) networking.
     #[serde(rename = "IPv6", skip_serializing_if = "Not::not")]
@@ -131,6 +133,78 @@ impl Display for Network {
         let network = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
         f.write_str(&network)
     }
+}
+
+/// Valid forms for `IPRange=` network quadlet option values.
+#[derive(Debug, Clone, PartialEq)]
+pub enum IpRange {
+    Cidr(IpNet),
+    Ipv4Range(Range<Ipv4Addr>),
+    Ipv6Range(Range<Ipv6Addr>),
+}
+
+impl Serialize for IpRange {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Cidr(subnet) => subnet.serialize(serializer),
+            Self::Ipv4Range(Range { start, end }) => format!("{start}-{end}").serialize(serializer),
+            Self::Ipv6Range(Range { start, end }) => format!("{start}-{end}").serialize(serializer),
+        }
+    }
+}
+
+impl FromStr for IpRange {
+    type Err = ParseIpRangeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((start, end)) = s.split_once('-') {
+            let start = start.parse().map_err(|source| ParseIpRangeError::IpAddr {
+                source,
+                ip_address: start.into(),
+            })?;
+            match start {
+                IpAddr::V4(start) => {
+                    let end = end.parse().map_err(|source| ParseIpRangeError::Ipv4Addr {
+                        source,
+                        ip_address: end.into(),
+                    })?;
+                    Ok(Self::Ipv4Range(start..end))
+                }
+                IpAddr::V6(start) => {
+                    let end = end.parse().map_err(|source| ParseIpRangeError::Ipv6Addr {
+                        source,
+                        ip_address: end.into(),
+                    })?;
+                    Ok(Self::Ipv6Range(start..end))
+                }
+            }
+        } else {
+            Ok(Self::Cidr(s.parse()?))
+        }
+    }
+}
+
+/// Error which can be returned when parsing an [`IpRange`].
+/// It must be in CIDR notation or in `<start-IP>-<end-IP>` syntax.
+#[derive(Error, Debug)]
+pub enum ParseIpRangeError {
+    #[error("invalid subnet, must be in CIDR notation or in `<start-IP>-<end-IP>` syntax")]
+    Cidr(#[from] ipnet::AddrParseError),
+    #[error("invalid IP address: {ip_address}")]
+    IpAddr {
+        source: std::net::AddrParseError,
+        ip_address: String,
+    },
+    #[error("invalid IPv4 address: {ip_address}")]
+    Ipv4Addr {
+        source: std::net::AddrParseError,
+        ip_address: String,
+    },
+    #[error("invalid IPv6 address: {ip_address}")]
+    Ipv6Addr {
+        source: std::net::AddrParseError,
+        ip_address: String,
+    },
 }
 
 #[cfg(test)]

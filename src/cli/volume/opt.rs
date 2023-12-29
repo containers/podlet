@@ -2,12 +2,33 @@ use std::{convert::Infallible, str::FromStr};
 
 use thiserror::Error;
 
+/// Options from `podman volume create --opt`
 #[derive(Debug, Clone, PartialEq)]
 pub enum Opt {
+    /// `--opt type=`
     Type(String),
+    /// `--opt device=`
     Device(String),
+    /// `--opt copy`
     Copy,
+    /// `--opt o=`
     Mount(Vec<Mount>),
+}
+
+impl Opt {
+    /// Parse from an `option` and its `value`,
+    /// equivalent to `podman volume create --opt <option>[=<value>]`.
+    pub fn parse(option: &str, value: Option<String>) -> Result<Self, ParseOptError> {
+        match (option, value) {
+            ("type", Some(opt_type)) => Ok(Self::Type(opt_type)),
+            ("device", Some(device)) => Ok(Self::Device(device)),
+            ("copy", None) => Ok(Self::Copy),
+            ("o", Some(options)) => Ok(Self::Mount(options.split(',').map(Mount::parse).collect())),
+            (option, value) => Err(ParseOptError::InvalidVolumeDriverOption(
+                value.map_or_else(|| option.into(), |value| format!("{option}={value}")),
+            )),
+        }
+    }
 }
 
 impl From<Vec<Opt>> for crate::quadlet::Volume {
@@ -42,26 +63,10 @@ impl FromStr for Opt {
     type Err = ParseOptError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            s if s.starts_with("type=") => {
-                let (_, opt_type) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Type(String::from(opt_type)))
-            }
-            s if s.starts_with("device=") => {
-                let (_, device) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Device(String::from(device)))
-            }
-            "copy" => Ok(Self::Copy),
-            s if s.starts_with("o=") => {
-                let (_, options) = s.split_once('=').expect("delimiter is in guard");
-                let options = options
-                    .split(',')
-                    .map(str::parse)
-                    .collect::<Result<_, _>>()
-                    .expect("Mount::from_str cannot error");
-                Ok(Self::Mount(options))
-            }
-            _ => Err(ParseOptError::InvalidVolumeDriverOption(String::from(s))),
+        if let Some((option, value)) = s.split_once('=') {
+            Self::parse(option, Some(value.into()))
+        } else {
+            Self::parse(s, None)
         }
     }
 }
@@ -72,6 +77,7 @@ pub enum ParseOptError {
     InvalidVolumeDriverOption(String),
 }
 
+/// Mount options
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mount {
     Uid(String),
@@ -79,18 +85,23 @@ pub enum Mount {
     Other(String),
 }
 
+impl Mount {
+    /// Parse from a string
+    pub fn parse(s: &str) -> Self {
+        if let Some(uid) = s.strip_prefix("uid=") {
+            Self::Uid(uid.to_owned())
+        } else if let Some(gid) = s.strip_prefix("gid=") {
+            Self::Gid(gid.to_owned())
+        } else {
+            Self::Other(s.to_owned())
+        }
+    }
+}
+
 impl FromStr for Mount {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("uid=") {
-            let (_, uid) = s.split_once('=').expect("delimiter is in guard");
-            Ok(Self::Uid(String::from(uid)))
-        } else if s.starts_with("gid=") {
-            let (_, gid) = s.split_once('=').expect("delimiter is in guard");
-            Ok(Self::Gid(String::from(gid)))
-        } else {
-            Ok(Self::Other(String::from(s)))
-        }
+        Ok(Self::parse(s))
     }
 }

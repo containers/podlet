@@ -16,7 +16,7 @@ pub use self::{
     container::{Container, PullPolicy, Unmask},
     install::Install,
     kube::{AutoUpdate as KubeAutoUpdate, Kube},
-    network::Network,
+    network::{IpRange, Network},
     volume::Volume,
 };
 use crate::cli::{service::Service, unit::Unit};

@@ -2,7 +2,7 @@ pub mod opt;
 
 use clap::{Args, Subcommand};
 
-use self::opt::Opt;
+pub use self::opt::Opt;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Volume {
@@ -46,7 +46,7 @@ pub struct Create {
     ///
     /// Converts to "PodmanArgs=--driver DRIVER"
     #[arg(short, long)]
-    driver: Option<String>,
+    pub driver: Option<String>,
 
     /// Set driver specific options
     ///
@@ -64,7 +64,7 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(short, long, value_name = "OPTION")]
-    opt: Vec<Opt>,
+    pub opt: Vec<Opt>,
 
     /// Set one or more OCI labels on the volume
     ///
@@ -72,13 +72,13 @@ pub struct Create {
     ///
     /// Can be specified multiple times
     #[arg(short, long, value_name = "KEY=VALUE")]
-    label: Vec<String>,
+    pub label: Vec<String>,
 
     /// The name of the volume to create
     ///
     /// This will be used as the name of the generated file when used with
     /// the --file option without a filename
-    name: String,
+    pub name: String,
 }
 
 impl From<Create> for crate::quadlet::Volume {
