@@ -5,7 +5,7 @@ services:
       - 8000:80
       - 8443:443
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:Z
       - caddy-data:/data
 volumes:
   caddy-data:

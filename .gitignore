@@ -3,3 +3,9 @@
 
 # VS Code user settings
 /.vscode
+
+# Helix user settings
+/.helix
+
+# demo output
+demo.cast
