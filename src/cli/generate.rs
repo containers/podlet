@@ -36,7 +36,9 @@ pub enum Generate {
     ///
     /// The command used to create the container is parsed to generate the quadlet file.
     Container {
-        /// Name of the container
+        /// Name or ID of the container
+        ///
+        /// Passed to `podman container inspect`.
         container: String,
     },
 
@@ -50,12 +52,16 @@ pub enum Generate {
     /// precise value.
     Network {
         /// Name of the network
+        ///
+        /// Passed to `podman network inspect`.
         network: String,
     },
 
     /// Generate a quadlet file from an existing volume
     Volume {
         /// Name of the volume
+        ///
+        /// Passed to `podman volume inspect`.
         volume: String,
     },
 }
