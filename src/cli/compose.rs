@@ -7,7 +7,7 @@ use std::{
 };
 
 use color_eyre::{
-    eyre::{self, WrapErr},
+    eyre::{self, OptionExt, WrapErr},
     Help,
 };
 use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
@@ -50,13 +50,11 @@ pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
             }
         }
 
-        result.ok_or_else(|| {
-            eyre::eyre!(
-                "A compose file was not provided and none of \
+        result.ok_or_eyre(
+            "A compose file was not provided and none of \
                 `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
-                exist in the current directory or could not be read"
-            )
-        })?
+                exist in the current directory or could not be read",
+        )?
     };
 
     serde_yaml::from_reader(compose_file)
