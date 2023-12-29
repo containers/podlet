@@ -6,6 +6,7 @@ pub struct Install {
     ///
     /// By default, if the --wanted-by and --required-by options are not used,
     /// the section will have "WantedBy=default.target".
+    #[allow(clippy::struct_field_names)]
     #[arg(short, long)]
     pub install: bool,
 

@@ -607,6 +607,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
     }
 }
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Healthcheck {
     health_cmd: Option<String>,
