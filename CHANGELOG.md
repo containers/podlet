@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.2.3] - 2023-12-31
+
+### Features
+
+- Add support for quadlet options introduced in podman v4.7.0 ([#29](https://github.com/k9withabone/podlet/issues/29))
+    - Container
+        - `DNS=`
+        - `DNSOption=`
+        - `DNSSearch=`
+        - `PidsLimit=`
+        - `ShmSize=`
+        - `Ulimit=`
+    - Kube
+        - `AutoUpdate=`
+    - Network
+        - `DNS=`
+- Add `podlet generate` subcommands for generating quadlet files from existing:
+    - Containers ([#23](https://github.com/k9withabone/podlet/issues/23))
+    - Networks
+    - Volumes
+
+### Bug Fixes
+
+- *(compose)* `network_mode` accept all podman values ([#38](https://github.com/k9withabone/podlet/issues/38))
+    - Improved error message for unsupported values
+- *(network)* Support `<start-IP>-<end-IP>` syntax for `--ip-range`
+
+### Documentation
+
+- *(readme)* Podman v4.7.0
+- *(readme)* Update demo and usage
+
+### Miscellaneous Tasks
+
+- *(ci)* Skip container run for conmon v2.1.9
+- *(lint)* Fix new rust 1.75 clippy warnings
+- Update dependencies
+
 ## [0.2.2] - 2023-12-15
 
 ### Features
