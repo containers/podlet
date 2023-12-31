@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
 description = "Generate podman quadlet files from a podman command or a compose file"
@@ -153,7 +153,8 @@ commit_parsers = [
   { message = "^test", group = "6 Testing" },
   { message = "^refactor", group = "7 Refactor" },
   { message = "^style", group = "8 Styling" },
-  { message = "^chore|ci", group = "9 Miscellaneous Tasks" },
+  { message = "^chore", group = "9 Miscellaneous Tasks" },
+  { message = "^ci", default_scope = "ci", group = "9 Miscellaneous Tasks" },
   { message = "^revert", group = "10 Revert" },
   { message = "^release", skip = true },
   { message = "^chore\\(deps\\)", skip = true },

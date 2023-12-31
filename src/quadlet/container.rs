@@ -38,6 +38,7 @@ pub struct Container {
     pub auto_update: Option<AutoUpdate>,
 
     /// The (optional) name of the Podman container.
+    #[allow(clippy::struct_field_names)]
     pub container_name: Option<String>,
 
     /// Set network-scoped DNS resolver/nameserver for containers in this network.

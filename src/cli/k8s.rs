@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use color_eyre::{
-    eyre::{self, Context},
+    eyre::{self, Context, OptionExt},
     Help,
 };
 use docker_compose_types::{
@@ -254,9 +254,7 @@ fn healthcheck_try_into_probe(healthcheck: Healthcheck) -> color_eyre::Result<Pr
                     _ => None,
                 },
             }
-            .ok_or(eyre::eyre!(
-                "healthcheck implicitly using a shell is not supported for pods"
-            ))
+            .ok_or_eyre("healthcheck implicitly using a shell is not supported for pods")
             .suggestion(r#"change healthcheck test to '["CMD", "/bin/sh", "-c", ...]'"#)
         })
         .transpose()?;
@@ -627,7 +625,7 @@ fn advanced_volume_try_into_volume_mount(
                 bind.is_none(),
                 "bind mount propagation is not supported by pods"
             );
-            let source = source.ok_or(eyre::eyre!("cannot have a bind mount without a source"))?;
+            let source = source.ok_or_eyre("cannot have a bind mount without a source")?;
             let name = volume_name(container_name, &target);
             bind_volume(name, source)
         }

@@ -1,0 +1,108 @@
+# demo.yaml
+# autocast (https://github.com/k9withabone/autocast) configuration for podlet demo
+
+# Convert to a GIF and optimize:
+# agg --theme monokai --idle-time-limit 20 --font-size 20 demo.cast demo.gif
+# gifsicle -O2 -k 64 -Okeep-empty --lossy=80 demo.gif -o demo-opt.gif
+# mv demo-opt.gif demo.gif
+
+settings:
+  width: 129
+  height: 34
+  title: podlet v0.2.3 demo
+  timeout: 90s
+  type_speed: 90ms
+
+instructions:
+  # setup
+  - !Command
+    command: cargo build --profile dist
+    hidden: true
+  - !Command
+    command: alias podlet=target/dist/podlet
+    hidden: true
+  - !Command
+    command: podman pull quay.io/podman/hello:latest
+    hidden: true
+
+  - !Marker podlet help
+  - !Command
+    command: podlet -h
+  - !Wait 7s
+  - !Clear
+
+  - !Marker podlet podman help
+  - !Command
+    command: podlet podman -h
+  - !Wait 6s
+  - !Clear
+
+  - !Marker podlet podman run
+  - !Command
+    command: |
+      podlet
+        podman run
+        -p 8000:80
+        -p 8443:443
+        -v ./Caddyfile:/etc/caddy/Caddyfile:Z
+        -v caddy-data:/data
+        docker.io/library/caddy:latest
+    type_speed: 75ms
+  - !Wait 6s
+  - !Clear
+  - !Command
+    command: |
+      podlet --file . --install
+        podman run
+        --restart always
+        -p 8000:80
+        -p 8443:443
+        -v ./Caddyfile:/etc/caddy/Caddyfile:Z
+        -v caddy-data:/data
+        docker.io/library/caddy:latest
+    type_speed: 75ms
+  - !Wait 3s
+  - !Command
+    command: cat caddy.container
+  - !Wait 8s
+  - !Clear
+
+  - !Marker podlet compose
+  - !Command
+    command: cat compose-example.yaml
+  - !Wait 250ms
+  - !Command
+    command: podlet compose compose-example.yaml
+  - !Wait 5s
+  - !Command
+    command: podlet compose --pod caddy-example compose-example.yaml
+    type_speed: 80ms
+  - !Wait 7s
+  - !Clear
+
+  - !Marker podlet generate help
+  - !Command
+    command: podlet generate -h
+  - !Wait 6s
+  - !Clear
+
+  - !Marker podlet generate container
+  - !Command
+    command: podman container create --name hello quay.io/podman/hello:latest
+    type_speed: 80ms
+  - !Wait 2s
+  - !Command
+    command: podlet generate container hello 
+    type_speed: 80ms
+  - !Wait 5s
+
+  # cleanup
+  - !Command
+    command: rm caddy.container
+    hidden: true
+  - !Command
+    command: podman rm hello
+    hidden: true
+  - !Command
+    command: unalias podlet
+    hidden: true

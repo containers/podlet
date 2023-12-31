@@ -5,7 +5,7 @@ pub mod security_opt;
 use std::mem;
 
 use clap::Args;
-use color_eyre::eyre::{self, Context};
+use color_eyre::eyre::{self, Context, OptionExt};
 
 use crate::cli::compose;
 
@@ -84,10 +84,7 @@ impl TryFrom<ComposeService> for Container {
             quadlet_options: (&mut value).try_into()?,
             podman_args: (&mut value.service).try_into()?,
             security_opt,
-            image: value
-                .service
-                .image
-                .ok_or(eyre::eyre!("image is required"))?,
+            image: value.service.image.ok_or_eyre("image is required")?,
             command: value
                 .service
                 .command
