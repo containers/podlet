@@ -127,16 +127,6 @@ struct Serializer {
     output: String,
 }
 
-macro_rules! invalid_primitives {
-    ($($f:ident: $t:ty,)*) => {
-        $(
-            fn $f(self, _v: $t) -> Result<Self::Ok, Self::Error> {
-                Err(Error::InvalidType)
-            }
-        )*
-    };
-}
-
 impl ser::Serializer for &mut Serializer {
     type Ok = ();
 
@@ -157,6 +147,7 @@ impl ser::Serializer for &mut Serializer {
     type SerializeStructVariant = Self;
 
     invalid_primitives! {
+        Error::InvalidType,
         serialize_bool: bool,
         serialize_i8: i8,
         serialize_i16: i16,
@@ -325,7 +316,7 @@ impl ser::SerializeStructVariant for &mut Serializer {
 
 /// Serializes values for [`Serializer`].
 ///
-/// Sequences are serialized on a separate lines, repeating the `key`.
+/// Sequences are serialized on separate lines, repeating the `key`.
 struct ValueSerializer<'a> {
     serializer: &'a mut Serializer,
     key: &'static str,
@@ -337,17 +328,6 @@ impl<'a> ValueSerializer<'a> {
         writeln!(self.serializer.output, "{}={value}", self.key)
             .expect("write to String never fails");
     }
-}
-
-macro_rules! serialize_primitives {
-    ($($f:ident: $t:ty,)*) => {
-        $(
-            fn $f(self, v: $t) -> Result<Self::Ok, Self::Error> {
-                self.write_value(v);
-                Ok(())
-            }
-        )*
-    };
 }
 
 impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
@@ -370,6 +350,7 @@ impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
     type SerializeStructVariant = Impossible<(), Error>;
 
     serialize_primitives! {
+        write_value,
         serialize_bool: bool,
         serialize_i8: i8,
         serialize_i16: i16,

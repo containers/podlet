@@ -157,19 +157,17 @@ impl From<Create> for crate::quadlet::Network {
     }
 }
 
-#[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[derive(Args, Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
     /// Maps to the `network_interface` option in the network config
     #[arg(long, value_name = "NAME")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub interface_name: Option<String>,
 
     /// A static route to add to every container in this network
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub route: Vec<String>,
 }
 
@@ -177,5 +175,16 @@ impl Display for PodmanArgs {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;
         f.write_str(&args)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn podman_args_default_display_empty() {
+        let args = PodmanArgs::default();
+        assert!(args.to_string().is_empty());
     }
 }
