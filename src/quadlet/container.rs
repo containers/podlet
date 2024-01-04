@@ -11,7 +11,7 @@ use serde::{Serialize, Serializer};
 
 use crate::serde::quadlet::{quote_spaces_join_colon, quote_spaces_join_space};
 
-use super::AutoUpdate;
+use super::{AutoUpdate, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
@@ -252,11 +252,193 @@ pub struct Container {
 }
 
 impl Display for Container {
-    #[allow(clippy::too_many_lines)]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let container = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
         f.write_str(&container)
     }
+}
+
+/// Creates `type` using [`std::mem:take()`] on identical `field`s from `self`.
+macro_rules! extract {
+    ($self:expr, $type:ident { $($field:ident),* $(,)?}) => {
+        $type {
+            $($field: std::mem::take(&mut $self.$field),)*
+        }
+    };
+}
+
+impl Container {
+    /// Downgrade compatibility to `version`.
+    ///
+    /// This is a one-way transformation, calling downgrade a second time with a higher version
+    /// will not increase the quadlet options used.
+    pub fn downgrade(&mut self, version: PodmanVersion) {
+        if version < PodmanVersion::V4_7 {
+            self.remove_v4_7_options();
+        }
+
+        if version < PodmanVersion::V4_6 {
+            self.remove_v4_6_options();
+        }
+
+        if version < PodmanVersion::V4_5 {
+            self.remove_v4_5_options();
+        }
+    }
+
+    /// Remove quadlet options added in podman v4.7.0
+    fn remove_v4_7_options(&mut self) {
+        let options = extract!(
+            self,
+            OptionsV4_7 {
+                dns,
+                dns_option,
+                dns_search,
+                pids_limit,
+                shm_size,
+                ulimit,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV4_7 serializable as args");
+    }
+
+    /// Remove quadlet options added in podman v4.6.0
+    fn remove_v4_6_options(&mut self) {
+        if let Some(auto_update) = self.auto_update.take() {
+            self.label
+                .push(format!("{}={auto_update}", AutoUpdate::LABEL_KEY));
+        }
+
+        if self.security_label_nested {
+            self.security_label_nested = false;
+            self.push_arg("security-opt", "label=nested");
+        }
+
+        if !self.mask.is_empty() {
+            // `Unmask::Paths` has the same format as `Mask`
+            let mask = Unmask::Paths(std::mem::take(&mut self.mask));
+            self.push_arg("security-opt", format!("mask={mask}"));
+        }
+
+        if let Some(unmask) = self.unmask.take() {
+            self.push_arg("security-opt", format!("unmask={unmask}"));
+        }
+
+        let options = extract!(
+            self,
+            OptionsV4_6 {
+                sysctl,
+                host_name,
+                pull,
+                working_dir,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV4_6 serializable as args");
+    }
+
+    /// Remove quadlet options added in podman v4.5.0
+    fn remove_v4_5_options(&mut self) {
+        let options = extract!(
+            self,
+            OptionsV4_5 {
+                rootfs,
+                secret,
+                log_driver,
+                mount,
+                ip,
+                ip6,
+                health_interval,
+                health_on_failure,
+                health_retries,
+                health_start_period,
+                health_startup_cmd,
+                health_startup_interval,
+                health_startup_retries,
+                health_startup_success,
+                health_startup_timeout,
+                health_timeout,
+                tmpfs,
+                user_ns,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV4_5 serializable as args");
+    }
+
+    /// Serialize args and add them to `PodmanArgs=`.
+    fn push_args(&mut self, args: impl Serialize) -> Result<(), crate::serde::args::Error> {
+        let args = crate::serde::args::to_string(args)?;
+        self.podman_args_push_str(&args);
+        Ok(())
+    }
+
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: impl Display) {
+        self.podman_args_push_str(&format!("--{flag} {arg}"));
+    }
+
+    /// Push `string` to `podman_args`, adding a space if needed.
+    fn podman_args_push_str(&mut self, string: &str) {
+        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        if !podman_args.is_empty() {
+            podman_args.push(' ');
+        }
+        podman_args.push_str(string);
+    }
+}
+
+/// Container quadlet options added in podman v4.7.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV4_7 {
+    dns: Vec<String>,
+    dns_option: Vec<String>,
+    dns_search: Vec<String>,
+    pids_limit: Option<i16>,
+    shm_size: Option<String>,
+    ulimit: Vec<String>,
+}
+
+/// Container quadlet options added in podman v4.6.0 with directly equivalent args.
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV4_6 {
+    sysctl: Vec<String>,
+    #[serde(rename = "hostname")]
+    host_name: Option<String>,
+    pull: Option<PullPolicy>,
+    #[serde(rename = "workdir")]
+    working_dir: Option<PathBuf>,
+}
+
+/// Container quadlet options added in podman v4.5.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV4_5 {
+    rootfs: Option<String>,
+    secret: Vec<String>,
+    log_driver: Option<String>,
+    mount: Vec<String>,
+    ip: Option<Ipv4Addr>,
+    ip6: Option<Ipv6Addr>,
+    health_interval: Option<String>,
+    health_on_failure: Option<String>,
+    health_retries: Option<u32>,
+    health_start_period: Option<String>,
+    health_startup_cmd: Option<String>,
+    health_startup_interval: Option<String>,
+    health_startup_retries: Option<u16>,
+    health_startup_success: Option<u16>,
+    health_startup_timeout: Option<String>,
+    health_timeout: Option<String>,
+    tmpfs: Vec<String>,
+    #[serde(rename = "userns")]
+    user_ns: Option<String>,
 }
 
 /// Valid pull policies for container images.
@@ -337,6 +519,12 @@ impl Default for Unmask {
 impl Serialize for Unmask {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         quote_spaces_join_colon(self, serializer)
+    }
+}
+
+impl Display for Unmask {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.serialize(f)
     }
 }
 

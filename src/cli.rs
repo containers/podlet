@@ -31,7 +31,7 @@ use color_eyre::{
 };
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
-use crate::quadlet;
+use crate::quadlet::{self, DowngradeError, PodmanVersion};
 
 use self::{
     container::Container, generate::Generate, install::Install, kube::Kube, network::Network,
@@ -96,6 +96,18 @@ pub struct Cli {
     /// This option will cause podlet to skip that check.
     #[arg(long, requires = "file_out")]
     skip_services_check: bool,
+
+    /// Podman version generated quadlet files should conform to
+    ///
+    /// An error will occur if the quadlet file cannot be downgraded to the given version.
+    ///
+    /// Always defaults to the latest supported podman version which added quadlet features.
+    /// If an earlier version is specified, the quadlet file may not be the most optimal.
+    ///
+    /// This feature is only supported in a limited way. You should always check quadlet files
+    /// generated with podlet before running them.
+    #[arg(short, long, visible_aliases = ["compatibility", "compat"], default_value_t)]
+    podman_version: PodmanVersion,
 
     /// The \[Unit\] section
     #[command(flatten)]
@@ -198,7 +210,20 @@ impl Cli {
         let unit = (!self.unit.is_empty()).then_some(self.unit);
         let install = self.install.install.then(|| self.install.into());
 
-        self.command.try_into_files(self.name, unit, install)
+        let mut files = self.command.try_into_files(self.name, unit, install)?;
+
+        if self.podman_version < PodmanVersion::LATEST {
+            for file in &mut files {
+                file.downgrade(self.podman_version).wrap_err_with(|| {
+                    format!(
+                        "error downgrading quadlet to podman v{}",
+                        self.podman_version
+                    )
+                })?;
+            }
+        }
+
+        Ok(files)
     }
 }
 
@@ -494,6 +519,21 @@ impl File {
         match self {
             Self::Quadlet(file) => Some(file),
             Self::KubePod { .. } => None,
+        }
+    }
+
+    /// If a quadlet file, downgrade compatibility to `podman_version`.
+    ///
+    /// This is a one-way transformation, calling downgrade a second time with a higher version
+    /// will not increase the quadlet options used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
+    fn downgrade(&mut self, podman_version: PodmanVersion) -> Result<(), DowngradeError> {
+        match self {
+            Self::Quadlet(file) => file.downgrade(podman_version),
+            Self::KubePod { .. } => Ok(()),
         }
     }
 

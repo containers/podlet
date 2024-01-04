@@ -8,6 +8,8 @@ use serde::Serialize;
 
 use crate::{cli::volume::opt::Opt, serde::quadlet::quote_spaces_join_space};
 
+use super::{DowngradeError, PodmanVersion};
+
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Volume {
@@ -42,6 +44,30 @@ pub struct Volume {
 
     /// The host (numeric) UID, or user name to use as the owner for the volume.
     pub user: Option<String>,
+}
+
+impl Volume {
+    /// Downgrade compatibility to `version`.
+    ///
+    /// This is a one-way transformation, calling downgrade a second time with a higher version
+    /// will not increase the quadlet options used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
+    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V4_6 {
+            if let Some(podman_args) = self.podman_args.take() {
+                return Err(DowngradeError {
+                    quadlet_option: String::from("PodmanArgs"),
+                    value: podman_args,
+                    supported_version: PodmanVersion::V4_6,
+                });
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl TryFrom<docker_compose_types::ComposeVolume> for Volume {

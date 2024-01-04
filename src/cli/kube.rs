@@ -117,57 +117,49 @@ impl From<Play> for crate::quadlet::Kube {
     }
 }
 
-#[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[derive(Args, Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
     /// Add an annotation to the container or pod
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "KEY=VALUE")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     annotation: Vec<String>,
 
     /// Build images even if they are found in the local storage
     ///
     /// Use `--build=false` to completely disable builds
     #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     build: Option<bool>,
 
     /// Use certificates at `path` (*.crt, *.cert, *.key) to connect to the registry
     #[arg(long, value_name = "PATH")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     cert_dir: Option<PathBuf>,
 
     /// Use `path` as the build context directory for each image
     #[arg(long, requires = "build", value_name = "PATH")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     context_dir: Option<PathBuf>,
 
     /// The username and password to use to authenticate with the registry, if required
     #[arg(long, value_name = "USERNAME[:PASSWORD]")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     creds: Option<String>,
 
     /// Assign a static ip address to the pod
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     ip: Vec<IpAddr>,
 
     /// Logging driver specific options
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "NAME=VALUE")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     log_opt: Vec<String>,
 
     /// Assign a static mac address to the pod
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     mac_address: Vec<String>,
 
     /// Do not create `/etc/hosts` for the pod
@@ -177,12 +169,10 @@ pub struct PodmanArgs {
 
     /// Directory path for seccomp profiles
     #[arg(long, value_name = "PATH")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     seccomp_profile_root: Option<PathBuf>,
 
     /// Require HTTPS and verify certificates when contacting registries
     #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     tls_verify: Option<bool>,
 }
 
@@ -245,5 +235,11 @@ mod tests {
     fn path_file_name() {
         let sut = File::Path(PathBuf::from("test.yaml"));
         assert_eq!(sut.name(), Some("test"));
+    }
+
+    #[test]
+    fn podman_args_default_display_empty() {
+        let args = PodmanArgs::default();
+        assert!(args.to_string().is_empty());
     }
 }
