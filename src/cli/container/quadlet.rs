@@ -116,6 +116,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "PORT")]
     expose: Vec<String>,
 
+    /// Run the container in a new user namespace using the supplied GID mapping
+    ///
+    /// Converts to "GIDMap=[FLAGS]CONTAINER_GID:FROM_GID[:AMOUNT]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "[FLAGS]CONTAINER_GID:FROM_GID[:AMOUNT]")]
+    gidmap: Vec<String>,
+
     /// Set or alter a healthcheck command for the container
     ///
     /// Converts to "HealthCmd=COMMAND"
@@ -414,6 +422,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             environment_file: value.env_file,
             environment_host: value.env_host,
             expose_host_port: value.expose,
+            gid_map: value.gidmap,
             group,
             health_cmd: value.health_cmd,
             health_interval: value.health_interval,

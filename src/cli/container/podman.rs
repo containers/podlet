@@ -165,12 +165,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENV")]
     env_merge: Vec<String>,
 
-    /// Run the container in a new user namespace using the supplied GID mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "CONTAINER_GID:HOST_GID:AMOUNT")]
-    gidmap: Vec<String>,
-
     /// Assign additional groups to the primary user running within the container process
     ///
     /// Can be specified multiple times
@@ -460,7 +454,6 @@ impl Default for PodmanArgs {
             disable_content_trust: false,
             entrypoint: None,
             env_merge: Vec::new(),
-            gidmap: Vec::new(),
             group_add: Vec::new(),
             group_entry: None,
             hostuser: Vec::new(),

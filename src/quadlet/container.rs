@@ -80,6 +80,10 @@ pub struct Container {
     /// Exposes a port, or a range of ports, from the host to the container.
     pub expose_host_port: Vec<String>,
 
+    /// Run the container in a new user namespace using the supplied GID mapping.
+    #[serde(rename = "GIDMap")]
+    pub gid_map: Vec<String>,
+
     /// The (numeric) GID to run as inside the container.
     pub group: Option<String>,
 
@@ -273,6 +277,10 @@ impl Container {
     /// This is a one-way transformation, calling downgrade a second time with a higher version
     /// will not increase the quadlet options used.
     pub fn downgrade(&mut self, version: PodmanVersion) {
+        if version < PodmanVersion::V4_8 {
+            self.remove_v4_8_options();
+        }
+
         if version < PodmanVersion::V4_7 {
             self.remove_v4_7_options();
         }
@@ -284,6 +292,14 @@ impl Container {
         if version < PodmanVersion::V4_5 {
             self.remove_v4_5_options();
         }
+    }
+
+    /// Remove quadlet options added in podman v4.8.0
+    fn remove_v4_8_options(&mut self) {
+        let options = extract!(self, OptionsV4_8 { gid_map });
+
+        self.push_args(options)
+            .expect("OptionsV4_8 serializable as args");
     }
 
     /// Remove quadlet options added in podman v4.7.0
@@ -390,6 +406,14 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container quadlet options added in podman v4.8.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV4_8 {
+    #[serde(rename = "gidmap")]
+    gid_map: Vec<String>,
 }
 
 /// Container quadlet options added in podman v4.7.0
