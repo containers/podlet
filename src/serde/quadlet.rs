@@ -104,6 +104,35 @@ pub fn to_string<T: Serialize>(value: T) -> Result<String, Error> {
     Ok(serializer.output)
 }
 
+/// The same as [`to_string()`] except the table name is not included.
+///
+/// ```
+/// #[derive(Serialize)]
+/// #[serde(rename_all = "PascalCase")]
+/// struct Example {
+///     str: &'static str,
+///     vec: Vec<u8>,
+/// }
+/// let example = Example {
+///     str: "Hello world!",
+///     vec: vec![1, 2],
+/// };
+/// assert_eq!(
+///     to_string_no_table_name(example).unwrap(),
+///     "Str=Hello world!\n\
+///     Vec=1\n\
+///     Vec=2\n"
+/// );
+/// ```
+pub fn to_string_no_table_name<T: Serialize>(value: T) -> Result<String, Error> {
+    let mut serializer = Serializer {
+        output: String::new(),
+        no_table_name: true,
+    };
+    value.serialize(&mut serializer)?;
+    Ok(serializer.output)
+}
+
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     #[error("error while serializing: {0}")]
@@ -125,6 +154,7 @@ impl ser::Error for Error {
 #[derive(Default)]
 struct Serializer {
     output: String,
+    no_table_name: bool,
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -253,7 +283,9 @@ impl ser::Serializer for &mut Serializer {
         name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        writeln!(self.output, "[{name}]").expect("write to String never fails");
+        if !self.no_table_name {
+            writeln!(self.output, "[{name}]").expect("write to String never fails");
+        }
         Ok(self)
     }
 
@@ -264,7 +296,9 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        writeln!(self.output, "[{variant}]").expect("write to String never fails");
+        if !self.no_table_name {
+            writeln!(self.output, "[{variant}]").expect("write to String never fails");
+        }
         Ok(self)
     }
 }

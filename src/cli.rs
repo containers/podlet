@@ -1,6 +1,7 @@
 mod compose;
 mod container;
 mod generate;
+mod global_args;
 mod install;
 mod k8s;
 mod kube;
@@ -31,11 +32,11 @@ use color_eyre::{
 };
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
-use crate::quadlet::{self, DowngradeError, PodmanVersion};
+use crate::quadlet::{self, DowngradeError, Globals, PodmanVersion};
 
 use self::{
-    container::Container, generate::Generate, install::Install, kube::Kube, network::Network,
-    service::Service, unit::Unit, volume::Volume,
+    container::Container, generate::Generate, global_args::GlobalArgs, install::Install,
+    kube::Kube, network::Network, service::Service, unit::Unit, volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -256,6 +257,9 @@ impl FilePath {
 enum Commands {
     /// Generate a podman quadlet file from a podman command
     Podman {
+        #[command(flatten)]
+        global_args: Box<GlobalArgs>,
+
         #[command(subcommand)]
         command: PodmanCommands,
     },
@@ -313,7 +317,12 @@ impl Commands {
         install: Option<quadlet::Install>,
     ) -> color_eyre::Result<Vec<File>> {
         match self {
-            Self::Podman { command } => Ok(vec![command.into_quadlet(name, unit, install).into()]),
+            Self::Podman {
+                global_args,
+                command,
+            } => Ok(vec![command
+                .into_quadlet(name, unit, (*global_args).into(), install)
+                .into()]),
             Self::Compose { pod, compose_file } => {
                 let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
 
@@ -333,6 +342,7 @@ impl Commands {
                         name: pod_name,
                         unit,
                         resource: kube.into(),
+                        globals: Globals::default(),
                         service: None,
                         install,
                     };
@@ -351,9 +361,9 @@ impl Commands {
                         .collect()
                 }
             }
-            Self::Generate(command) => Ok(vec![PodmanCommands::try_from(command)?
-                .into_quadlet(name, unit, install)
-                .into()]),
+            Self::Generate(command) => {
+                Ok(vec![command.try_into_quadlet(name, unit, install)?.into()])
+            }
         }
     }
 }
@@ -434,6 +444,7 @@ impl PodmanCommands {
         self,
         name: Option<String>,
         unit: Option<Unit>,
+        globals: Globals,
         install: Option<quadlet::Install>,
     ) -> quadlet::File {
         let service = self.service().cloned();
@@ -441,6 +452,7 @@ impl PodmanCommands {
             name: name.unwrap_or_else(|| self.name().into()),
             unit,
             resource: self.into(),
+            globals,
             service,
             install,
         }

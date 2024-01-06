@@ -5,6 +5,7 @@
 //! a [`crate::quadlet::File`].
 
 use std::{
+    env,
     fmt::{self, Display, Formatter},
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     process::Command,
@@ -19,12 +20,14 @@ use indexmap::IndexMap;
 use ipnet::IpNet;
 use serde::{de::DeserializeOwned, Deserialize};
 
-use crate::quadlet::IpRange;
+use crate::quadlet::{self, Globals, IpRange};
 
 use super::{
     container::Container,
+    global_args::GlobalArgs,
     network::{self, Network},
     service::Service,
+    unit::Unit,
     volume::{self, Volume},
     PodmanCommands,
 };
@@ -66,21 +69,27 @@ pub enum Generate {
     },
 }
 
-impl TryFrom<Generate> for PodmanCommands {
-    type Error = color_eyre::Report;
+impl Generate {
+    /// Inspect the given resource by running a podman command, deserialize the output,
+    /// and transform it into a [`quadlet::File`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a problem running the podman command
+    /// or its output cannot be deserialized.
+    pub fn try_into_quadlet(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<quadlet::Install>,
+    ) -> color_eyre::Result<quadlet::File> {
+        let (podman_command, globals) = match self {
+            Self::Container { container } => ContainerParser::from_container(&container)?.into(),
+            Self::Network { network } => NetworkInspect::from_network(&network)?.into(),
+            Self::Volume { volume } => VolumeInspect::from_volume(&volume)?.into(),
+        };
 
-    fn try_from(value: Generate) -> Result<Self, Self::Error> {
-        match value {
-            Generate::Container { container } => {
-                ContainerParser::from_container(&container).map(Into::into)
-            }
-            Generate::Network { network } => Ok(Self::Network {
-                network: Box::new(NetworkInspect::from_network(&network)?.into()),
-            }),
-            Generate::Volume { volume } => Ok(Self::Volume {
-                volume: VolumeInspect::from_volume(&volume)?.into(),
-            }),
-        }
+        Ok(podman_command.into_quadlet(name, unit, globals, install))
     }
 }
 
@@ -88,9 +97,14 @@ impl TryFrom<Generate> for PodmanCommands {
 #[derive(Parser, Debug)]
 #[command(no_binary_name = true)]
 struct ContainerParser {
+    /// Podman global options
+    #[command(flatten)]
+    global_args: GlobalArgs,
+
     /// The \[Container\] section
     #[command(flatten)]
     container: Container,
+
     /// The \[Service\] section
     #[command(flatten)]
     service: Service,
@@ -111,45 +125,50 @@ impl ContainerParser {
             .config
             .create_command;
 
-        Self::try_parse_from(strip_container_create_command_prefix(&create_command)).wrap_err_with(
-            || {
-                format!(
-                    "error parsing podman command from: {}",
-                    shlex::join(create_command.iter().map(String::as_str))
-                )
+        Self::try_parse_from(filter_container_create_command(&create_command)).wrap_err_with(|| {
+            format!(
+                "error parsing podman command from: {}",
+                shlex::join(create_command.iter().map(String::as_str))
+            )
+        })
+    }
+}
+
+impl From<ContainerParser> for (PodmanCommands, Globals) {
+    fn from(value: ContainerParser) -> Self {
+        let ContainerParser {
+            global_args,
+            container,
+            service,
+        } = value;
+        (
+            PodmanCommands::Run {
+                container: Box::new(container),
+                service,
             },
+            global_args.into(),
         )
     }
 }
 
-/// Remove the command part of `command`, leaving just the container creation options.
-fn strip_container_create_command_prefix(command: &[String]) -> impl Iterator<Item = &String> {
-    let mut iter = command.iter().peekable();
+/// Remove the command parts of `command`, leaving just the container creation options.
+fn filter_container_create_command(command: &[String]) -> impl Iterator<Item = &String> {
+    let mut iter = command.iter();
 
     // remove arg0, i.e. "podman" or "/usr/bin/podman"
     iter.next();
 
     // command could be `podman run`, `podman create`, or `podman container create`
-    if iter.peek().is_some_and(|arg| *arg == "container") {
-        iter.next();
-    }
-    if iter
-        .peek()
-        .is_some_and(|arg| *arg == "run" || *arg == "create")
-    {
-        iter.next();
-    }
-
-    iter
-}
-
-impl From<ContainerParser> for PodmanCommands {
-    fn from(ContainerParser { container, service }: ContainerParser) -> Self {
-        PodmanCommands::Run {
-            container: Box::new(container),
-            service,
+    let mut command_seen = false;
+    iter.filter(move |arg| match (command_seen, arg.as_str()) {
+        (false, "container") => false,
+        (false, "run" | "create") => {
+            command_seen = true;
+            false
         }
-    }
+        // command_seen || arg != command
+        (true | false, _) => true,
+    })
 }
 
 /// Selected output of `podman container inspect`.
@@ -372,6 +391,20 @@ impl From<NetworkInspect> for Network {
     }
 }
 
+impl From<NetworkInspect> for PodmanCommands {
+    fn from(value: NetworkInspect) -> Self {
+        PodmanCommands::Network {
+            network: Box::new(value.into()),
+        }
+    }
+}
+
+impl From<NetworkInspect> for (PodmanCommands, Globals) {
+    fn from(value: NetworkInspect) -> Self {
+        (value.into(), Globals::default())
+    }
+}
+
 /// Output of `podman volume inspect`.
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -430,6 +463,20 @@ impl From<VolumeInspect> for Volume {
     }
 }
 
+impl From<VolumeInspect> for PodmanCommands {
+    fn from(value: VolumeInspect) -> Self {
+        Self::Volume {
+            volume: value.into(),
+        }
+    }
+}
+
+impl From<VolumeInspect> for (PodmanCommands, Globals) {
+    fn from(value: VolumeInspect) -> Self {
+        (value.into(), Globals::default())
+    }
+}
+
 /// Runs `podman {resource_kind} inspect` on the resource and deserializes the output.
 ///
 /// # Errors
@@ -445,7 +492,8 @@ fn podman_inspect<T: DeserializeOwned>(
         .args([resource_kind.as_str(), "inspect", resource])
         .output()
         .wrap_err_with(|| format!("error running `podman {resource_kind} inspect {resource}`"))
-        .note("ensure podman is installed and available on $PATH")?;
+        .note("ensure podman is installed and available on $PATH")
+        .with_section(|| env::var("PATH").unwrap_or_default().header("PATH:"))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -470,10 +518,7 @@ fn podman_inspect<T: DeserializeOwned>(
     // There should only be a single object in the array, so the first one is returned.
     serde_yaml::from_str::<Vec<T>>(&stdout)
         .wrap_err_with(|| {
-            format!(
-                "error deserializing container create command \
-                    from `podman {resource_kind} inspect {resource}` output"
-            )
+            format!("error deserializing from `podman {resource_kind} inspect {resource}` output")
         })
         .with_section(|| stdout.trim().to_owned().header("Podman Stdout:"))?
         .into_iter()
@@ -502,5 +547,17 @@ impl ResourceKind {
 impl Display for ResourceKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::*;
+
+    #[test]
+    fn verify_container_parser_cli() {
+        ContainerParser::command().debug_assert();
     }
 }

@@ -1,4 +1,5 @@
 mod container;
+mod globals;
 mod install;
 mod kube;
 mod network;
@@ -15,6 +16,7 @@ use thiserror::Error;
 
 pub use self::{
     container::{Container, PullPolicy, Unmask},
+    globals::Globals,
     install::Install,
     kube::{AutoUpdate as KubeAutoUpdate, Kube},
     network::{IpRange, Network},
@@ -27,6 +29,7 @@ pub struct File {
     pub name: String,
     pub unit: Option<Unit>,
     pub resource: Resource,
+    pub globals: Globals,
     pub service: Option<Service>,
     pub install: Option<Install>,
 }
@@ -37,7 +40,7 @@ impl Display for File {
             writeln!(f, "{unit}")?;
         }
 
-        write!(f, "{}", self.resource)?;
+        write!(f, "{}{}", self.resource, self.globals)?;
 
         if let Some(service) = &self.service {
             write!(f, "\n{service}")?;
@@ -66,7 +69,9 @@ impl File {
     ///
     /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
     pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
-        self.resource.downgrade(version)
+        self.resource.downgrade(version)?;
+        self.globals.downgrade(version)?;
+        Ok(())
     }
 }
 
@@ -175,13 +180,15 @@ pub enum PodmanVersion {
     V4_5,
     #[value(name = "4.6", aliases = ["4.6.0", "4.6.1", "4.6.2"])]
     V4_6,
-    #[value(name = "4.7", aliases = ["latest", "4.7.0", "4.7.1", "4.7.2"])]
+    #[value(name = "4.7", aliases = ["4.7.0", "4.7.1", "4.7.2"])]
     V4_7,
+    #[value(name = "4.8", aliases = ["latest", "4.8.0", "4.8.1", "4.8.2", "4.8.3"])]
+    V4_8,
 }
 
 impl PodmanVersion {
     /// Latest supported version of podman with regards to quadlet.
-    pub const LATEST: Self = Self::V4_7;
+    pub const LATEST: Self = Self::V4_8;
 
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -189,6 +196,7 @@ impl PodmanVersion {
             Self::V4_5 => "4.5",
             Self::V4_6 => "4.6",
             Self::V4_7 => "4.7",
+            Self::V4_8 => "4.8",
         }
     }
 }
