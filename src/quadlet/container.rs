@@ -228,6 +228,10 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Run the container in a new user namespace using the map with name in the /etc/subgid file.
+    #[serde(rename = "SubGIDMap")]
+    pub sub_gid_map: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -311,7 +315,13 @@ impl Container {
             self.podman_args_push_str("--read-only-tmpfs=false");
         }
 
-        let options = extract!(self, OptionsV4_8 { gid_map });
+        let options = extract!(
+            self,
+            OptionsV4_8 {
+                gid_map,
+                sub_gid_map,
+            }
+        );
 
         self.push_args(options)
             .expect("OptionsV4_8 serializable as args");
@@ -429,6 +439,8 @@ impl Container {
 struct OptionsV4_8 {
     #[serde(rename = "gidmap")]
     gid_map: Vec<String>,
+    #[serde(rename = "subgidname")]
+    sub_gid_map: Option<String>,
 }
 
 /// Container quadlet options added in podman v4.7.0
