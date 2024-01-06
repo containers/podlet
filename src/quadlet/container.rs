@@ -8,13 +8,17 @@ use std::{
 
 use clap::ValueEnum;
 use serde::{Serialize, Serializer};
+use smart_default::SmartDefault;
 
-use crate::serde::quadlet::{quote_spaces_join_colon, quote_spaces_join_space};
+use crate::serde::{
+    quadlet::{quote_spaces_join_colon, quote_spaces_join_space},
+    skip_true,
+};
 
 use super::{AutoUpdate, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Serialize, Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Container {
     /// Add these capabilities, in addition to the default Podman capability set, to the container.
@@ -187,6 +191,12 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub read_only: bool,
 
+    /// If `read_only` is set to `true`, mount a read-write tmpfs on
+    /// `/dev`, `/dev/shm`, `/run`, `/tmp`, and `/var/tmp`.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub read_only_tmpfs: bool,
+
     /// If enabled, the container has a minimal init process inside the container
     /// that forwards signals and reaps processes.
     #[serde(skip_serializing_if = "Not::not")]
@@ -296,6 +306,11 @@ impl Container {
 
     /// Remove quadlet options added in podman v4.8.0
     fn remove_v4_8_options(&mut self) {
+        if !self.read_only_tmpfs {
+            self.read_only_tmpfs = true;
+            self.podman_args_push_str("--read-only-tmpfs=false");
+        }
+
         let options = extract!(self, OptionsV4_8 { gid_map });
 
         self.push_args(options)

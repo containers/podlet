@@ -26,3 +26,11 @@ macro_rules! serialize_primitives {
 
 pub mod args;
 pub mod quadlet;
+
+/// Skip serializing `bool`s that are `true`.
+/// For use with `#[serde(skip_serializing_if = "skip_true")]`.
+// ref required for serde's skip_serializing_if
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub fn skip_true(bool: &bool) -> bool {
+    *bool
+}

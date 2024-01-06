@@ -4,21 +4,22 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{Args, ValueEnum};
+use clap::{ArgAction, Args, ValueEnum};
 use color_eyre::{
     eyre::{self, Context},
     owo_colors::OwoColorize,
     Section,
 };
 use docker_compose_types::{MapOrEmpty, Volumes};
+use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
     quadlet::{AutoUpdate, PullPolicy},
 };
 
-#[allow(clippy::module_name_repetitions)]
-#[derive(Args, Default, Debug, Clone, PartialEq)]
+#[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
+#[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
     /// Add Linux capabilities
     ///
@@ -280,6 +281,12 @@ pub struct QuadletOptions {
     #[arg(long)]
     read_only: bool,
 
+    /// When running containers in read-only mode mount a read-write tmpfs on
+    /// `/dev`, `/dev/shm`, `/run`, `/tmp`, and `/var/tmp`
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[default = true]
+    read_only_tmpfs: bool,
+
     /// Run an init inside the container
     ///
     /// Converts to "RunInit=true"
@@ -448,6 +455,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             publish_port: value.publish,
             pull: value.pull,
             read_only: value.read_only,
+            read_only_tmpfs: value.read_only_tmpfs,
             run_init: value.init,
             secret: value.secret,
             shm_size: value.shm_size,
@@ -864,5 +872,18 @@ fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
                 format!("{network}.network{options}")
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_convert() {
+        assert_eq!(
+            crate::quadlet::Container::default(),
+            QuadletOptions::default().into(),
+        );
     }
 }
