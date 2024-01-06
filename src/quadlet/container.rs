@@ -249,6 +249,10 @@ pub struct Container {
     /// The timezone to run the container in.
     pub timezone: Option<String>,
 
+    /// Run the container in a new user namespace using the supplied UID mapping.
+    #[serde(rename = "UIDMap")]
+    pub uid_map: Vec<String>,
+
     /// Ulimit options. Sets the ulimits values inside of the container.
     pub ulimit: Vec<String>,
 
@@ -325,6 +329,7 @@ impl Container {
                 gid_map,
                 sub_gid_map,
                 sub_uid_map,
+                uid_map,
             }
         );
 
@@ -441,7 +446,6 @@ impl Container {
 /// Container quadlet options added in podman v4.8.0
 #[allow(clippy::struct_field_names)]
 #[derive(Serialize, Debug)]
-#[serde(rename_all = "kebab-case")]
 struct OptionsV4_8 {
     #[serde(rename = "gidmap")]
     gid_map: Vec<String>,
@@ -449,6 +453,8 @@ struct OptionsV4_8 {
     sub_gid_map: Option<String>,
     #[serde(rename = "subuidname")]
     sub_uid_map: Option<String>,
+    #[serde(rename = "uidmap")]
+    uid_map: Vec<String>,
 }
 
 /// Container quadlet options added in podman v4.7.0

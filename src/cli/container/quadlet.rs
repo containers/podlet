@@ -341,6 +341,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "TIMEZONE")]
     tz: Option<String>,
 
+    /// Run the container in a new user namespace using the supplied UID mapping
+    ///
+    /// Converts to "UIDMap=[FLAGS]CONTAINER_UID:FROM_UID[:AMOUNT]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "[FLAGS]CONTAINER_UID:FROM_UID[:AMOUNT]")]
+    uidmap: Vec<String>,
+
     /// Ulimit options; set the ulimit values inside of the container
     ///
     /// Converts to "Ulimit=OPTION"
@@ -476,6 +484,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,
+            uid_map: value.uidmap,
             ulimit: value.ulimit,
             user,
             user_ns: value.userns,

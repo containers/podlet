@@ -384,12 +384,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     tty: bool,
 
-    /// Run the container in a new user namespace using the supplied UID mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "CONTAINER_UID:FROM_UID:AMOUNT")]
-    uidmap: Vec<String>,
-
     /// Set the umask inside the container
     #[arg(long)]
     umask: Option<String>,
