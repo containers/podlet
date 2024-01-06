@@ -313,6 +313,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NAME")]
     subgidname: Option<String>,
 
+    /// Name of range listed in /etc/subuid for use in user namespace
+    ///
+    /// Converts to "SubUIDMap=NAME"
+    #[arg(long, value_name = "NAME")]
+    subuidname: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     ///
     /// Converts to "Sysctl=NAME=VALUE"
@@ -466,6 +472,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             secret: value.secret,
             shm_size: value.shm_size,
             sub_gid_map: value.subgidname,
+            sub_uid_map: value.subuidname,
             sysctl: value.sysctl,
             tmpfs,
             timezone: value.tz,

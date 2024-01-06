@@ -232,6 +232,10 @@ pub struct Container {
     #[serde(rename = "SubGIDMap")]
     pub sub_gid_map: Option<String>,
 
+    /// Run the container in a new user namespace using the map with name in the /etc/subuid file.
+    #[serde(rename = "SubUIDMap")]
+    pub sub_uid_map: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -320,6 +324,7 @@ impl Container {
             OptionsV4_8 {
                 gid_map,
                 sub_gid_map,
+                sub_uid_map,
             }
         );
 
@@ -434,6 +439,7 @@ impl Container {
 }
 
 /// Container quadlet options added in podman v4.8.0
+#[allow(clippy::struct_field_names)]
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_8 {
@@ -441,6 +447,8 @@ struct OptionsV4_8 {
     gid_map: Vec<String>,
     #[serde(rename = "subgidname")]
     sub_gid_map: Option<String>,
+    #[serde(rename = "subuidname")]
+    sub_uid_map: Option<String>,
 }
 
 /// Container quadlet options added in podman v4.7.0

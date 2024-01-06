@@ -365,10 +365,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "SECONDS")]
     stop_timeout: Option<u16>,
 
-    /// Name of range listed in /etc/subuid for use in user namespace
-    #[arg(long, value_name = "NAME")]
-    subuidname: Option<String>,
-
     /// Run container in systemd mode
     ///
     /// Default is true
