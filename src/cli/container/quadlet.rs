@@ -424,17 +424,6 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             }
         });
 
-        let mut tmpfs = value.tmpfs;
-        let mut volatile_tmp = false;
-        tmpfs.retain(|tmpfs| {
-            if tmpfs == "/tmp" {
-                volatile_tmp = true;
-                false
-            } else {
-                true
-            }
-        });
-
         Self {
             add_capability: value.cap_add,
             add_device: value.device,
@@ -482,13 +471,12 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             sub_gid_map: value.subgidname,
             sub_uid_map: value.subuidname,
             sysctl: value.sysctl,
-            tmpfs,
+            tmpfs: value.tmpfs,
             timezone: value.tz,
             uid_map: value.uidmap,
             ulimit: value.ulimit,
             user,
             user_ns: value.userns,
-            volatile_tmp,
             volume: value.volume,
             working_dir: value.workdir,
             ..Self::default()

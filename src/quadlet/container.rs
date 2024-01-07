@@ -266,10 +266,6 @@ pub struct Container {
     #[serde(rename = "UserNS")]
     pub user_ns: Option<String>,
 
-    /// If enabled, the container has a fresh tmpfs mounted on `/tmp`.
-    #[serde(skip_serializing_if = "Not::not")]
-    pub volatile_tmp: bool,
-
     /// Mount a volume in the container.
     pub volume: Vec<String>,
 
