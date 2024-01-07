@@ -13,6 +13,8 @@ pub enum Opt {
     Copy,
     /// `--opt o=`
     Mount(Vec<Mount>),
+    /// `--opt image=`
+    Image(String),
 }
 
 impl Opt {
@@ -24,6 +26,7 @@ impl Opt {
             ("device", Some(device)) => Ok(Self::Device(device)),
             ("copy", None) => Ok(Self::Copy),
             ("o", Some(options)) => Ok(Self::Mount(options.split(',').map(Mount::parse).collect())),
+            ("image", Some(image)) => Ok(Self::Image(image)),
             (option, value) => Err(ParseOptError::InvalidVolumeDriverOption(
                 value.map_or_else(|| option.into(), |value| format!("{option}={value}")),
             )),
@@ -53,6 +56,7 @@ impl From<Vec<Opt>> for crate::quadlet::Volume {
                         }
                     }
                 }
+                Opt::Image(image) => volume.image = Some(image),
             }
             volume
         })

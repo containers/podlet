@@ -27,6 +27,9 @@ pub struct Volume {
     /// The host (numeric) GID, or group name to use as the group for the volume.
     pub group: Option<String>,
 
+    /// Specifies the image the volume is based on when `Driver` is set to the `image`.
+    pub image: Option<String>,
+
     /// Set one or more OCI labels on the volume.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -62,6 +65,10 @@ impl Volume {
         if version < PodmanVersion::V4_8 {
             if let Some(driver) = self.driver.take() {
                 self.push_arg("driver", &driver);
+            }
+
+            if let Some(image) = self.image.take() {
+                self.push_arg("opt", &format!("image={image}"));
             }
         }
 
