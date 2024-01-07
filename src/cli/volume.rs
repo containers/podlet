@@ -44,7 +44,7 @@ impl Volume {
 pub struct Create {
     /// Specify the volume driver name
     ///
-    /// Converts to "PodmanArgs=--driver DRIVER"
+    /// Converts to "Driver=DRIVER"
     #[arg(short, long)]
     pub driver: Option<String>,
 
@@ -82,11 +82,18 @@ pub struct Create {
 }
 
 impl From<Create> for crate::quadlet::Volume {
-    fn from(value: Create) -> Self {
+    fn from(
+        Create {
+            driver,
+            opt,
+            label,
+            name: _,
+        }: Create,
+    ) -> Self {
         Self {
-            label: value.label,
-            podman_args: value.driver.map(|driver| format!("--driver {driver}")),
-            ..value.opt.into()
+            driver,
+            label,
+            ..opt.into()
         }
     }
 }
