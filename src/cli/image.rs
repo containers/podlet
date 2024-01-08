@@ -47,7 +47,7 @@ impl From<Image> for quadlet::Resource {
 }
 
 /// [`Args`] for `podman image pull`
-#[derive(Args, Debug, Clone, PartialEq)]
+#[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Pull {
     /// All tagged images in the repository are pulled.
     ///

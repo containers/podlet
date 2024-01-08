@@ -24,6 +24,7 @@ use crate::quadlet::{self, Globals, IpRange, ResourceKind};
 use super::{
     container::Container,
     global_args::GlobalArgs,
+    image::{self, Image},
     network::{self, Network},
     service::Service,
     unit::Unit,
@@ -66,6 +67,14 @@ pub enum Generate {
         /// Passed to `podman volume inspect`.
         volume: String,
     },
+
+    /// Generate a quadlet file from an image in local storage
+    Image {
+        /// Name of the image
+        ///
+        /// Passed to `podman image inspect`.
+        image: String,
+    },
 }
 
 impl Generate {
@@ -86,6 +95,7 @@ impl Generate {
             Self::Container { container } => ContainerParser::from_container(&container)?.into(),
             Self::Network { network } => NetworkInspect::from_network(&network)?.into(),
             Self::Volume { volume } => VolumeInspect::from_volume(&volume)?.into(),
+            Self::Image { image } => ImageInspect::from_image(&image)?.into(),
         };
 
         Ok(podman_command.into_quadlet(name, unit, globals, install))
@@ -472,6 +482,66 @@ impl From<VolumeInspect> for PodmanCommands {
 
 impl From<VolumeInspect> for (PodmanCommands, Globals) {
     fn from(value: VolumeInspect) -> Self {
+        (value.into(), Globals::default())
+    }
+}
+
+/// Selected output of `podman image inspect`.
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct ImageInspect {
+    repo_tags: Vec<String>,
+    #[serde(default)]
+    architecture: Option<String>,
+    #[serde(default)]
+    os: Option<String>,
+}
+
+impl ImageInspect {
+    /// Runs `podman image inspect` on the image and deserializes the output into [`Self`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is problem running `podman image inspect`,
+    /// it doesn't complete successfully,
+    /// or if the output cannot be properly deserialized.
+    fn from_image(image: &str) -> color_eyre::Result<Self> {
+        podman_inspect(ResourceKind::Image, image)
+    }
+}
+
+impl From<ImageInspect> for Image {
+    fn from(
+        ImageInspect {
+            mut repo_tags,
+            architecture: arch,
+            os,
+        }: ImageInspect,
+    ) -> Self {
+        let source = repo_tags
+            .pop()
+            .expect("RepoTags should have at least one value");
+        Self::Pull {
+            pull: image::Pull {
+                arch,
+                os,
+                source,
+                ..Default::default()
+            },
+        }
+    }
+}
+
+impl From<ImageInspect> for PodmanCommands {
+    fn from(value: ImageInspect) -> Self {
+        Self::Image {
+            image: Box::new(value.into()),
+        }
+    }
+}
+
+impl From<ImageInspect> for (PodmanCommands, Globals) {
+    fn from(value: ImageInspect) -> Self {
         (value.into(), Globals::default())
     }
 }
