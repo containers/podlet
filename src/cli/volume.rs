@@ -8,11 +8,9 @@ pub use self::opt::Opt;
 pub enum Volume {
     /// Generate a podman quadlet `.volume` file
     ///
-    /// Only options supported by quadlet are present
-    ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-volume-create.1.html and
-    /// https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#volume-units-volume
+    /// https://docs.podman.io/en/stable/markdown/podman-volume-create.1.html and
+    /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#volume-units-volume
     #[group(skip)]
     Create {
         #[command(flatten)]

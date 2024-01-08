@@ -504,7 +504,7 @@ struct OptionsV4_5 {
 
 /// Valid pull policies for container images.
 ///
-/// See the `--pull` [section](https://docs.podman.io/en/latest/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
+/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullPolicy {
     /// Always pull the image and throw an error if the pull fails.

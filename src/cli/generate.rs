@@ -6,7 +6,6 @@
 
 use std::{
     env,
-    fmt::{self, Display, Formatter},
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     process::Command,
 };
@@ -20,7 +19,7 @@ use indexmap::IndexMap;
 use ipnet::IpNet;
 use serde::{de::DeserializeOwned, Deserialize};
 
-use crate::quadlet::{self, Globals, IpRange};
+use crate::quadlet::{self, Globals, IpRange, ResourceKind};
 
 use super::{
     container::Container,
@@ -524,30 +523,6 @@ fn podman_inspect<T: DeserializeOwned>(
         .into_iter()
         .next()
         .ok_or_else(|| eyre!("no {resource_kind}s matching `{resource}`"))
-}
-
-/// Used by [`podman_inspect()`] to run the correct variant of `podman inspect`.
-#[derive(Debug, Clone, Copy)]
-enum ResourceKind {
-    Container,
-    Network,
-    Volume,
-}
-
-impl ResourceKind {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Container => "container",
-            Self::Network => "network",
-            Self::Volume => "volume",
-        }
-    }
-}
-
-impl Display for ResourceKind {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
 }
 
 #[cfg(test)]

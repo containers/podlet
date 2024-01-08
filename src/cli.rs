@@ -2,6 +2,7 @@ mod compose;
 mod container;
 mod generate;
 mod global_args;
+mod image;
 mod install;
 mod k8s;
 mod kube;
@@ -35,8 +36,8 @@ use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 use crate::quadlet::{self, DowngradeError, Globals, PodmanVersion};
 
 use self::{
-    container::Container, generate::Generate, global_args::GlobalArgs, install::Install,
-    kube::Kube, network::Network, service::Service, unit::Unit, volume::Volume,
+    container::Container, generate::Generate, global_args::GlobalArgs, image::Image,
+    install::Install, kube::Kube, network::Network, service::Service, unit::Unit, volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -373,7 +374,7 @@ enum PodmanCommands {
     /// Generate a podman quadlet `.container` file
     ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
+    /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html
     Run {
         /// The \[Container\] section
         #[command(flatten)]
@@ -387,7 +388,7 @@ enum PodmanCommands {
     /// Generate a podman quadlet `.kube` file
     ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-kube-play.1.html
+    /// https://docs.podman.io/en/stable/markdown/podman-kube-play.1.html
     Kube {
         /// The \[Kube\] section
         #[command(subcommand)]
@@ -397,7 +398,7 @@ enum PodmanCommands {
     /// Generate a podman quadlet `.network` file
     ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-network-create.1.html
+    /// https://docs.podman.io/en/stable/markdown/podman-network-create.1.html
     Network {
         /// The \[Network\] section
         #[command(subcommand)]
@@ -407,11 +408,21 @@ enum PodmanCommands {
     /// Generate a podman quadlet `.volume` file
     ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-volume-create.1.html
+    /// https://docs.podman.io/en/stable/markdown/podman-volume-create.1.html
     Volume {
         /// The \[Volume\] section
         #[command(subcommand)]
         volume: Volume,
+    },
+
+    /// Generate a podman quadlet `.image` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/stable/markdown/podman-pull.1.html
+    Image {
+        /// The \[Image\] section
+        #[command(subcommand)]
+        image: Box<Image>,
     },
 }
 
@@ -434,6 +445,7 @@ impl From<PodmanCommands> for quadlet::Resource {
             PodmanCommands::Kube { kube } => (*kube).into(),
             PodmanCommands::Network { network } => (*network).into(),
             PodmanCommands::Volume { volume } => volume.into(),
+            PodmanCommands::Image { image } => (*image).into(),
         }
     }
 }
@@ -472,6 +484,7 @@ impl PodmanCommands {
             Self::Kube { kube } => kube.name(),
             Self::Network { network } => network.name(),
             Self::Volume { volume } => volume.name(),
+            Self::Image { image } => image.name(),
         }
     }
 }
