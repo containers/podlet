@@ -13,11 +13,9 @@ use crate::quadlet::IpRange;
 pub enum Network {
     /// Generate a podman quadlet `.network` file
     ///
-    /// Only options supported by quadlet are present
-    ///
     /// For details on options see:
-    /// https://docs.podman.io/en/latest/markdown/podman-network-create.1.html and
-    /// https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#network-units-network
+    /// https://docs.podman.io/en/stable/markdown/podman-network-create.1.html and
+    /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#network-units-network
     #[group(skip)]
     Create {
         #[command(flatten)]

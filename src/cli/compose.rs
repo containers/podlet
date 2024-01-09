@@ -12,7 +12,7 @@ use color_eyre::{
 };
 use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
 
-use crate::quadlet;
+use crate::quadlet::{self, Globals};
 
 use super::{image_to_name, unit::Unit, ComposeService, PodmanCommands};
 
@@ -177,6 +177,7 @@ fn service_try_into_quadlet_file(
         name,
         unit,
         resource: command.into(),
+        globals: Globals::default(),
         service,
         install,
     })
@@ -200,6 +201,7 @@ fn networks_try_into_quadlet_files<'a>(
             name,
             unit: unit.cloned(),
             resource: network.into(),
+            globals: Globals::default(),
             service: None,
             install: install.cloned(),
         })
@@ -221,6 +223,7 @@ fn volumes_try_into_quadlet_files<'a>(
                 name,
                 unit: unit.cloned(),
                 resource: volume.into(),
+                globals: Globals::default(),
                 service: None,
                 install: install.cloned(),
             })

@@ -8,13 +8,17 @@ use std::{
 
 use clap::ValueEnum;
 use serde::{Serialize, Serializer};
+use smart_default::SmartDefault;
 
-use crate::serde::quadlet::{quote_spaces_join_colon, quote_spaces_join_space};
+use crate::serde::{
+    quadlet::{quote_spaces_join_colon, quote_spaces_join_space},
+    skip_true,
+};
 
 use super::{AutoUpdate, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Serialize, Debug, Default, Clone, PartialEq)]
+#[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Container {
     /// Add these capabilities, in addition to the default Podman capability set, to the container.
@@ -79,6 +83,10 @@ pub struct Container {
 
     /// Exposes a port, or a range of ports, from the host to the container.
     pub expose_host_port: Vec<String>,
+
+    /// Run the container in a new user namespace using the supplied GID mapping.
+    #[serde(rename = "GIDMap")]
+    pub gid_map: Vec<String>,
 
     /// The (numeric) GID to run as inside the container.
     pub group: Option<String>,
@@ -183,6 +191,12 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub read_only: bool,
 
+    /// If `read_only` is set to `true`, mount a read-write tmpfs on
+    /// `/dev`, `/dev/shm`, `/run`, `/tmp`, and `/var/tmp`.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub read_only_tmpfs: bool,
+
     /// If enabled, the container has a minimal init process inside the container
     /// that forwards signals and reaps processes.
     #[serde(skip_serializing_if = "Not::not")]
@@ -214,6 +228,14 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Run the container in a new user namespace using the map with name in the /etc/subgid file.
+    #[serde(rename = "SubGIDMap")]
+    pub sub_gid_map: Option<String>,
+
+    /// Run the container in a new user namespace using the map with name in the /etc/subuid file.
+    #[serde(rename = "SubUIDMap")]
+    pub sub_uid_map: Option<String>,
+
     /// Configures namespaced kernel parameters for the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -227,6 +249,10 @@ pub struct Container {
     /// The timezone to run the container in.
     pub timezone: Option<String>,
 
+    /// Run the container in a new user namespace using the supplied UID mapping.
+    #[serde(rename = "UIDMap")]
+    pub uid_map: Vec<String>,
+
     /// Ulimit options. Sets the ulimits values inside of the container.
     pub ulimit: Vec<String>,
 
@@ -239,10 +265,6 @@ pub struct Container {
     /// Set the user namespace mode for the container.
     #[serde(rename = "UserNS")]
     pub user_ns: Option<String>,
-
-    /// If enabled, the container has a fresh tmpfs mounted on `/tmp`.
-    #[serde(skip_serializing_if = "Not::not")]
-    pub volatile_tmp: bool,
 
     /// Mount a volume in the container.
     pub volume: Vec<String>,
@@ -273,6 +295,10 @@ impl Container {
     /// This is a one-way transformation, calling downgrade a second time with a higher version
     /// will not increase the quadlet options used.
     pub fn downgrade(&mut self, version: PodmanVersion) {
+        if version < PodmanVersion::V4_8 {
+            self.remove_v4_8_options();
+        }
+
         if version < PodmanVersion::V4_7 {
             self.remove_v4_7_options();
         }
@@ -284,6 +310,27 @@ impl Container {
         if version < PodmanVersion::V4_5 {
             self.remove_v4_5_options();
         }
+    }
+
+    /// Remove quadlet options added in podman v4.8.0
+    fn remove_v4_8_options(&mut self) {
+        if !self.read_only_tmpfs {
+            self.read_only_tmpfs = true;
+            self.podman_args_push_str("--read-only-tmpfs=false");
+        }
+
+        let options = extract!(
+            self,
+            OptionsV4_8 {
+                gid_map,
+                sub_gid_map,
+                sub_uid_map,
+                uid_map,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV4_8 serializable as args");
     }
 
     /// Remove quadlet options added in podman v4.7.0
@@ -392,6 +439,20 @@ impl Container {
     }
 }
 
+/// Container quadlet options added in podman v4.8.0
+#[allow(clippy::struct_field_names)]
+#[derive(Serialize, Debug)]
+struct OptionsV4_8 {
+    #[serde(rename = "gidmap")]
+    gid_map: Vec<String>,
+    #[serde(rename = "subgidname")]
+    sub_gid_map: Option<String>,
+    #[serde(rename = "subuidname")]
+    sub_uid_map: Option<String>,
+    #[serde(rename = "uidmap")]
+    uid_map: Vec<String>,
+}
+
 /// Container quadlet options added in podman v4.7.0
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -443,7 +504,7 @@ struct OptionsV4_5 {
 
 /// Valid pull policies for container images.
 ///
-/// See the `--pull` [section](https://docs.podman.io/en/latest/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
+/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullPolicy {
     /// Always pull the image and throw an error if the pull fails.

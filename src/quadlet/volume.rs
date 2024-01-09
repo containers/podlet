@@ -21,8 +21,14 @@ pub struct Volume {
     /// The path of a device which is mounted for the volume.
     pub device: Option<String>,
 
+    /// Specify the volume driver name.
+    pub driver: Option<String>,
+
     /// The host (numeric) GID, or group name to use as the group for the volume.
     pub group: Option<String>,
+
+    /// Specifies the image the volume is based on when `Driver` is set to the `image`.
+    pub image: Option<String>,
 
     /// Set one or more OCI labels on the volume.
     #[serde(
@@ -56,9 +62,19 @@ impl Volume {
     ///
     /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
     pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V4_8 {
+            if let Some(driver) = self.driver.take() {
+                self.push_arg("driver", &driver);
+            }
+
+            if let Some(image) = self.image.take() {
+                self.push_arg("opt", &format!("image={image}"));
+            }
+        }
+
         if version < PodmanVersion::V4_6 {
             if let Some(podman_args) = self.podman_args.take() {
-                return Err(DowngradeError {
+                return Err(DowngradeError::Option {
                     quadlet_option: String::from("PodmanArgs"),
                     value: podman_args,
                     supported_version: PodmanVersion::V4_6,
@@ -67,6 +83,18 @@ impl Volume {
         }
 
         Ok(())
+    }
+
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: &str) {
+        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        if !podman_args.is_empty() {
+            podman_args.push(' ');
+        }
+        podman_args.push_str("--");
+        podman_args.push_str(flag);
+        podman_args.push(' ');
+        podman_args.push_str(arg);
     }
 }
 
@@ -107,8 +135,8 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
         };
 
         Ok(Self {
+            driver: value.driver,
             label,
-            podman_args: value.driver.map(|driver| format!("--driver {driver}")),
             ..options.into()
         })
     }

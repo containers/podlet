@@ -8,9 +8,12 @@ use std::{
 use clap::{ArgAction, Args};
 use color_eyre::eyre::Context;
 use serde::Serialize;
+use smart_default::SmartDefault;
+
+use crate::serde::skip_true;
 
 #[allow(clippy::struct_excessive_bools, clippy::module_name_repetitions)]
-#[derive(Args, Serialize, Debug, Clone, PartialEq)]
+#[derive(Args, Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
     /// Add a custom host-to-IP mapping
@@ -165,12 +168,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENV")]
     env_merge: Vec<String>,
 
-    /// Run the container in a new user namespace using the supplied GID mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "CONTAINER_GID:HOST_GID:AMOUNT")]
-    gidmap: Vec<String>,
-
     /// Assign additional groups to the primary user running within the container process
     ///
     /// Can be specified multiple times
@@ -188,6 +185,7 @@ pub struct PodmanArgs {
     /// Set proxy environment variables in the container based on the host proxy vars
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
     #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
     http_proxy: bool,
 
     /// How to handle the builtin image volumes
@@ -320,11 +318,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     quiet: bool,
 
-    /// When running containers in read-only mode mount a read-write tmpfs on /run, /tmp and /var/tmp
-    #[arg(long, action = ArgAction::Set, default_value_t = true)]
-    #[serde(skip_serializing_if = "skip_true")]
-    read_only_tmpfs: bool,
-
     /// If a container with the same name exists, replace it
     ///
     /// Automatically set by quadlet
@@ -359,6 +352,7 @@ pub struct PodmanArgs {
     /// Proxy received signals to the container process
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
     #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
     sig_proxy: bool,
 
     /// Signal to stop a container
@@ -370,14 +364,6 @@ pub struct PodmanArgs {
     /// Default is 10
     #[arg(long, value_name = "SECONDS")]
     stop_timeout: Option<u16>,
-
-    /// Name of range listed in /etc/subgid for use in user namespace
-    #[arg(long, value_name = "NAME")]
-    subgidname: Option<String>,
-
-    /// Name of range listed in /etc/subuid for use in user namespace
-    #[arg(long, value_name = "NAME")]
-    subuidname: Option<String>,
 
     /// Run container in systemd mode
     ///
@@ -398,12 +384,6 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     tty: bool,
 
-    /// Run the container in a new user namespace using the supplied UID mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "CONTAINER_UID:FROM_UID:AMOUNT")]
-    uidmap: Vec<String>,
-
     /// Set the umask inside the container
     #[arg(long)]
     umask: Option<String>,
@@ -417,106 +397,6 @@ pub struct PodmanArgs {
     /// Can be specified multiple times
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
-}
-
-// ref required for serde's skip_serializing_if
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn skip_true(bool: &bool) -> bool {
-    *bool
-}
-
-impl Default for PodmanArgs {
-    fn default() -> Self {
-        Self {
-            add_host: Vec::new(),
-            arch: None,
-            attach: Vec::new(),
-            authfile: None,
-            blkio_weight: None,
-            blkio_weight_device: None,
-            cgroup_conf: Vec::new(),
-            cgroup_parent: None,
-            cgroupns: None,
-            cgroups: None,
-            chrootdirs: None,
-            cidfile: None,
-            conmon_pidfile: None,
-            cpu_period: None,
-            cpu_quota: None,
-            cpu_rt_period: None,
-            cpu_rt_runtime: None,
-            cpu_shares: None,
-            cpus: None,
-            cpuset_cpus: None,
-            cpuset_mems: None,
-            decryption_key: None,
-            detach: false,
-            detach_keys: None,
-            device_cgroup_rule: Vec::new(),
-            device_read_bps: Vec::new(),
-            device_read_iops: Vec::new(),
-            device_write_bps: Vec::new(),
-            device_write_iops: Vec::new(),
-            disable_content_trust: false,
-            entrypoint: None,
-            env_merge: Vec::new(),
-            gidmap: Vec::new(),
-            group_add: Vec::new(),
-            group_entry: None,
-            hostuser: Vec::new(),
-            http_proxy: true,
-            image_volume: None,
-            init_path: None,
-            interactive: false,
-            ipc: None,
-            label_file: None,
-            link_local_ip: None,
-            log_opt: Vec::new(),
-            mac_address: None,
-            memory: None,
-            memory_reservation: None,
-            memory_swap: None,
-            memory_swappiness: None,
-            network_alias: None,
-            no_healthcheck: false,
-            no_hosts: false,
-            oom_kill_disable: false,
-            oom_score_adj: None,
-            os: None,
-            passwd: false,
-            passwd_entry: None,
-            personality: None,
-            pid: None,
-            pidfile: None,
-            platform: None,
-            pod: None,
-            pod_id_file: None,
-            preserve_fds: None,
-            privileged: false,
-            publish_all: false,
-            quiet: false,
-            read_only_tmpfs: true,
-            replace: false,
-            requires: None,
-            rm: false,
-            rmi: false,
-            seccomp_policy: None,
-            shm_size_systemd: None,
-            sig_proxy: true,
-            stop_signal: None,
-            stop_timeout: None,
-            subgidname: None,
-            subuidname: None,
-            systemd: None,
-            timeout: None,
-            tls_verify: None,
-            tty: false,
-            uidmap: Vec::new(),
-            umask: None,
-            variant: None,
-            volumes_from: Vec::new(),
-        }
-    }
 }
 
 impl Display for PodmanArgs {

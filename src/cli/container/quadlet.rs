@@ -4,21 +4,22 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{Args, ValueEnum};
+use clap::{ArgAction, Args, ValueEnum};
 use color_eyre::{
     eyre::{self, Context},
     owo_colors::OwoColorize,
     Section,
 };
 use docker_compose_types::{MapOrEmpty, Volumes};
+use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
     quadlet::{AutoUpdate, PullPolicy},
 };
 
-#[allow(clippy::module_name_repetitions)]
-#[derive(Args, Default, Debug, Clone, PartialEq)]
+#[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
+#[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
     /// Add Linux capabilities
     ///
@@ -115,6 +116,14 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "PORT")]
     expose: Vec<String>,
+
+    /// Run the container in a new user namespace using the supplied GID mapping
+    ///
+    /// Converts to "GIDMap=[FLAGS]CONTAINER_GID:FROM_GID[:AMOUNT]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "[FLAGS]CONTAINER_GID:FROM_GID[:AMOUNT]")]
+    gidmap: Vec<String>,
 
     /// Set or alter a healthcheck command for the container
     ///
@@ -272,6 +281,12 @@ pub struct QuadletOptions {
     #[arg(long)]
     read_only: bool,
 
+    /// When running containers in read-only mode mount a read-write tmpfs on
+    /// `/dev`, `/dev/shm`, `/run`, `/tmp`, and `/var/tmp`
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[default = true]
+    read_only_tmpfs: bool,
+
     /// Run an init inside the container
     ///
     /// Converts to "RunInit=true"
@@ -291,6 +306,18 @@ pub struct QuadletOptions {
     /// Converts to "ShmSize=NUMBER[UNIT]"
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size: Option<String>,
+
+    /// Name of range listed in /etc/subgid for use in user namespace
+    ///
+    /// Converts to "SubGIDMap=NAME"
+    #[arg(long, value_name = "NAME")]
+    subgidname: Option<String>,
+
+    /// Name of range listed in /etc/subuid for use in user namespace
+    ///
+    /// Converts to "SubUIDMap=NAME"
+    #[arg(long, value_name = "NAME")]
+    subuidname: Option<String>,
 
     /// Configures namespaced kernel parameters for the container.
     ///
@@ -313,6 +340,14 @@ pub struct QuadletOptions {
     /// Converts to "Timezone=TIMEZONE"
     #[arg(long, value_name = "TIMEZONE")]
     tz: Option<String>,
+
+    /// Run the container in a new user namespace using the supplied UID mapping
+    ///
+    /// Converts to "UIDMap=[FLAGS]CONTAINER_UID:FROM_UID[:AMOUNT]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "[FLAGS]CONTAINER_UID:FROM_UID[:AMOUNT]")]
+    uidmap: Vec<String>,
 
     /// Ulimit options; set the ulimit values inside of the container
     ///
@@ -389,17 +424,6 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             }
         });
 
-        let mut tmpfs = value.tmpfs;
-        let mut volatile_tmp = false;
-        tmpfs.retain(|tmpfs| {
-            if tmpfs == "/tmp" {
-                volatile_tmp = true;
-                false
-            } else {
-                true
-            }
-        });
-
         Self {
             add_capability: value.cap_add,
             add_device: value.device,
@@ -414,6 +438,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             environment_file: value.env_file,
             environment_host: value.env_host,
             expose_host_port: value.expose,
+            gid_map: value.gidmap,
             group,
             health_cmd: value.health_cmd,
             health_interval: value.health_interval,
@@ -439,16 +464,19 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             publish_port: value.publish,
             pull: value.pull,
             read_only: value.read_only,
+            read_only_tmpfs: value.read_only_tmpfs,
             run_init: value.init,
             secret: value.secret,
             shm_size: value.shm_size,
+            sub_gid_map: value.subgidname,
+            sub_uid_map: value.subuidname,
             sysctl: value.sysctl,
-            tmpfs,
+            tmpfs: value.tmpfs,
             timezone: value.tz,
+            uid_map: value.uidmap,
             ulimit: value.ulimit,
             user,
             user_ns: value.userns,
-            volatile_tmp,
             volume: value.volume,
             working_dir: value.workdir,
             ..Self::default()
@@ -855,5 +883,18 @@ fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
                 format!("{network}.network{options}")
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_convert() {
+        assert_eq!(
+            crate::quadlet::Container::default(),
+            QuadletOptions::default().into(),
+        );
     }
 }
