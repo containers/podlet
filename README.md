@@ -285,7 +285,7 @@ While podlet can be used as-is in a container, passing the command to it; if you
 
 An example of a generic podman command that runs the most up-to-date version of podlet with the current directory and user's quadlet directory attached to the container would be:
 
-`podman run --rm -v $PWD:$PWD:Z -v $HOME/.config/containers/systemd/:$HOME/.config/containers/systemd/:Z -w $PWD --pull=newer quay.io/k9withabone/podlet`
+`podman run --rm --userns keep-id -e HOME --user $(id -u) -v $PWD:$PWD:Z -v $HOME/.config/containers/systemd/:$HOME/.config/containers/systemd/:Z -w $PWD --pull=newer quay.io/k9withabone/podlet`
 
 Alternatively, if you just want podlet to read a specific compose file you can use:
 
