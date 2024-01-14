@@ -285,7 +285,7 @@ While podlet can be used as-is in a container, passing the command to it; if you
 
 An example of a generic podman command that runs the most up-to-date version of podlet with the current directory and user's quadlet directory attached to the container would be:
 
-`podman run --rm --userns keep-id -e HOME --user $(id -u) -v $PWD:$PWD -v $HOME/.config/containers/systemd/:$HOME/.config/containers/systemd/ -w $PWD --security-opt label=disable --pull=newer quay.io/k9withabone/podlet`
+`podman run --rm --userns keep-id -e HOME -e XDG_CONFIG_HOME --user $(id -u) -v $PWD:$PWD -v $HOME/.config/containers/systemd/:$HOME/.config/containers/systemd/ -w $PWD --security-opt label=disable --pull=newer quay.io/k9withabone/podlet`
 
 Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux this may not be required.
 
