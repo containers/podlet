@@ -33,7 +33,7 @@ impl Globals {
                 std::mem::take(&mut self.containers_conf_module).first()
             {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("ContainersConfModule"),
+                    quadlet_option: "ContainersConfModule",
                     value: containers_conf_module.display().to_string(),
                     supported_version: PodmanVersion::V4_8,
                 });
@@ -41,7 +41,7 @@ impl Globals {
 
             if let Some(global_args) = self.global_args.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("GlobalArgs"),
+                    quadlet_option: "GlobalArgs",
                     value: global_args,
                     supported_version: PodmanVersion::V4_8,
                 });

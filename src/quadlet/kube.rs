@@ -70,7 +70,7 @@ impl Kube {
         if version < PodmanVersion::V4_6 {
             if let Some(podman_args) = self.podman_args.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("PodmanArgs"),
+                    quadlet_option: "PodmanArgs",
                     value: podman_args,
                     supported_version: PodmanVersion::V4_6,
                 });
@@ -80,7 +80,7 @@ impl Kube {
         if version < PodmanVersion::V4_5 {
             if let Some(log_driver) = self.log_driver.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("LogDriver"),
+                    quadlet_option: "LogDriver",
                     value: log_driver,
                     supported_version: PodmanVersion::V4_5,
                 });

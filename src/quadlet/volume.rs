@@ -75,7 +75,7 @@ impl Volume {
         if version < PodmanVersion::V4_6 {
             if let Some(podman_args) = self.podman_args.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("PodmanArgs"),
+                    quadlet_option: "PodmanArgs",
                     value: podman_args,
                     supported_version: PodmanVersion::V4_6,
                 });

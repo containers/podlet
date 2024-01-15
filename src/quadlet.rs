@@ -270,7 +270,7 @@ pub enum DowngradeError {
         supported until podman v{supported_version}"
     )]
     Option {
-        quadlet_option: String,
+        quadlet_option: &'static str,
         value: String,
         supported_version: PodmanVersion,
     },
