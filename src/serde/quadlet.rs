@@ -505,6 +505,14 @@ impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         Err(Error::InvalidType)
     }
+
+    fn collect_str<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Display,
+    {
+        self.write_value(value);
+        Ok(())
+    }
 }
 
 impl<'a> ser::SerializeSeq for &mut ValueSerializer<'a> {

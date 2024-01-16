@@ -1,3 +1,5 @@
+mod device;
+
 use std::{
     fmt::{self, Display, Formatter},
     iter,
@@ -15,6 +17,8 @@ use crate::serde::{
     skip_true,
 };
 
+pub use self::device::Device;
+
 use super::{AutoUpdate, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
@@ -29,7 +33,7 @@ pub struct Container {
     pub add_capability: Vec<String>,
 
     /// Adds a device node from the host into the container.
-    pub add_device: Vec<String>,
+    pub add_device: Vec<Device>,
 
     /// Set one or more OCI annotations on the container.
     #[serde(
@@ -504,7 +508,8 @@ struct OptionsV4_5 {
 
 /// Valid pull policies for container images.
 ///
-/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
+/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy)
+/// of the `podman run` documentation.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullPolicy {
     /// Always pull the image and throw an error if the pull fails.

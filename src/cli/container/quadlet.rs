@@ -2,6 +2,7 @@ use std::{
     mem,
     net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
+    str::FromStr,
 };
 
 use clap::{ArgAction, Args, ValueEnum};
@@ -15,7 +16,7 @@ use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
-    quadlet::{AutoUpdate, PullPolicy},
+    quadlet::{AutoUpdate, Device, PullPolicy},
 };
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
@@ -35,7 +36,7 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "HOST-DEVICE[:CONTAINER-DEVICE][:PERMISSIONS]")]
-    device: Vec<String>,
+    device: Vec<Device>,
 
     /// Add an annotation to the container
     ///
@@ -499,6 +500,13 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
     fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
         let service = &mut value.service;
 
+        let device = mem::take(&mut service.devices)
+            .into_iter()
+            .map(|device| {
+                Device::from_str(&device).wrap_err_with(|| format!("invalid device: {device}"))
+            })
+            .collect::<Result<_, _>>()?;
+
         let Healthcheck {
             health_cmd,
             health_interval,
@@ -607,7 +615,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             env,
             env_file,
             network,
-            device: mem::take(&mut service.devices),
+            device,
             label,
             health_cmd,
             health_interval,
