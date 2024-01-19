@@ -16,7 +16,7 @@ use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 pub use self::{
-    container::{Container, Device, PullPolicy, Unmask},
+    container::{Container, Device, Mount, PullPolicy, Unmask},
     globals::Globals,
     image::Image,
     install::Install,

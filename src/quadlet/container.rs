@@ -1,4 +1,5 @@
 mod device;
+mod mount;
 
 use std::{
     fmt::{self, Display, Formatter},
@@ -14,10 +15,10 @@ use smart_default::SmartDefault;
 
 use crate::serde::{
     quadlet::{quote_spaces_join_colon, quote_spaces_join_space},
-    skip_true,
+    serialize_display_seq, skip_true,
 };
 
-pub use self::device::Device;
+pub use self::{device::Device, mount::Mount};
 
 use super::{AutoUpdate, PodmanVersion};
 
@@ -161,7 +162,8 @@ pub struct Container {
     pub mask: Vec<String>,
 
     /// Attach a filesystem mount to the container.
-    pub mount: Vec<String>,
+    #[serde(serialize_with = "serialize_display_seq")]
+    pub mount: Vec<Mount>,
 
     /// Specify a custom network for the container.
     pub network: Vec<String>,
@@ -488,7 +490,8 @@ struct OptionsV4_5 {
     rootfs: Option<String>,
     secret: Vec<String>,
     log_driver: Option<String>,
-    mount: Vec<String>,
+    #[serde(serialize_with = "serialize_display_seq")]
+    mount: Vec<Mount>,
     ip: Option<Ipv4Addr>,
     ip6: Option<Ipv6Addr>,
     health_interval: Option<String>,

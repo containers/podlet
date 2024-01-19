@@ -176,7 +176,7 @@ impl ser::Serializer for &mut Serializer {
 
     type SerializeStructVariant = Self;
 
-    invalid_primitives! {
+    serialize_invalid_primitives! {
         Error::InvalidType,
         serialize_bool: bool,
         serialize_i8: i8,

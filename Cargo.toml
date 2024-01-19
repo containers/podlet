@@ -70,6 +70,7 @@ serde_yaml = "0.9.21"
 shlex = "1.1"
 smart-default = "0.7"
 thiserror = "1.0.40"
+umask = "2.1.0"
 url = "2.3"
 
 [target.'cfg(unix)'.dependencies]

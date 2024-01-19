@@ -16,7 +16,7 @@ use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
-    quadlet::{AutoUpdate, Device, PullPolicy},
+    quadlet::{AutoUpdate, Device, Mount, PullPolicy},
 };
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
@@ -230,7 +230,7 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "type=TYPE,TYPE-SPECIFIC-OPTION[,...]")]
-    mount: Vec<String>,
+    mount: Vec<Mount>,
 
     /// Specify a custom network for the container
     ///
@@ -588,10 +588,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             })
             .unwrap_or_default();
 
-        let mut mount = Vec::new();
-
-        let volume =
-            volumes_try_into_short(value, &mut tmpfs, &mut mount).wrap_err("invalid volume")?;
+        let volume = volumes_try_into_short(value, &mut tmpfs).wrap_err("invalid volume")?;
 
         let service = &mut value.service;
 
@@ -626,7 +623,6 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             shm_size: service.shm_size.take(),
             sysctl,
             tmpfs,
-            mount,
             ulimit,
             user: service.user.take(),
             userns: service.userns_mode.take(),
@@ -731,12 +727,11 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
     }
 }
 
-/// Takes the [`Volumes`] from a service and converts them to short form if possible, or adds
-/// them to the `tmpfs` or `mount` options if not.
+/// Takes the [`Volumes`] from a service and converts them to short form, or adds them to the
+/// `tmpfs` options if a tmpfs mount.
 fn volumes_try_into_short(
     service: &mut ComposeService,
     tmpfs: &mut Vec<String>,
-    mount: &mut Vec<String>,
 ) -> color_eyre::Result<Vec<String>> {
     mem::take(&mut service.service.volumes)
         .into_iter()
@@ -746,8 +741,7 @@ fn volumes_try_into_short(
                     if !source.starts_with(['.', '/', '~'])
                         && service.volume_has_options(source) =>
                 {
-                    // not bind mount or anonymous volume which has options which require a
-                    // separate volume unit to define
+                    // source is a volume which has options which require a separate volume unit
                     Some(Ok(format!("{source}.volume:{target}")))
                 }
                 _ => Some(Ok(volume)),
@@ -759,49 +753,47 @@ fn volumes_try_into_short(
                     _type: kind,
                     read_only,
                     bind,
-                    volume,
+                    volume: volume_options,
                     tmpfs: tmpfs_settings,
                 } = volume;
 
                 match kind.as_str() {
-                    // volume or bind mount without extra options
-                    "bind" | "volume" if bind.is_none() => {
-                        let Some(mut source) = source else {
+                    "bind" | "volume" => {
+                        // Format is "[volume|host-dir:]container-dir[:options]"
+                        let Some(mut volume) = source else {
                             return Some(Err(eyre::eyre!("{kind} mount without a source")));
                         };
-                        if kind == "volume" && service.volume_has_options(&source) {
-                            source += ".volume";
+
+                        if kind == "volume" && service.volume_has_options(&volume) {
+                            // source is a volume which has options requiring a separate volume unit
+                            volume.push_str(".volume");
                         }
-                        source += ":";
+
+                        volume.push(':');
+                        volume.push_str(&target);
 
                         let mut options = Vec::new();
+
                         if read_only {
                             options.push("ro");
                         }
-                        if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
+
+                        // Bind propagation is not a valid option for short syntax in compose,
+                        // but it is for podman.
+                        if let Some(bind) = &bind {
+                            options.push(&bind.propagation);
+                        }
+
+                        if volume_options.is_some_and(|options| options.nocopy) {
                             options.push("nocopy");
                         }
-                        let options = if options.is_empty() {
-                            String::new()
-                        } else {
-                            format!(":{}", options.join(","))
-                        };
 
-                        Some(Ok(format!("{source}{target}{options}")))
-                    }
-                    // bind mount with extra options
-                    "bind" => {
-                        let Some(source) = source else {
-                            return Some(Err(eyre::eyre!("bind mount without a source")));
-                        };
-                        let read_only = if read_only { ",ro" } else { "" };
-                        let propagation = bind
-                            .map(|bind| format!(",bind-propagation={}", bind.propagation))
-                            .unwrap_or_default();
-                        mount.push(format!(
-                            "type=bind,source={source},destination={target}{read_only}{propagation}"
-                        ));
-                        None
+                        if !options.is_empty() {
+                            volume.push(':');
+                            volume.push_str(&options.join(","));
+                        }
+
+                        Some(Ok(volume))
                     }
                     "tmpfs" => {
                         let mut options = Vec::new();
