@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 use thiserror::Error;
 
@@ -10,7 +10,7 @@ pub enum SecurityOpt {
     Label(LabelOpt),
     Mask(String),
     NoNewPrivileges,
-    Seccomp(String),
+    Seccomp(PathBuf),
     ProcOpts(String),
     Unmask(String),
 }
@@ -19,33 +19,22 @@ impl FromStr for SecurityOpt {
     type Err = ParseSecurityOptError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            s if s.starts_with("apparmor=") => {
-                let (_, policy) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Apparmor(String::from(policy)))
-            }
-            s if s.starts_with("label=") => {
-                let (_, label) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Label(label.parse()?))
-            }
-            s if s.starts_with("mask=") => {
-                let (_, mask) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Mask(String::from(mask)))
-            }
-            "no-new-privileges" => Ok(Self::NoNewPrivileges),
-            s if s.starts_with("seccomp=") => {
-                let (_, profile) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Seccomp(String::from(profile)))
-            }
-            s if s.starts_with("proc-opts=") => {
-                let (_, opts) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::ProcOpts(String::from(opts)))
-            }
-            s if s.starts_with("unmask=") => {
-                let (_, unmask) = s.split_once('=').expect("delimiter is in guard");
-                Ok(Self::Unmask(String::from(unmask)))
-            }
-            _ => Err(ParseSecurityOptError::InvalidSecurityOpt(String::from(s))),
+        if let Some(policy) = s.strip_prefix("apparmor=") {
+            Ok(Self::Apparmor(policy.to_owned()))
+        } else if let Some(label) = s.strip_prefix("label=") {
+            Ok(Self::Label(label.parse()?))
+        } else if let Some(mask) = s.strip_prefix("mask=") {
+            Ok(Self::Mask(mask.to_owned()))
+        } else if s == "no-new-privileges" {
+            Ok(Self::NoNewPrivileges)
+        } else if let Some(profile) = s.strip_prefix("seccomp=") {
+            Ok(Self::Seccomp(profile.into()))
+        } else if let Some(opts) = s.strip_prefix("proc-opts=") {
+            Ok(Self::ProcOpts(opts.to_owned()))
+        } else if let Some(unmask) = s.strip_prefix("unmask=") {
+            Ok(Self::Unmask(unmask.to_owned()))
+        } else {
+            Err(ParseSecurityOptError::InvalidSecurityOpt(s.to_owned()))
         }
     }
 }
@@ -73,30 +62,22 @@ impl FromStr for LabelOpt {
     type Err = InvalidLabelOpt;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            s if s.starts_with("user:") => {
-                let (_, user) = s.split_once(':').expect("delimiter is in guard");
-                Ok(Self::User(String::from(user)))
-            }
-            s if s.starts_with("role:") => {
-                let (_, role) = s.split_once(':').expect("delimiter is in guard");
-                Ok(Self::Role(String::from(role)))
-            }
-            s if s.starts_with("type:") => {
-                let (_, label_type) = s.split_once(':').expect("delimiter is in guard");
-                Ok(Self::Type(String::from(label_type)))
-            }
-            s if s.starts_with("level:") => {
-                let (_, level) = s.split_once(':').expect("delimiter is in guard");
-                Ok(Self::Level(String::from(level)))
-            }
-            s if s.starts_with("filetype:") => {
-                let (_, filetype) = s.split_once(':').expect("delimiter is in guard");
-                Ok(Self::Filetype(String::from(filetype)))
-            }
-            "disable" => Ok(Self::Disable),
-            "nested" => Ok(Self::Nested),
-            _ => Err(InvalidLabelOpt(String::from(s))),
+        if let Some(user) = s.strip_prefix("user:") {
+            Ok(Self::User(user.to_owned()))
+        } else if let Some(role) = s.strip_prefix("role:") {
+            Ok(Self::Role(role.to_owned()))
+        } else if let Some(label_type) = s.strip_prefix("type:") {
+            Ok(Self::Type(label_type.to_owned()))
+        } else if let Some(level) = s.strip_prefix("level:") {
+            Ok(Self::Level(level.to_owned()))
+        } else if let Some(filetype) = s.strip_prefix("filetype:") {
+            Ok(Self::Filetype(filetype.to_owned()))
+        } else if s == "disable" {
+            Ok(Self::Disable)
+        } else if s == "nested" {
+            Ok(Self::Nested)
+        } else {
+            Err(InvalidLabelOpt(s.to_owned()))
         }
     }
 }
@@ -109,7 +90,7 @@ pub struct InvalidLabelOpt(pub String);
 pub struct QuadletOptions {
     pub mask: Vec<String>,
     pub no_new_privileges: bool,
-    pub seccomp_profile: Option<String>,
+    pub seccomp_profile: Option<PathBuf>,
     pub security_label_disable: bool,
     pub security_label_file_type: Option<String>,
     pub security_label_level: Option<String>,

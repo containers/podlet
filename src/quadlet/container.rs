@@ -210,7 +210,7 @@ pub struct Container {
     pub run_init: bool,
 
     /// Set the seccomp profile to use in the container.
-    pub seccomp_profile: Option<String>,
+    pub seccomp_profile: Option<PathBuf>,
 
     /// Turn off label separation for the container.
     #[serde(skip_serializing_if = "Not::not")]
