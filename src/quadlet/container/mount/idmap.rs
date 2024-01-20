@@ -25,7 +25,7 @@ pub struct Idmap {
 
 impl Idmap {
     /// Returns `true` if all fields are empty.
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         let Self { uids, gids } = self;
         uids.is_empty() && gids.is_empty()
     }

@@ -16,7 +16,10 @@ use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
-    quadlet::{AutoUpdate, Device, Mount, PullPolicy},
+    quadlet::{
+        container::{Device, Mount, PullPolicy, Rootfs},
+        AutoUpdate,
+    },
 };
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
@@ -256,7 +259,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "Rootfs=PATH"
     #[arg(long, value_name = "PATH[:OPTIONS]")]
-    rootfs: Option<String>,
+    rootfs: Option<Rootfs>,
 
     /// Publish a container's port, or a range of ports, to the host
     ///

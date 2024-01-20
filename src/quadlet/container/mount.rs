@@ -1,6 +1,6 @@
 //! Provides [`Mount`] for the `mount` field of [`Container`](super::Container).
 
-mod idmap;
+pub(super) mod idmap;
 mod mode;
 mod tmpfs;
 
@@ -20,7 +20,7 @@ use umask::Mode;
 
 use crate::serde::{mount_options, skip_default};
 
-use self::{idmap::Idmap, tmpfs::Tmpfs};
+pub use self::{idmap::Idmap, tmpfs::Tmpfs};
 
 /// Filesystem mount types to attach to a [`Container`](super::Container).
 ///

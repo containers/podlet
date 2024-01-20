@@ -1,5 +1,6 @@
 mod device;
 mod mount;
+mod rootfs;
 
 use std::{
     fmt::{self, Display, Formatter},
@@ -18,7 +19,7 @@ use crate::serde::{
     serialize_display_seq, skip_true,
 };
 
-pub use self::{device::Device, mount::Mount};
+pub use self::{device::Device, mount::Mount, rootfs::Rootfs};
 
 use super::{AutoUpdate, PodmanVersion};
 
@@ -174,7 +175,7 @@ pub struct Container {
     pub no_new_privileges: bool,
 
     /// The rootfs to use for the container.
-    pub rootfs: Option<String>,
+    pub rootfs: Option<Rootfs>,
 
     /// Enable container handling of `sd_notify`.
     #[serde(skip_serializing_if = "Not::not")]
@@ -487,7 +488,7 @@ struct OptionsV4_6 {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_5 {
-    rootfs: Option<String>,
+    rootfs: Option<Rootfs>,
     secret: Vec<String>,
     log_driver: Option<String>,
     #[serde(serialize_with = "serialize_display_seq")]

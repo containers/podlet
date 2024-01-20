@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use crate::quadlet::Unmask;
+use crate::quadlet::container::Unmask;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SecurityOpt {

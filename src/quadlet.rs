@@ -1,4 +1,4 @@
-mod container;
+pub mod container;
 mod globals;
 mod image;
 mod install;
@@ -16,7 +16,7 @@ use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 pub use self::{
-    container::{Container, Device, Mount, PullPolicy, Unmask},
+    container::Container,
     globals::Globals,
     image::Image,
     install::Install,
