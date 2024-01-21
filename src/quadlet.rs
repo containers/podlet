@@ -61,19 +61,12 @@ impl File {
     pub fn service_name(&self) -> String {
         self.resource.name_to_service(&self.name)
     }
+}
 
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+impl Downgrade for File {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         self.resource.downgrade(version)?;
-        self.globals.downgrade(version)?;
-        Ok(())
+        self.globals.downgrade(version)
     }
 }
 
@@ -152,21 +145,12 @@ impl Resource {
         service.push_str(".service");
         service
     }
+}
 
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+impl Downgrade for Resource {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         match self {
-            Self::Container(container) => {
-                container.downgrade(version);
-                Ok(())
-            }
+            Self::Container(container) => container.downgrade(version),
             Self::Kube(kube) => kube.downgrade(version),
             Self::Network(network) => network.downgrade(version),
             Self::Volume(volume) => volume.downgrade(version),
@@ -216,6 +200,20 @@ impl From<&Resource> for ResourceKind {
     }
 }
 
+/// Trait for types which have varying levels of compatibility with different [`PodmanVersion`]s.
+pub trait Downgrade {
+    /// Downgrade podman compatibility to `version`.
+    ///
+    /// This is a one-way transformation, calling downgrade a second time with a higher version
+    /// will not increase the quadlet options used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the given [`PodmanVersion`] does not support a used quadlet option or
+    /// the type of quadlet file.
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError>;
+}
+
 /// Versions of podman since quadlet was added.
 ///
 /// Each version added new features to quadlet.
@@ -261,7 +259,7 @@ impl Display for PodmanVersion {
     }
 }
 
-/// Error returned when downgrading a quadlet file fails.
+/// Error returned when [downgrading](Downgrade::downgrade()) a quadlet file fails.
 #[derive(Error, Debug)]
 pub enum DowngradeError {
     /// Unsupported quadlet option used

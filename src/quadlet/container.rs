@@ -22,7 +22,7 @@ use crate::serde::{
 
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
-use super::{AutoUpdate, PodmanVersion};
+use super::{AutoUpdate, Downgrade, DowngradeError, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
@@ -288,21 +288,8 @@ impl Display for Container {
     }
 }
 
-/// Creates `type` using [`std::mem:take()`] on identical `field`s from `self`.
-macro_rules! extract {
-    ($self:expr, $type:ident { $($field:ident),* $(,)?}) => {
-        $type {
-            $($field: std::mem::take(&mut $self.$field),)*
-        }
-    };
-}
-
-impl Container {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    pub fn downgrade(&mut self, version: PodmanVersion) {
+impl Downgrade for Container {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V4_8 {
             self.remove_v4_8_options();
         }
@@ -318,8 +305,21 @@ impl Container {
         if version < PodmanVersion::V4_5 {
             self.remove_v4_5_options();
         }
-    }
 
+        Ok(())
+    }
+}
+
+/// Creates `type` using [`std::mem:take()`] on identical `field`s from `self`.
+macro_rules! extract {
+    ($self:expr, $type:ident { $($field:ident),* $(,)?}) => {
+        $type {
+            $($field: std::mem::take(&mut $self.$field),)*
+        }
+    };
+}
+
+impl Container {
     /// Remove quadlet options added in podman v4.8.0
     fn remove_v4_8_options(&mut self) {
         if !self.read_only_tmpfs {

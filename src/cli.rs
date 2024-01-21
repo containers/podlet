@@ -33,7 +33,7 @@ use color_eyre::{
 };
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
-use crate::quadlet::{self, DowngradeError, Globals, PodmanVersion};
+use crate::quadlet::{self, Downgrade, DowngradeError, Globals, PodmanVersion};
 
 use self::{
     container::Container, generate::Generate, global_args::GlobalArgs, image::Image,
@@ -547,21 +547,6 @@ impl File {
         }
     }
 
-    /// If a quadlet file, downgrade compatibility to `podman_version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    fn downgrade(&mut self, podman_version: PodmanVersion) -> Result<(), DowngradeError> {
-        match self {
-            Self::Quadlet(file) => file.downgrade(podman_version),
-            Self::KubePod { .. } => Ok(()),
-        }
-    }
-
     fn write(&self, path: &FilePath, overwrite: bool) -> color_eyre::Result<()> {
         let path = path.to_full(self);
         let mut file = open_file(&path, overwrite)?;
@@ -596,6 +581,15 @@ fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::
                     ),
             }
         })
+}
+
+impl Downgrade for File {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        match self {
+            Self::Quadlet(file) => file.downgrade(version),
+            Self::KubePod { .. } => Ok(()),
+        }
+    }
 }
 
 #[derive(Debug)]

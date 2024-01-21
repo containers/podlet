@@ -8,7 +8,7 @@ use std::{
 
 use serde::{Serialize, Serializer};
 
-use super::{DowngradeError, PodmanVersion, ResourceKind};
+use super::{Downgrade, DowngradeError, PodmanVersion, ResourceKind};
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -64,18 +64,9 @@ impl Display for Image {
     }
 }
 
-impl Image {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the given [`PodmanVersion`] does not support `.image` quadlet files,
-    /// or a used quadlet option is incompatible with it.
+impl Downgrade for Image {
     #[allow(clippy::unused_self)]
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V4_8 {
             return Err(DowngradeError::Kind {
                 kind: ResourceKind::Image,
