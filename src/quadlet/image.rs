@@ -1,10 +1,12 @@
 use std::{
-    fmt::{self, Display, Formatter},
+    convert::Infallible,
+    fmt::{self, Display, Formatter, Write},
     ops::Not,
     path::PathBuf,
+    str::FromStr,
 };
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 
 use super::{DowngradeError, PodmanVersion, ResourceKind};
 
@@ -28,7 +30,7 @@ pub struct Image {
     pub creds: Option<String>,
 
     /// The key and optional passphrase to be used for decryption of images.
-    pub decryption_key: Option<String>,
+    pub decryption_key: Option<DecryptionKey>,
 
     /// The image to pull.
     #[allow(clippy::struct_field_names)]
@@ -82,5 +84,79 @@ impl Image {
         }
 
         Ok(())
+    }
+}
+
+/// The key and optional passphrase for decryption of images.
+///
+/// See the `--decryption-key` section of
+/// [**podman-pull(1)**](https://docs.podman.io/en/stable/markdown/podman-pull.1.html#decryption-key-key-passphrase).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecryptionKey {
+    pub key: PathBuf,
+    pub passphrase: Option<String>,
+}
+
+impl DecryptionKey {
+    /// Parse a [`DecryptionKey`] from a string.
+    ///
+    /// The format is "key\[:passphrase\]".
+    fn parse<T>(key: T) -> Self
+    where
+        T: AsRef<str> + Into<PathBuf>,
+    {
+        if let Some((key, passphrase)) = key.as_ref().split_once(':') {
+            Self {
+                key: key.into(),
+                passphrase: Some(passphrase.to_owned()),
+            }
+        } else {
+            Self {
+                key: key.into(),
+                passphrase: None,
+            }
+        }
+    }
+}
+
+impl From<String> for DecryptionKey {
+    fn from(value: String) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl From<&str> for DecryptionKey {
+    fn from(value: &str) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl FromStr for DecryptionKey {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
+    }
+}
+
+impl Display for DecryptionKey {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let Self { key, passphrase } = self;
+        // Format is "key[:passphrase]".
+
+        key.display().fmt(f)?;
+
+        if let Some(passphrase) = passphrase {
+            f.write_char(':')?;
+            f.write_str(passphrase)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Serialize for DecryptionKey {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
     }
 }

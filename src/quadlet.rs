@@ -1,6 +1,6 @@
 pub mod container;
 mod globals;
-mod image;
+pub mod image;
 mod install;
 mod kube;
 mod network;
