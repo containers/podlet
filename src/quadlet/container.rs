@@ -1,6 +1,7 @@
 mod device;
 mod mount;
 mod rootfs;
+pub mod volume;
 
 use std::{
     fmt::{self, Display, Formatter},
@@ -19,7 +20,7 @@ use crate::serde::{
     serialize_display_seq, skip_true,
 };
 
-pub use self::{device::Device, mount::Mount, rootfs::Rootfs};
+pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
 use super::{AutoUpdate, PodmanVersion};
 
@@ -274,7 +275,7 @@ pub struct Container {
     pub user_ns: Option<String>,
 
     /// Mount a volume in the container.
-    pub volume: Vec<String>,
+    pub volume: Vec<Volume>,
 
     /// Working directory inside the container.
     pub working_dir: Option<PathBuf>,

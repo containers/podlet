@@ -12,7 +12,11 @@ use std::{
 };
 
 use serde::{
-    de::{self, value::MapAccessDeserializer, MapAccess, Visitor},
+    de::{
+        self,
+        value::{MapAccessDeserializer, StrDeserializer},
+        MapAccess, Visitor,
+    },
     Deserialize, Deserializer, Serialize,
 };
 use thiserror::Error;
@@ -181,7 +185,7 @@ pub struct Bind {
 
     /// SELinux relabeling.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub relabel: Option<Relabel>,
+    pub relabel: Option<SELinuxRelabel>,
 
     /// Create an idmapped mount to the target user namespace in the container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -225,13 +229,41 @@ pub enum BindPropagation {
     RPrivate,
 }
 
+impl FromStr for BindPropagation {
+    type Err = ParseBindPropagationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::deserialize(StrDeserializer::<de::value::Error>::new(s))
+            .map_err(|_| ParseBindPropagationError(s.to_owned()))
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("unknown bind propagation type: {0}")]
+pub struct ParseBindPropagationError(String);
+
+impl Display for BindPropagation {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.serialize(f)
+    }
+}
+
 /// SELinux relabeling.
 #[allow(clippy::doc_markdown)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum Relabel {
+pub enum SELinuxRelabel {
     Shared,
     Private,
+}
+
+impl From<SELinuxRelabel> for char {
+    fn from(value: SELinuxRelabel) -> Self {
+        match value {
+            SELinuxRelabel::Shared => 'z',
+            SELinuxRelabel::Private => 'Z',
+        }
+    }
 }
 
 /// devpts type [`Mount`].
@@ -385,7 +417,7 @@ mod tests {
                 read_only: true,
                 bind_propagation: BindPropagation::Shared,
                 bind_nonrecursive: true,
-                relabel: Some(Relabel::Shared),
+                relabel: Some(SELinuxRelabel::Shared),
                 idmap: Some(Idmap::default()),
                 chown: true,
             }),
