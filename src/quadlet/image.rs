@@ -8,7 +8,7 @@ use std::{
 
 use serde::{Serialize, Serializer};
 
-use super::{Downgrade, DowngradeError, PodmanVersion, ResourceKind};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind};
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -55,6 +55,20 @@ pub struct Image {
 
     /// Override the default architecture variant of the container image.
     pub variant: Option<String>,
+}
+
+impl HostPaths for Image {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        let decryption_key = self
+            .decryption_key
+            .as_mut()
+            .map(|decryption_key| &mut decryption_key.key);
+
+        self.auth_file
+            .iter_mut()
+            .chain(&mut self.cert_dir)
+            .chain(decryption_key)
+    }
 }
 
 impl Display for Image {

@@ -22,7 +22,10 @@ use serde::{
 use thiserror::Error;
 use umask::Mode;
 
-use crate::serde::{mount_options, skip_default};
+use crate::{
+    quadlet::HostPaths,
+    serde::{mount_options, skip_default},
+};
 
 pub use self::{idmap::Idmap, tmpfs::Tmpfs};
 
@@ -145,6 +148,20 @@ impl From<mount_options::Error> for ParseMountError {
                 "attempted to deserialize a type incompatible with the mount options deserializer"
             ),
         }
+    }
+}
+
+impl HostPaths for Mount {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        match self {
+            Self::Bind(bind) | Self::Glob(bind) => Some(&mut bind.source),
+            Self::DevPts(_)
+            | Self::Image(_)
+            | Self::Ramfs(_)
+            | Self::Tmpfs(_)
+            | Self::Volume(_) => None,
+        }
+        .into_iter()
     }
 }
 

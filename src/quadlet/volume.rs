@@ -1,6 +1,7 @@
 use std::{
     fmt::{self, Display, Formatter},
     ops::Not,
+    path::PathBuf,
 };
 
 use color_eyre::eyre::{self, Context};
@@ -8,7 +9,7 @@ use serde::Serialize;
 
 use crate::{cli::volume::opt::Opt, serde::quadlet::quote_spaces_join_space};
 
-use super::{Downgrade, DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -19,7 +20,7 @@ pub struct Volume {
     pub copy: bool,
 
     /// The path of a device which is mounted for the volume.
-    pub device: Option<String>,
+    pub device: Option<PathBuf>,
 
     /// Specify the volume driver name.
     pub driver: Option<String>,
@@ -50,6 +51,12 @@ pub struct Volume {
 
     /// The host (numeric) UID, or user name to use as the owner for the volume.
     pub user: Option<String>,
+}
+
+impl HostPaths for Volume {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.device.iter_mut()
+    }
 }
 
 impl Volume {

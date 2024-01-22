@@ -65,6 +65,7 @@ duration-str = { version = "0.7", default-features = false }
 indexmap = "2"
 ipnet = { version = "2.7", features = ["serde"] }
 k8s-openapi = { version = "0.20", features = ["latest"] }
+path-clean = "1"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.21"
 shlex = "1.1"

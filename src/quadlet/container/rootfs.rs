@@ -2,12 +2,15 @@
 
 use std::{
     fmt::{self, Display, Formatter, Write},
+    iter,
     path::PathBuf,
     str::FromStr,
 };
 
 use serde::{Serialize, Serializer};
 use thiserror::Error;
+
+use crate::quadlet::HostPaths;
 
 use super::mount::{idmap::ParseIdmapError, Idmap};
 
@@ -28,6 +31,12 @@ pub struct Rootfs {
 
     /// Create an idmapped mount to the target user namespace in the container.
     pub idmap: Option<Idmap>,
+}
+
+impl HostPaths for Rootfs {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        iter::once(&mut self.path)
+    }
 }
 
 impl FromStr for Rootfs {

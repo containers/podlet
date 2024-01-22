@@ -1,18 +1,14 @@
 use std::{
-    convert::Infallible,
-    ffi::OsStr,
     fmt::{self, Display, Formatter},
     net::IpAddr,
     ops::Not,
     path::PathBuf,
-    str::FromStr,
 };
 
 use clap::{Args, Subcommand};
 use serde::Serialize;
-use url::Url;
 
-use crate::quadlet::KubeAutoUpdate;
+use crate::quadlet::kube::{AutoUpdate, YamlFile};
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Kube {
@@ -96,13 +92,12 @@ pub struct Play {
     /// The path to the Kubernetes YAML file to use
     ///
     /// Converts to "Yaml=FILE"
-    file: File,
+    file: YamlFile,
 }
 
 impl From<Play> for crate::quadlet::Kube {
     fn from(mut value: Play) -> Self {
-        let auto_update =
-            KubeAutoUpdate::extract_from_annotations(&mut value.podman_args.annotation);
+        let auto_update = AutoUpdate::extract_from_annotations(&mut value.podman_args.annotation);
         let podman_args = value.podman_args.to_string();
         Self {
             auto_update,
@@ -112,7 +107,7 @@ impl From<Play> for crate::quadlet::Kube {
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             publish_port: value.publish,
             user_ns: value.userns,
-            yaml: value.file.to_string(),
+            yaml: value.file,
         }
     }
 }
@@ -183,59 +178,9 @@ impl Display for PodmanArgs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum File {
-    Url(Url),
-    Path(PathBuf),
-}
-
-impl FromStr for File {
-    type Err = Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(s.parse()
-            .map_or_else(|_| Self::Path(PathBuf::from(s)), Self::Url))
-    }
-}
-
-impl Display for File {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Url(url) => write!(f, "{url}"),
-            Self::Path(path) => write!(f, "{}", path.display()),
-        }
-    }
-}
-
-impl File {
-    /// Return the name of the kube file (without the extension)
-    fn name(&self) -> Option<&str> {
-        match self {
-            Self::Url(url) => url
-                .path_segments()
-                .and_then(Iterator::last)
-                .filter(|file| !file.is_empty())
-                .and_then(|file| file.split('.').next()),
-            Self::Path(path) => path.file_stem().and_then(OsStr::to_str),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn url_file_name() {
-        let sut = File::Url(Url::parse("https://example.com/test.yaml").expect("valid url"));
-        assert_eq!(sut.name(), Some("test"));
-    }
-
-    #[test]
-    fn path_file_name() {
-        let sut = File::Path(PathBuf::from("test.yaml"));
-        assert_eq!(sut.name(), Some("test"));
-    }
 
     #[test]
     fn podman_args_default_display_empty() {

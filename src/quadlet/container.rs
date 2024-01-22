@@ -22,7 +22,7 @@ use crate::serde::{
 
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
-use super::{AutoUpdate, Downgrade, DowngradeError, PodmanVersion};
+use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
@@ -509,6 +509,19 @@ struct OptionsV4_5 {
     tmpfs: Vec<String>,
     #[serde(rename = "userns")]
     user_ns: Option<String>,
+}
+
+impl HostPaths for Container {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.add_device
+            .iter_mut()
+            .flat_map(Device::host_paths)
+            .chain(&mut self.environment_file)
+            .chain(self.mount.iter_mut().flat_map(Mount::host_paths))
+            .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
+            .chain(&mut self.seccomp_profile)
+            .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+    }
 }
 
 /// Valid pull policies for container images.

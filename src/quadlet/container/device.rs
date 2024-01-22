@@ -3,12 +3,15 @@
 use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
+    iter,
     path::PathBuf,
     str::FromStr,
 };
 
 use serde::{Serialize, Serializer};
 use thiserror::Error;
+
+use crate::quadlet::HostPaths;
 
 /// Device to attach to a [`Container`](super::Container).
 ///
@@ -33,6 +36,12 @@ pub struct Device {
 
     /// **mknod(2)** permission.
     pub mknod: bool,
+}
+
+impl HostPaths for Device {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        iter::once(&mut self.host)
+    }
 }
 
 impl FromStr for Device {

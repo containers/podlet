@@ -5,7 +5,7 @@ use std::{
 
 use serde::Serialize;
 
-use super::{Downgrade, DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 /// Global quadlet options that apply to all resource types.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
@@ -41,6 +41,12 @@ impl Downgrade for Globals {
         }
 
         Ok(())
+    }
+}
+
+impl HostPaths for Globals {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.containers_conf_module.iter_mut()
     }
 }
 

@@ -10,6 +10,8 @@ use std::{
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
+use crate::quadlet::HostPaths;
+
 use super::mount::{idmap::ParseIdmapError, BindPropagation, Idmap, SELinuxRelabel};
 
 /// Volume to mount to a [`Container`](super::Container).
@@ -26,6 +28,15 @@ pub struct Volume {
 
     /// Options for how to mount `source` into the container.
     pub options: Options,
+}
+
+impl HostPaths for Volume {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.source
+            .iter_mut()
+            .flat_map(Source::host_paths)
+            .chain(self.options.host_paths())
+    }
 }
 
 impl Volume {
@@ -123,6 +134,16 @@ pub enum Source {
     HostPath(PathBuf),
 }
 
+impl HostPaths for Source {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        match self {
+            Self::NamedVolume(_) => None,
+            Self::HostPath(path) => Some(path),
+        }
+        .into_iter()
+    }
+}
+
 impl Source {
     /// Parse [`Source`] from a stringy type.
     fn parse<T>(source: T) -> Self
@@ -202,6 +223,12 @@ pub struct Options {
 
     /// Create an idmapped mount to the target user namespace in the container.
     pub idmap: Option<Idmap>,
+}
+
+impl HostPaths for Options {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.overlay.iter_mut().flat_map(Overlay::host_paths)
+    }
 }
 
 impl Options {
@@ -427,6 +454,12 @@ pub struct Overlay {
     ///
     /// Must be on the same file system as the upper dir.
     pub work_dir: Option<PathBuf>,
+}
+
+impl HostPaths for Overlay {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.upper_dir.iter_mut().chain(&mut self.work_dir)
+    }
 }
 
 impl Display for Overlay {
