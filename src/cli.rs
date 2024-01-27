@@ -32,8 +32,9 @@ use color_eyre::{
     Help,
 };
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
+use path_clean::PathClean;
 
-use crate::quadlet::{self, DowngradeError, Globals, PodmanVersion};
+use crate::quadlet::{self, Downgrade, DowngradeError, Globals, HostPaths, PodmanVersion};
 
 use self::{
     container::Container, generate::Generate, global_args::GlobalArgs, image::Image,
@@ -110,6 +111,24 @@ pub struct Cli {
     /// generated with podlet before running them.
     #[arg(short, long, visible_aliases = ["compatibility", "compat"], default_value_t)]
     podman_version: PodmanVersion,
+
+    /// Convert relative host paths to absolute paths.
+    ///
+    /// Relative host paths in generated quadlet files are resolved using the given directory or the
+    /// current working directory. For `podlet compose`, the parent directory of the compose
+    /// file is used as the default if the compose file is not read from stdin.
+    ///
+    /// All host paths are also cleaned to remove interior `/../`, `/./`, and `//`.
+    ///
+    /// When using `podlet compose --pod`, modifying paths in generated Kubernetes YAML files is not
+    /// supported.
+    ///
+    /// Note that only host paths not in the `PodmanArgs=` quadlet option will be modified.
+    ///
+    /// Podlet will return an error if the current working directory cannot be read, or if the given
+    /// directory path is not absolute.
+    #[arg(short, long, value_name = "RESOLVE_DIR")]
+    absolute_host_paths: Option<Option<PathBuf>>,
 
     /// The \[Unit\] section
     #[command(flatten)]
@@ -207,21 +226,74 @@ impl Cli {
         Ok(FilePath::Dir(path))
     }
 
+    /// Take the directory to resolve relative paths with.
+    ///
+    /// Returns [`None`] if relative paths should not be resolved.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the resolve directory is not absolute or, when needed, the current
+    /// working directory could not be read.
+    fn resolve_dir(&mut self) -> color_eyre::Result<Option<PathBuf>> {
+        const CURRENT_DIR_ERR: &str = "current working directory could not be read";
+
+        self.absolute_host_paths
+            .take()
+            .map(|path| {
+                if let Some(path) = path {
+                    eyre::ensure!(
+                        path.is_absolute(),
+                        "path `{}` is not absolute",
+                        path.display()
+                    );
+                    Ok(path)
+                } else {
+                    match &self.command {
+                        Commands::Compose {
+                            compose_file: Some(path),
+                            ..
+                        } if path.as_os_str() != "-" && !path.as_os_str().is_empty() => {
+                            if let Some(path) = path.parent() {
+                                let current_dir = env::current_dir().wrap_err(CURRENT_DIR_ERR)?;
+                                Ok(absolute_clean_path(&current_dir, path))
+                            } else {
+                                // path is the root directory
+                                Ok(path.to_owned())
+                            }
+                        }
+                        _ => env::current_dir().wrap_err(CURRENT_DIR_ERR),
+                    }
+                }
+            })
+            .transpose()
+    }
+
     /// Convert into [`File`]s
-    fn try_into_files(self) -> color_eyre::Result<Vec<File>> {
+    fn try_into_files(mut self) -> color_eyre::Result<Vec<File>> {
+        let resolve_dir = self
+            .resolve_dir()
+            .wrap_err("error with `--absolute-host-paths` resolve directory")?;
+
         let unit = (!self.unit.is_empty()).then_some(self.unit);
         let install = self.install.install.then(|| self.install.into());
 
         let mut files = self.command.try_into_files(self.name, unit, install)?;
 
-        if self.podman_version < PodmanVersion::LATEST {
+        let downgrade = self.podman_version < PodmanVersion::LATEST;
+        if downgrade || resolve_dir.is_some() {
             for file in &mut files {
-                file.downgrade(self.podman_version).wrap_err_with(|| {
-                    format!(
-                        "error downgrading quadlet to podman v{}",
-                        self.podman_version
-                    )
-                })?;
+                if let Some(resolve_dir) = &resolve_dir {
+                    file.absolutize_host_paths(resolve_dir);
+                }
+
+                if downgrade {
+                    file.downgrade(self.podman_version).wrap_err_with(|| {
+                        format!(
+                            "error downgrading quadlet to podman v{}",
+                            self.podman_version
+                        )
+                    })?;
+                }
             }
         }
 
@@ -337,7 +409,7 @@ impl Commands {
                         k8s::compose_try_into_pod(compose, pod_name.clone())?;
 
                     let kube_file_name = format!("{pod_name}-kube");
-                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml"));
+                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml").into());
 
                     let quadlet_file = quadlet::File {
                         name: pod_name,
@@ -540,6 +612,7 @@ impl File {
         }
     }
 
+    /// Returns [`Some`] if a [`File::Quadlet`].
     fn quadlet_file(&self) -> Option<&quadlet::File> {
         match self {
             Self::Quadlet(file) => Some(file),
@@ -547,18 +620,20 @@ impl File {
         }
     }
 
-    /// If a quadlet file, downgrade compatibility to `podman_version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    fn downgrade(&mut self, podman_version: PodmanVersion) -> Result<(), DowngradeError> {
+    /// Returns [`Some`] if a [`File::Quadlet`].
+    fn quadlet_file_mut(&mut self) -> Option<&mut quadlet::File> {
         match self {
-            Self::Quadlet(file) => file.downgrade(podman_version),
-            Self::KubePod { .. } => Ok(()),
+            Self::Quadlet(file) => Some(file),
+            Self::KubePod { .. } => None,
+        }
+    }
+
+    /// If a quadlet file, make all host paths absolute and clean.
+    ///
+    /// Relative paths are resolved using `resolve_dir` as the base.
+    fn absolutize_host_paths(&mut self, resolve_dir: &Path) {
+        for path in self.host_paths() {
+            *path = absolute_clean_path(resolve_dir, path);
         }
     }
 
@@ -572,6 +647,18 @@ impl File {
 
         Ok(())
     }
+}
+
+/// If `path` is relative, it is resolved using `resolve_dir` and a cleaned version is returned.
+fn absolute_clean_path(resolve_dir: &Path, path: &Path) -> PathBuf {
+    // Paths starting with "%" are also absolute because they start with a systemd specifier.
+    let path: Cow<Path> = if path.is_absolute() || path.starts_with("%") {
+        path.into()
+    } else {
+        resolve_dir.join(path).into()
+    };
+
+    path.clean()
 }
 
 fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::File> {
@@ -596,6 +683,23 @@ fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::
                     ),
             }
         })
+}
+
+impl HostPaths for File {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.quadlet_file_mut()
+            .into_iter()
+            .flat_map(quadlet::File::host_paths)
+    }
+}
+
+impl Downgrade for File {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        match self {
+            Self::Quadlet(file) => file.downgrade(version),
+            Self::KubePod { .. } => Ok(()),
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use std::{convert::Infallible, str::FromStr};
+use std::{convert::Infallible, path::PathBuf, str::FromStr};
 
 use thiserror::Error;
 
@@ -8,7 +8,7 @@ pub enum Opt {
     /// `--opt type=`
     Type(String),
     /// `--opt device=`
-    Device(String),
+    Device(PathBuf),
     /// `--opt copy`
     Copy,
     /// `--opt o=`
@@ -23,7 +23,7 @@ impl Opt {
     pub fn parse(option: &str, value: Option<String>) -> Result<Self, ParseOptError> {
         match (option, value) {
             ("type", Some(opt_type)) => Ok(Self::Type(opt_type)),
-            ("device", Some(device)) => Ok(Self::Device(device)),
+            ("device", Some(device)) => Ok(Self::Device(device.into())),
             ("copy", None) => Ok(Self::Copy),
             ("o", Some(options)) => Ok(Self::Mount(options.split(',').map(Mount::parse).collect())),
             ("image", Some(image)) => Ok(Self::Image(image)),

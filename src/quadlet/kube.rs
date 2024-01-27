@@ -1,11 +1,15 @@
 use std::{
+    convert::Infallible,
+    ffi::OsStr,
     fmt::{self, Display, Formatter},
     path::PathBuf,
+    str::FromStr,
 };
 
 use serde::{Serialize, Serializer};
+use url::Url;
 
-use super::{DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -33,13 +37,13 @@ pub struct Kube {
     #[serde(rename = "UserNS")]
     pub user_ns: Option<String>,
 
-    /// The path, absolute or relative to the location of the unit file,
+    /// The path, absolute or relative to the location of the unit file, or URL
     /// to the Kubernetes YAML file to use.
-    pub yaml: String,
+    pub yaml: YamlFile,
 }
 
 impl Kube {
-    pub fn new(yaml: String) -> Self {
+    pub fn new(yaml: YamlFile) -> Self {
         Self {
             auto_update: Vec::new(),
             config_map: Vec::new(),
@@ -52,44 +56,6 @@ impl Kube {
         }
     }
 
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
-        if version < PodmanVersion::V4_7 {
-            for auto_update in std::mem::take(&mut self.auto_update) {
-                self.push_arg("annotation", &auto_update.to_annotation());
-            }
-        }
-
-        if version < PodmanVersion::V4_6 {
-            if let Some(podman_args) = self.podman_args.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: String::from("PodmanArgs"),
-                    value: podman_args,
-                    supported_version: PodmanVersion::V4_6,
-                });
-            }
-        }
-
-        if version < PodmanVersion::V4_5 {
-            if let Some(log_driver) = self.log_driver.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: String::from("LogDriver"),
-                    value: log_driver,
-                    supported_version: PodmanVersion::V4_5,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_with(String::new);
@@ -100,6 +66,44 @@ impl Kube {
         podman_args.push_str(flag);
         podman_args.push(' ');
         podman_args.push_str(arg);
+    }
+}
+
+impl Downgrade for Kube {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V4_7 {
+            for auto_update in std::mem::take(&mut self.auto_update) {
+                self.push_arg("annotation", &auto_update.to_annotation());
+            }
+        }
+
+        if version < PodmanVersion::V4_6 {
+            if let Some(podman_args) = self.podman_args.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "PodmanArgs",
+                    value: podman_args,
+                    supported_version: PodmanVersion::V4_6,
+                });
+            }
+        }
+
+        if version < PodmanVersion::V4_5 {
+            if let Some(log_driver) = self.log_driver.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "LogDriver",
+                    value: log_driver,
+                    supported_version: PodmanVersion::V4_5,
+                });
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl HostPaths for Kube {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.config_map.iter_mut().chain(self.yaml.as_path_mut())
     }
 }
 
@@ -178,8 +182,86 @@ impl Serialize for AutoUpdate {
             Self::Container {
                 container,
                 auto_update,
-            } => format!("{container}/{auto_update}").serialize(serializer),
+            } => format_args!("{container}/{auto_update}").serialize(serializer),
         }
+    }
+}
+
+/// A [`Url`] or [`PathBuf`] to a Kubernetes YAML file.
+#[derive(Debug, Clone, PartialEq)]
+pub enum YamlFile {
+    /// URL pointing to a Kubernetes YAML file.
+    Url(Url),
+
+    /// Path to a Kubernetes YAML file.
+    Path(PathBuf),
+}
+
+impl YamlFile {
+    /// Parse a [`YamlFile`] from a string.
+    fn parse<T>(file: T) -> Self
+    where
+        T: AsRef<str> + Into<PathBuf>,
+    {
+        file.as_ref()
+            .parse()
+            .map_or_else(|_| Self::Path(file.into()), Self::Url)
+    }
+
+    /// Name of the kube file, without the extension.
+    pub(crate) fn name(&self) -> Option<&str> {
+        match self {
+            Self::Url(url) => url
+                .path_segments()
+                .and_then(Iterator::last)
+                .filter(|file| !file.is_empty())
+                .and_then(|file| file.split('.').next()),
+            Self::Path(path) => path.file_stem().and_then(OsStr::to_str),
+        }
+    }
+
+    /// Returns [`Some`] if a [`Path`](YamlFile::Path).
+    fn as_path_mut(&mut self) -> Option<&mut PathBuf> {
+        if let Self::Path(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+impl From<String> for YamlFile {
+    fn from(value: String) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl From<&str> for YamlFile {
+    fn from(value: &str) -> Self {
+        Self::parse(value)
+    }
+}
+
+impl FromStr for YamlFile {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
+    }
+}
+
+impl Display for YamlFile {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Url(url) => Display::fmt(url, f),
+            Self::Path(path) => path.display().fmt(f),
+        }
+    }
+}
+
+impl Serialize for YamlFile {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
     }
 }
 
@@ -189,7 +271,7 @@ mod tests {
 
     #[test]
     fn kube_default_empty() {
-        let kube = Kube::new(String::from("yaml"));
+        let kube = Kube::new("yaml".into());
         assert_eq!(kube.to_string(), "[Kube]\nYaml=yaml\n");
     }
 
@@ -223,5 +305,17 @@ mod tests {
                 "io.containers.autoupdate#invalid=registry"
             ]
         );
+    }
+
+    #[test]
+    fn url_file_name() {
+        let sut = YamlFile::Url("https://example.com/test.yaml".parse().expect("valid url"));
+        assert_eq!(sut.name(), Some("test"));
+    }
+
+    #[test]
+    fn path_file_name() {
+        let sut = YamlFile::Path("test.yaml".into());
+        assert_eq!(sut.name(), Some("test"));
     }
 }

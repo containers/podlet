@@ -5,7 +5,7 @@ use std::{
 
 use serde::Serialize;
 
-use super::{DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 /// Global quadlet options that apply to all resource types.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
@@ -18,22 +18,14 @@ pub struct Globals {
     pub global_args: Option<String>,
 }
 
-impl Globals {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+impl Downgrade for Globals {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V4_8 {
             if let Some(containers_conf_module) =
                 std::mem::take(&mut self.containers_conf_module).first()
             {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("ContainersConfModule"),
+                    quadlet_option: "ContainersConfModule",
                     value: containers_conf_module.display().to_string(),
                     supported_version: PodmanVersion::V4_8,
                 });
@@ -41,7 +33,7 @@ impl Globals {
 
             if let Some(global_args) = self.global_args.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("GlobalArgs"),
+                    quadlet_option: "GlobalArgs",
                     value: global_args,
                     supported_version: PodmanVersion::V4_8,
                 });
@@ -49,6 +41,12 @@ impl Globals {
         }
 
         Ok(())
+    }
+}
+
+impl HostPaths for Globals {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.containers_conf_module.iter_mut()
     }
 }
 

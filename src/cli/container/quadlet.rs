@@ -1,21 +1,26 @@
 use std::{
+    fmt::Write,
     mem,
     net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
+    str::FromStr,
 };
 
 use clap::{ArgAction, Args, ValueEnum};
 use color_eyre::{
-    eyre::{self, Context},
+    eyre::{self, Context, OptionExt},
     owo_colors::OwoColorize,
     Section,
 };
-use docker_compose_types::{MapOrEmpty, Volumes};
+use docker_compose_types::{AdvancedVolumes, MapOrEmpty, Volumes};
 use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
-    quadlet::{AutoUpdate, PullPolicy},
+    quadlet::{
+        container::{volume::Source, Device, Mount, PullPolicy, Rootfs, Volume},
+        AutoUpdate,
+    },
 };
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
@@ -35,7 +40,7 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "HOST-DEVICE[:CONTAINER-DEVICE][:PERMISSIONS]")]
-    device: Vec<String>,
+    device: Vec<Device>,
 
     /// Add an annotation to the container
     ///
@@ -229,7 +234,7 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "type=TYPE,TYPE-SPECIFIC-OPTION[,...]")]
-    mount: Vec<String>,
+    mount: Vec<Mount>,
 
     /// Specify a custom network for the container
     ///
@@ -255,7 +260,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "Rootfs=PATH"
     #[arg(long, value_name = "PATH[:OPTIONS]")]
-    rootfs: Option<String>,
+    rootfs: Option<Rootfs>,
 
     /// Publish a container's port, or a range of ports, to the host
     ///
@@ -379,7 +384,7 @@ pub struct QuadletOptions {
         long,
         value_name = "[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]"
     )]
-    volume: Vec<String>,
+    volume: Vec<Volume>,
 
     /// Working directory inside the container
     ///
@@ -499,6 +504,13 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
     fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
         let service = &mut value.service;
 
+        let device = mem::take(&mut service.devices)
+            .into_iter()
+            .map(|device| {
+                Device::from_str(&device).wrap_err_with(|| format!("invalid device: {device}"))
+            })
+            .collect::<Result<_, _>>()?;
+
         let Healthcheck {
             health_cmd,
             health_interval,
@@ -580,10 +592,8 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             })
             .unwrap_or_default();
 
-        let mut mount = Vec::new();
-
         let volume =
-            volumes_try_into_short(value, &mut tmpfs, &mut mount).wrap_err("invalid volume")?;
+            compose_volumes_try_into_volumes(value, &mut tmpfs).wrap_err("invalid volume")?;
 
         let service = &mut value.service;
 
@@ -607,7 +617,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             env,
             env_file,
             network,
-            device: mem::take(&mut service.devices),
+            device,
             label,
             health_cmd,
             health_interval,
@@ -618,7 +628,6 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
             shm_size: service.shm_size.take(),
             sysctl,
             tmpfs,
-            mount,
             ulimit,
             user: service.user.take(),
             userns: service.userns_mode.take(),
@@ -723,99 +732,110 @@ fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Res
     }
 }
 
-/// Takes the [`Volumes`] from a service and converts them to short form if possible, or adds
-/// them to the `tmpfs` or `mount` options if not.
-fn volumes_try_into_short(
+/// Takes the [`Volumes`] from a service and converts them to a quadlet container [`Volume`],
+/// or adds them to `tmpfs` if a tmpfs mount.
+///
+/// # Errors
+///
+/// Returns an error if a volume cannot be parsed.
+fn compose_volumes_try_into_volumes(
     service: &mut ComposeService,
     tmpfs: &mut Vec<String>,
-    mount: &mut Vec<String>,
-) -> color_eyre::Result<Vec<String>> {
+) -> color_eyre::Result<Vec<Volume>> {
     mem::take(&mut service.service.volumes)
         .into_iter()
-        .filter_map(|volume| match volume {
-            Volumes::Simple(volume) => match volume.split_once(':') {
-                Some((source, target))
-                    if !source.starts_with(['.', '/', '~'])
-                        && service.volume_has_options(source) =>
-                {
-                    // not bind mount or anonymous volume which has options which require a
-                    // separate volume unit to define
-                    Some(Ok(format!("{source}.volume:{target}")))
+        .try_fold(Vec::new(), |mut volumes, volume| {
+            let mut volume = match volume {
+                Volumes::Simple(volume) => volume
+                    .parse()
+                    .wrap_err_with(|| format!("error parsing `{volume}` as volume"))?,
+                Volumes::Advanced(volume) => {
+                    if let Some(volume) = advanced_volume_try_into_volume(volume, tmpfs)? {
+                        volume
+                    } else {
+                        return Ok(volumes);
+                    }
                 }
-                _ => Some(Ok(volume)),
-            },
-            Volumes::Advanced(volume) => {
-                let docker_compose_types::AdvancedVolumes {
-                    source,
-                    target,
-                    _type: kind,
-                    read_only,
-                    bind,
-                    volume,
-                    tmpfs: tmpfs_settings,
-                } = volume;
+            };
 
-                match kind.as_str() {
-                    // volume or bind mount without extra options
-                    "bind" | "volume" if bind.is_none() => {
-                        let Some(mut source) = source else {
-                            return Some(Err(eyre::eyre!("{kind} mount without a source")));
-                        };
-                        if kind == "volume" && service.volume_has_options(&source) {
-                            source += ".volume";
-                        }
-                        source += ":";
-
-                        let mut options = Vec::new();
-                        if read_only {
-                            options.push("ro");
-                        }
-                        if let Some(docker_compose_types::Volume { nocopy: true }) = volume {
-                            options.push("nocopy");
-                        }
-                        let options = if options.is_empty() {
-                            String::new()
-                        } else {
-                            format!(":{}", options.join(","))
-                        };
-
-                        Some(Ok(format!("{source}{target}{options}")))
-                    }
-                    // bind mount with extra options
-                    "bind" => {
-                        let Some(source) = source else {
-                            return Some(Err(eyre::eyre!("bind mount without a source")));
-                        };
-                        let read_only = if read_only { ",ro" } else { "" };
-                        let propagation = bind
-                            .map(|bind| format!(",bind-propagation={}", bind.propagation))
-                            .unwrap_or_default();
-                        mount.push(format!(
-                            "type=bind,source={source},destination={target}{read_only}{propagation}"
-                        ));
-                        None
-                    }
-                    "tmpfs" => {
-                        let mut options = Vec::new();
-                        if read_only {
-                            options.push(String::from("ro"));
-                        }
-                        if let Some(docker_compose_types::TmpfsSettings { size }) = tmpfs_settings {
-                            options.push(format!("size={size}"));
-                        }
-                        let options = if options.is_empty() {
-                            String::new()
-                        } else {
-                            format!(":{}", options.join(","))
-                        };
-                        tmpfs.push(format!("{target}{options}"));
-                        None
-                    }
-                    _ => Some(Err(eyre::eyre!("unsupported volume type: {kind}"))),
+            if let Some(Source::NamedVolume(volume)) = &mut volume.source {
+                if service.volume_has_options(volume) {
+                    volume.push_str(".volume");
                 }
             }
+
+            volumes.push(volume);
+            Ok(volumes)
         })
-        .collect()
+}
+
+/// Convert [`AdvancedVolumes`] into [`Volume`].
+///
+/// Returns [`None`] if volume is a tmpfs mount which is added to `tmpfs`.
+///
+/// # Errors
+///
+/// Returns an error if a volume is specified without a source or the bind propagation value
+/// could not be parsed.
+fn advanced_volume_try_into_volume(
+    AdvancedVolumes {
+        source,
+        target,
+        _type: kind,
+        read_only,
+        bind,
+        volume: volume_options,
+        tmpfs: tmpfs_settings,
+    }: AdvancedVolumes,
+    tmpfs: &mut Vec<String>,
+) -> color_eyre::Result<Option<Volume>> {
+    match kind.as_str() {
+        "bind" | "volume" => {
+            let source = source.ok_or_eyre("volume without a source")?;
+            let mut volume = Volume::new(target.into());
+            volume.source = Some(source.into());
+            volume.options.read_only = read_only;
+
+            if let Some(bind) = &bind {
+                volume.options.bind_propagation = bind.propagation.parse().wrap_err_with(|| {
+                    format!(
+                        "error parsing `{}` as bind propagation value",
+                        bind.propagation
+                    )
+                })?;
+            }
+
+            if volume_options.is_some_and(|options| options.nocopy) {
+                volume.options.no_copy = true;
+            }
+
+            Ok(Some(volume))
+        }
+        "tmpfs" => {
+            let mut options = String::new();
+
+            if read_only {
+                options.push_str("ro");
+            }
+
+            if let Some(docker_compose_types::TmpfsSettings { size }) = tmpfs_settings {
+                if read_only {
+                    options.push(',');
+                }
+                write!(options, "size={size}").expect("writing to String never fails");
+            }
+
+            let tmpfs_volume = if options.is_empty() {
+                target
+            } else {
+                format!("{target}:{options}")
+            };
+
+            tmpfs.push(tmpfs_volume);
+            Ok(None)
+        }
+        _ => eyre::bail!("unsupported volume type: {kind}"),
+    }
 }
 
 /// Filters out unsupported compose service `network_mode`s.

@@ -3,7 +3,7 @@ use std::{path::PathBuf, str::FromStr};
 use clap::{Args, Subcommand};
 use thiserror::Error;
 
-use crate::quadlet;
+use crate::quadlet::{self, image::DecryptionKey};
 
 use super::image_to_name;
 
@@ -83,7 +83,7 @@ pub struct Pull {
     ///
     /// Converts to "DecryptionKey=KEY[:PASSPHRASE]"
     #[arg(long, value_name = "KEY[:PASSPHRASE]")]
-    pub decryption_key: Option<String>,
+    pub decryption_key: Option<DecryptionKey>,
 
     /// Docker-specific option to disable image verification to a container registry.
     ///

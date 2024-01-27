@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use crate::serde::quadlet::quote_spaces_join_space;
 
-use super::{DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, PodmanVersion};
 
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -66,34 +66,6 @@ pub struct Network {
 }
 
 impl Network {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
-        if version < PodmanVersion::V4_7 {
-            for dns in std::mem::take(&mut self.dns) {
-                self.push_arg("dns", &dns);
-            }
-        }
-
-        if version < PodmanVersion::V4_6 {
-            if let Some(podman_args) = self.podman_args.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: String::from("PodmanArgs"),
-                    value: podman_args,
-                    supported_version: PodmanVersion::V4_6,
-                });
-            }
-        }
-
-        Ok(())
-    }
-
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_with(String::new);
@@ -104,6 +76,28 @@ impl Network {
         podman_args.push_str(flag);
         podman_args.push(' ');
         podman_args.push_str(arg);
+    }
+}
+
+impl Downgrade for Network {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V4_7 {
+            for dns in std::mem::take(&mut self.dns) {
+                self.push_arg("dns", &dns);
+            }
+        }
+
+        if version < PodmanVersion::V4_6 {
+            if let Some(podman_args) = self.podman_args.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "PodmanArgs",
+                    value: podman_args,
+                    supported_version: PodmanVersion::V4_6,
+                });
+            }
+        }
+
+        Ok(())
     }
 }
 

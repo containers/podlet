@@ -1,13 +1,15 @@
-mod container;
+pub mod container;
 mod globals;
-mod image;
+pub mod image;
 mod install;
-mod kube;
+pub mod kube;
 mod network;
 mod volume;
 
 use std::{
     fmt::{self, Display, Formatter},
+    iter,
+    path::PathBuf,
     str::FromStr,
 };
 
@@ -16,11 +18,11 @@ use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 pub use self::{
-    container::{Container, PullPolicy, Unmask},
+    container::Container,
     globals::Globals,
     image::Image,
     install::Install,
-    kube::{AutoUpdate as KubeAutoUpdate, Kube},
+    kube::Kube,
     network::{IpRange, Network},
     volume::Volume,
 };
@@ -61,19 +63,18 @@ impl File {
     pub fn service_name(&self) -> String {
         self.resource.name_to_service(&self.name)
     }
+}
 
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+impl HostPaths for File {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.resource.host_paths().chain(self.globals.host_paths())
+    }
+}
+
+impl Downgrade for File {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         self.resource.downgrade(version)?;
-        self.globals.downgrade(version)?;
-        Ok(())
+        self.globals.downgrade(version)
     }
 }
 
@@ -152,21 +153,54 @@ impl Resource {
         service.push_str(".service");
         service
     }
+}
 
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+impl HostPaths for Resource {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         match self {
-            Self::Container(container) => {
-                container.downgrade(version);
-                Ok(())
-            }
+            Self::Container(container) => ResourceIter::Container(container.host_paths()),
+            Self::Kube(kube) => ResourceIter::Kube(kube.host_paths()),
+            Self::Network(_) => ResourceIter::Network(iter::empty()),
+            Self::Volume(volume) => ResourceIter::Volume(volume.host_paths()),
+            Self::Image(image) => ResourceIter::Image(image.host_paths()),
+        }
+    }
+}
+
+/// [`Iterator`] for all [`Resource`] types.
+enum ResourceIter<C, K, N, V, I> {
+    Container(C),
+    Kube(K),
+    Network(N),
+    Volume(V),
+    Image(I),
+}
+
+impl<C, K, N, V, I, Item> Iterator for ResourceIter<C, K, N, V, I>
+where
+    C: Iterator<Item = Item>,
+    K: Iterator<Item = Item>,
+    N: Iterator<Item = Item>,
+    V: Iterator<Item = Item>,
+    I: Iterator<Item = Item>,
+{
+    type Item = Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Container(iter) => iter.next(),
+            Self::Kube(iter) => iter.next(),
+            Self::Network(iter) => iter.next(),
+            Self::Volume(iter) => iter.next(),
+            Self::Image(iter) => iter.next(),
+        }
+    }
+}
+
+impl Downgrade for Resource {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        match self {
+            Self::Container(container) => container.downgrade(version),
             Self::Kube(kube) => kube.downgrade(version),
             Self::Network(network) => network.downgrade(version),
             Self::Volume(volume) => volume.downgrade(version),
@@ -216,6 +250,20 @@ impl From<&Resource> for ResourceKind {
     }
 }
 
+/// Trait for types which have varying levels of compatibility with different [`PodmanVersion`]s.
+pub trait Downgrade {
+    /// Downgrade podman compatibility to `version`.
+    ///
+    /// This is a one-way transformation, calling downgrade a second time with a higher version
+    /// will not increase the quadlet options used.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the given [`PodmanVersion`] does not support a used quadlet option or
+    /// the type of quadlet file.
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError>;
+}
+
 /// Versions of podman since quadlet was added.
 ///
 /// Each version added new features to quadlet.
@@ -261,7 +309,7 @@ impl Display for PodmanVersion {
     }
 }
 
-/// Error returned when downgrading a quadlet file fails.
+/// Error returned when [downgrading](Downgrade::downgrade()) a quadlet file fails.
 #[derive(Error, Debug)]
 pub enum DowngradeError {
     /// Unsupported quadlet option used
@@ -270,7 +318,7 @@ pub enum DowngradeError {
         supported until podman v{supported_version}"
     )]
     Option {
-        quadlet_option: String,
+        quadlet_option: &'static str,
         value: String,
         supported_version: PodmanVersion,
     },
@@ -356,3 +404,10 @@ impl FromStr for AutoUpdate {
 #[derive(Debug, Error)]
 #[error("unknown auto update variant `{0}`, must be `registry` or `local`")]
 pub struct ParseAutoUpdateError(String);
+
+/// Trait for types which contain paths on the host.
+pub trait HostPaths {
+    /// Retrieve an [`Iterator`] over mutable references to all [`PathBuf`]s that represent paths
+    /// on the host.
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf>;
+}

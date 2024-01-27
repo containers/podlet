@@ -1,3 +1,8 @@
+mod device;
+mod mount;
+mod rootfs;
+pub mod volume;
+
 use std::{
     fmt::{self, Display, Formatter},
     iter,
@@ -12,10 +17,12 @@ use smart_default::SmartDefault;
 
 use crate::serde::{
     quadlet::{quote_spaces_join_colon, quote_spaces_join_space},
-    skip_true,
+    serialize_display_seq, skip_true,
 };
 
-use super::{AutoUpdate, PodmanVersion};
+pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
+
+use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
@@ -29,7 +36,7 @@ pub struct Container {
     pub add_capability: Vec<String>,
 
     /// Adds a device node from the host into the container.
-    pub add_device: Vec<String>,
+    pub add_device: Vec<Device>,
 
     /// Set one or more OCI annotations on the container.
     #[serde(
@@ -157,7 +164,8 @@ pub struct Container {
     pub mask: Vec<String>,
 
     /// Attach a filesystem mount to the container.
-    pub mount: Vec<String>,
+    #[serde(serialize_with = "serialize_display_seq")]
+    pub mount: Vec<Mount>,
 
     /// Specify a custom network for the container.
     pub network: Vec<String>,
@@ -168,7 +176,7 @@ pub struct Container {
     pub no_new_privileges: bool,
 
     /// The rootfs to use for the container.
-    pub rootfs: Option<String>,
+    pub rootfs: Option<Rootfs>,
 
     /// Enable container handling of `sd_notify`.
     #[serde(skip_serializing_if = "Not::not")]
@@ -203,7 +211,7 @@ pub struct Container {
     pub run_init: bool,
 
     /// Set the seccomp profile to use in the container.
-    pub seccomp_profile: Option<String>,
+    pub seccomp_profile: Option<PathBuf>,
 
     /// Turn off label separation for the container.
     #[serde(skip_serializing_if = "Not::not")]
@@ -267,7 +275,7 @@ pub struct Container {
     pub user_ns: Option<String>,
 
     /// Mount a volume in the container.
-    pub volume: Vec<String>,
+    pub volume: Vec<Volume>,
 
     /// Working directory inside the container.
     pub working_dir: Option<PathBuf>,
@@ -280,21 +288,8 @@ impl Display for Container {
     }
 }
 
-/// Creates `type` using [`std::mem:take()`] on identical `field`s from `self`.
-macro_rules! extract {
-    ($self:expr, $type:ident { $($field:ident),* $(,)?}) => {
-        $type {
-            $($field: std::mem::take(&mut $self.$field),)*
-        }
-    };
-}
-
-impl Container {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    pub fn downgrade(&mut self, version: PodmanVersion) {
+impl Downgrade for Container {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V4_8 {
             self.remove_v4_8_options();
         }
@@ -310,8 +305,21 @@ impl Container {
         if version < PodmanVersion::V4_5 {
             self.remove_v4_5_options();
         }
-    }
 
+        Ok(())
+    }
+}
+
+/// Creates `type` using [`std::mem:take()`] on identical `field`s from `self`.
+macro_rules! extract {
+    ($self:expr, $type:ident { $($field:ident),* $(,)?}) => {
+        $type {
+            $($field: std::mem::take(&mut $self.$field),)*
+        }
+    };
+}
+
+impl Container {
     /// Remove quadlet options added in podman v4.8.0
     fn remove_v4_8_options(&mut self) {
         if !self.read_only_tmpfs {
@@ -481,10 +489,11 @@ struct OptionsV4_6 {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_5 {
-    rootfs: Option<String>,
+    rootfs: Option<Rootfs>,
     secret: Vec<String>,
     log_driver: Option<String>,
-    mount: Vec<String>,
+    #[serde(serialize_with = "serialize_display_seq")]
+    mount: Vec<Mount>,
     ip: Option<Ipv4Addr>,
     ip6: Option<Ipv6Addr>,
     health_interval: Option<String>,
@@ -502,9 +511,23 @@ struct OptionsV4_5 {
     user_ns: Option<String>,
 }
 
+impl HostPaths for Container {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.add_device
+            .iter_mut()
+            .flat_map(Device::host_paths)
+            .chain(&mut self.environment_file)
+            .chain(self.mount.iter_mut().flat_map(Mount::host_paths))
+            .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
+            .chain(&mut self.seccomp_profile)
+            .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+    }
+}
+
 /// Valid pull policies for container images.
 ///
-/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy) of the `podman run` documentation.
+/// See the `--pull` [section](https://docs.podman.io/en/stable/markdown/podman-run.1.html#pull-policy)
+/// of the `podman run` documentation.
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullPolicy {
     /// Always pull the image and throw an error if the pull fails.

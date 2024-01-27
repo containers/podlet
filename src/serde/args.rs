@@ -80,7 +80,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     type SerializeStructVariant = Self;
 
-    invalid_primitives! {
+    serialize_invalid_primitives! {
         Error::InvalidType,
         serialize_bool: bool,
         serialize_i8: i8,
@@ -444,6 +444,14 @@ impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         Err(Error::Nested)
+    }
+
+    fn collect_str<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
+    where
+        T: ?Sized + Display,
+    {
+        self.push_display_arg(value);
+        Ok(())
     }
 }
 

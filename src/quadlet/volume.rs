@@ -1,6 +1,7 @@
 use std::{
     fmt::{self, Display, Formatter},
     ops::Not,
+    path::PathBuf,
 };
 
 use color_eyre::eyre::{self, Context};
@@ -8,7 +9,7 @@ use serde::Serialize;
 
 use crate::{cli::volume::opt::Opt, serde::quadlet::quote_spaces_join_space};
 
-use super::{DowngradeError, PodmanVersion};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -19,7 +20,7 @@ pub struct Volume {
     pub copy: bool,
 
     /// The path of a device which is mounted for the volume.
-    pub device: Option<String>,
+    pub device: Option<PathBuf>,
 
     /// Specify the volume driver name.
     pub driver: Option<String>,
@@ -52,16 +53,28 @@ pub struct Volume {
     pub user: Option<String>,
 }
 
+impl HostPaths for Volume {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.device.iter_mut()
+    }
+}
+
 impl Volume {
-    /// Downgrade compatibility to `version`.
-    ///
-    /// This is a one-way transformation, calling downgrade a second time with a higher version
-    /// will not increase the quadlet options used.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if a used quadlet option is incompatible with the given [`PodmanVersion`].
-    pub fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: &str) {
+        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        if !podman_args.is_empty() {
+            podman_args.push(' ');
+        }
+        podman_args.push_str("--");
+        podman_args.push_str(flag);
+        podman_args.push(' ');
+        podman_args.push_str(arg);
+    }
+}
+
+impl Downgrade for Volume {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V4_8 {
             if let Some(driver) = self.driver.take() {
                 self.push_arg("driver", &driver);
@@ -75,7 +88,7 @@ impl Volume {
         if version < PodmanVersion::V4_6 {
             if let Some(podman_args) = self.podman_args.take() {
                 return Err(DowngradeError::Option {
-                    quadlet_option: String::from("PodmanArgs"),
+                    quadlet_option: "PodmanArgs",
                     value: podman_args,
                     supported_version: PodmanVersion::V4_6,
                 });
@@ -83,18 +96,6 @@ impl Volume {
         }
 
         Ok(())
-    }
-
-    /// Add `--{flag} {arg}` to `PodmanArgs=`.
-    fn push_arg(&mut self, flag: &str, arg: &str) {
-        let podman_args = self.podman_args.get_or_insert_with(String::new);
-        if !podman_args.is_empty() {
-            podman_args.push(' ');
-        }
-        podman_args.push_str("--");
-        podman_args.push_str(flag);
-        podman_args.push(' ');
-        podman_args.push_str(arg);
     }
 }
 
