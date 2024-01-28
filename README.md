@@ -4,37 +4,43 @@
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/k9withabone/podlet/ci.yaml?event=push&label=ci&logo=github&style=flat-square)
 ![Crates.io License](https://img.shields.io/crates/l/podlet?style=flat-square)
 
-Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html) files from a podman command or a compose file.
+Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a podman command, compose file, or existing object.
 
-[![demo.gif](./demo.gif)](https://asciinema.org/a/629332)
-Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/629332).
+[![demo.gif](./demo.gif)](https://asciinema.org/a/633918)
+Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/633918).
 
 ## Features
 
-- Designed for podman v4.7.0 and newer
 - Supports the following podman commands:
     - `podman run`
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
+    - `podman image pull`
 - Convert a (docker) compose file to:
-    - Multiple quadlet files
-    - A pod with a quadlet kube file and Kubernetes YAML
-- Generate from an existing container, network, or volume
-- Write to stdout or to a file
-- Options for including common systemd unit options
-- Checks for existing systemd services to avoid conflict
-    - Opt-out with `--skip-services-check`
+    - Multiple quadlet files.
+    - A pod with a quadlet kube file and Kubernetes YAML.
+- Generate from existing:
+    - Containers
+    - Networks
+    - Volumes
+    - Images
+- Write to stdout or to a file.
+- Options for including common systemd unit options.
+- Checks for existing systemd services to avoid conflict.
+    - Opt-out with `--skip-services-check`.
+- Set podman version compatibility with `--podman-version`.
+- Resolve relative host paths with `--absolute-host-paths`.
 
 ## Install
 
 Podlet can be acquired in several ways:
 
-- Download a prebuilt binary from [releases](https://github.com/k9withabone/podlet/releases)
-- As a container: `podman run quay.io/k9withabone/podlet`
-    - Container images are available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet)
-- Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`
-- Build and install with `cargo install podlet`
+- Download a prebuilt binary from [releases](https://github.com/k9withabone/podlet/releases).
+- As a container: `podman run quay.io/k9withabone/podlet`.
+    - Container images are available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet).
+- Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`.
+- Build and install with `cargo install podlet`.
 
 ## Usage
 
@@ -52,21 +58,23 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -f, --file [<FILE>]              Generate a file instead of printing to stdout
-  -u, --unit-directory             Generate a file in the podman unit directory instead of printing to stdout [aliases: unit-dir]
-  -n, --name <NAME>                Override the name of the generated file (without the extension)
-      --overwrite                  Overwrite existing files when generating a file
-      --skip-services-check        Skip the check for existing services of the same name
-  -d, --description <DESCRIPTION>  Add a description to the unit
-      --wants <WANTS>              Add (weak) requirement dependencies to the unit
-      --requires <REQUIRES>        Similar to --wants, but adds stronger requirement dependencies
-      --before <BEFORE>            Configure ordering dependency between units
-      --after <AFTER>              Configure ordering dependency between units
-  -i, --install                    Add an [Install] section to the unit
-      --wanted-by <WANTED_BY>      Add (weak) parent dependencies to the unit
-      --required-by <REQUIRED_BY>  Similar to --wanted-by, but adds stronger parent dependencies
-  -h, --help                       Print help (see more with '--help')
-  -V, --version                    Print version
+  -f, --file [<FILE>]                        Generate a file instead of printing to stdout
+  -u, --unit-directory                       Generate a file in the podman unit directory instead of printing to stdout [aliases: unit-dir]
+  -n, --name <NAME>                          Override the name of the generated file (without the extension)
+      --overwrite                            Overwrite existing files when generating a file
+      --skip-services-check                  Skip the check for existing services of the same name
+  -p, --podman-version <PODMAN_VERSION>      Podman version generated quadlet files should conform to [default: 4.8] [aliases: compatibility, compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8]
+  -a, --absolute-host-paths [<RESOLVE_DIR>]  Convert relative host paths to absolute paths
+  -d, --description <DESCRIPTION>            Add a description to the unit
+      --wants <WANTS>                        Add (weak) requirement dependencies to the unit
+      --requires <REQUIRES>                  Similar to --wants, but adds stronger requirement dependencies
+      --before <BEFORE>                      Configure ordering dependency between units
+      --after <AFTER>                        Configure ordering dependency between units
+  -i, --install                              Add an [Install] section to the unit
+      --wanted-by <WANTED_BY>                Add (weak) parent dependencies to the unit
+      --required-by <REQUIRED_BY>            Similar to --wanted-by, but adds stronger parent dependencies
+  -h, --help                                 Print help (see more with '--help')
+  -V, --version                              Print version
 ```
 
 See `podlet --help` for more information.
@@ -78,17 +86,45 @@ $ podlet podman -h
 
 Generate a podman quadlet file from a podman command
 
-Usage: podlet podman <COMMAND>
+Usage: podlet podman [OPTIONS] <COMMAND>
 
 Commands:
   run      Generate a podman quadlet `.container` file
   kube     Generate a podman quadlet `.kube` file
   network  Generate a podman quadlet `.network` file
   volume   Generate a podman quadlet `.volume` file
+  image    Generate a podman quadlet `.image` file
   help     Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help  Print help
+  -h, --help  Print help (see more with '--help')
+
+Podman Global Options:
+      --cgroup-manager <MANAGER>             Cgroup manager to use [possible values: cgroupfs, systemd]
+      --conmon <PATH>                        Path of the conmon binary
+      --connection <CONNECTION_URI>          Connection to use for remote Podman service
+      --events-backend <TYPE>                Backend to use for storing events [possible values: file, journald, none]
+      --hooks-dir <PATH>                     Set the OCI hooks directory path
+      --identity <PATH>                      Path to ssh identity file
+      --imagestore <PATH>                    Path to the 'image store'
+      --log-level <LEVEL>                    Log messages at and above specified level [default: warn] [possible values: debug, info, warn, error, fatal, panic]
+      --module <PATH>                        Load the specified `containers.conf(5)` module
+      --network-cmd-path <PATH>              Path to the `slirp4netns(1)` command binary
+      --network-config-dir <DIRECTORY>       Path of the configuration directory for networks
+      --out <PATH>                           Redirect the output of podman to a file without affecting the container output or its logs
+  -r, --remote[=<REMOTE>]                    Access remote Podman service [possible values: true, false]
+      --root <VALUE>                         Path to the graph root directory where images, containers, etc. are stored
+      --runroot <VALUE>                      Storage state directory where all state information is stored
+      --runtime <VALUE>                      Path to the OCI-compatible binary used to run containers
+      --runtime-flag <FLAG>                  Add global flags for the container runtime
+      --ssh <VALUE>                          Define the ssh mode [possible values: golang, native]
+      --storage-driver <VALUE>               Select which storage driver is used to manage storage of images and containers
+      --storage-opt <VALUE>                  Specify a storage driver option
+      --syslog                               Output logging information to syslog as well as the console
+      --tmpdir <PATH>                        Path to the tmp directory for libpod state content
+      --transient-store[=<TRANSIENT_STORE>]  Enable transient container storage [possible values: true, false]
+      --url <VALUE>                          URL to access Podman service
+      --volumepath <VALUE>                   Volume directory where builtin volume information is stored
 ```
 
 To generate a quadlet file, just put `podlet` in front of your podman command!
@@ -136,7 +172,7 @@ WantedBy=default.target
 
 The name for the file was automatically pulled from the image name, but can be overridden with the `--name` option.
 
-Podlet also supports creating kube, network, and volume quadlet files.
+Podlet also supports creating kube, network, volume, and image quadlet files.
 
 ```
 $ podlet podman kube play --network pasta --userns auto caddy.yaml
@@ -147,6 +183,8 @@ Yaml=caddy.yaml
 Network=pasta
 UserNS=auto
 ```
+
+Global podman options are added to the `GlobalArgs=` quadlet option.
 
 ### Compose
 
@@ -181,7 +219,7 @@ volumes:
   caddy-data:
 ```
 
-`podlet compose compose-example.yaml` will create a `caddy.container` like so:
+`podlet compose compose-example.yaml` will create a `caddy.container` file like so:
 
 ```ini
 # caddy.container
@@ -241,6 +279,8 @@ spec:
 
 When converting compose files, not all options are supported by podman/quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
+Also note that podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
+
 See `podlet compose --help` for more information.
 
 ### Generate from Existing
@@ -256,13 +296,14 @@ Commands:
   container  Generate a quadlet file from an existing container
   network    Generate a quadlet file from an existing network
   volume     Generate a quadlet file from an existing volume
+  image      Generate a quadlet file from an image in local storage
   help       Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help (see more with '--help')
 ```
 
-If you have an existing container, network, or volume, you can use `podlet generate` to create a quadlet file from it.
+If you have an existing container, network, volume, or image, you can use `podlet generate` to create a quadlet file from it.
 
 ```
 $ podman container create --name hello quay.io/podman/hello:latest
@@ -287,7 +328,7 @@ An example of a generic podman command that runs the most up-to-date version of 
 
 `podman run --rm --userns keep-id -e HOME -e XDG_CONFIG_HOME --user $(id -u) -v "$PWD":"$PWD" -v "$HOME/.config/containers/systemd/":"$HOME/.config/containers/systemd/" -w "$PWD" --security-opt label=disable --pull=newer quay.io/k9withabone/podlet`
 
-Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux this may not be required.
+Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux, the option is not needed. Podman recommends disabling SELinux separation when mounting system files and directories to containers. See the note at the end of the "Labeling Volume Mounts" section in the `podman run --volume` [documentation](https://docs.podman.io/en/stable/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
 
 Alternatively, if you just want podlet to read a specific compose file you can use:
 
@@ -295,9 +336,9 @@ Alternatively, if you just want podlet to read a specific compose file you can u
 
 ## Cautions
 
-Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
+Podlet is primarily a tool for helping to get started with podman systemd units, aka quadlet files. It is not meant to be an end-all solution for creating and maintaining quadlet files. Files created with podlet should always be reviewed before starting the unit.
 
-Podlet is meant to be used with podman v4.7.0 or newer. Some quadlet options are unavailable or behave differently with earlier versions of podman/quadlet.
+Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
 
 ## Contribution
 

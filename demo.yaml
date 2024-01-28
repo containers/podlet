@@ -7,9 +7,9 @@
 # mv demo-opt.gif demo.gif
 
 settings:
-  width: 129
-  height: 34
-  title: podlet v0.2.3 demo
+  width: 123
+  height: 45
+  title: podlet v0.2.4 demo
   timeout: 90s
   type_speed: 90ms
 
