@@ -1,9 +1,9 @@
 [package]
 name = "podlet"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
-description = "Generate podman quadlet files from a podman command or a compose file"
+description = "Generate podman quadlet files from a podman command, compose file, or existing object"
 readme = "README.md"
 repository = "https://github.com/k9withabone/podlet"
 license = "MPL-2.0"

@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.2.4] - 2024-01-30
+
+### Features
+
+- Set compatibility with `--podman-version` ([#45](https://github.com/k9withabone/podlet/issues/45))
+- Add support for quadlet options introduced in podman v4.8.0 ([#30](https://github.com/k9withabone/podlet/issues/30))
+    - Container
+        - `GIDMap=`
+        - `ReadOnlyTmpfs=`
+        - `SubGIDMap=`
+        - `SubUIDMap=`
+        - `UIDMap=`
+        - Remove `VolatileTmp=`
+    - Volume
+        - `Driver=`
+        - `Image=`
+    - Image
+        - Brand new!
+        - Generate `.image` quadlet files with:
+            - `podlet podman image pull`
+            - `podlet generate image`
+    - All quadlet file types
+        - `ContainersConfModule=`
+        - `GlobalArgs=`
+- Convert relative host paths to absolute paths with `--absolute-host-paths` ([#52](https://github.com/k9withabone/podlet/issues/52))
+    - Does not affect paths in the `PodmanArgs=` quadlet option or Kubernetes YAML files.
+    - As part of the work to implement this, the following quadlet options are now fully parsed and validated:
+        - `AddDevice=`
+        - `Mount=`
+        - `Rootfs=`
+        - `Volume=`
+        - `DecryptionKey=`
+
+### Security
+
+- Remove ASCII control characters (except whitespace) from container commands
+
+### Documentation
+
+- *(readme)* Map user into podlet container ([#50](https://github.com/k9withabone/podlet/pull/50), thanks [@rugk](https://github.com/rugk)!)
+- *(readme)* Update demo, features, and usage
+
+### Refactor
+
+- *(container)* Parse security opts with `str::strip_prefix`
+- Remove arg serializer's map functionality
+
+### Miscellaneous Tasks
+
+- Add podman v4.9.0 to podman versions
+- Update dependencies
+- *(ci)* Update cargo-dist
+
 ## [0.2.3] - 2023-12-31
 
 ### Features
