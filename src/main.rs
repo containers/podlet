@@ -13,6 +13,7 @@
 //! Run `podlet --help` for more information.
 
 mod cli;
+mod escape;
 mod quadlet;
 mod serde;
 

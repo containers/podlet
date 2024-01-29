@@ -134,12 +134,8 @@ impl ContainerParser {
             .config
             .create_command;
 
-        Self::try_parse_from(filter_container_create_command(&create_command)).wrap_err_with(|| {
-            format!(
-                "error parsing podman command from: {}",
-                shlex::join(create_command.iter().map(String::as_str))
-            )
-        })
+        Self::try_parse_from(filter_container_create_command(&create_command))
+            .wrap_err_with(|| format!("error parsing podman command from: {create_command:?}",))
     }
 }
 
