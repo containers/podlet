@@ -278,7 +278,7 @@ pub enum PodmanVersion {
     V4_6,
     #[value(name = "4.7", aliases = ["4.7.0", "4.7.1", "4.7.2"])]
     V4_7,
-    #[value(name = "4.8", aliases = ["latest", "4.8.0", "4.8.1", "4.8.2", "4.8.3"])]
+    #[value(name = "4.8", aliases = ["latest", "4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0"])]
     V4_8,
 }
 

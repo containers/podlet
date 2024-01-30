@@ -17,6 +17,7 @@ use smart_default::SmartDefault;
 
 use crate::{
     cli::ComposeService,
+    escape::command_join,
     quadlet::{
         container::{volume::Source, Device, Mount, PullPolicy, Rootfs, Volume},
         AutoUpdate,
@@ -675,7 +676,7 @@ impl From<docker_compose_types::Healthcheck> for Healthcheck {
                         None
                     }
                     Some("CMD") => Some(format!("{:?}", &test[1..])),
-                    Some("CMD-SHELL") => Some(shlex::join(test[1..].iter().map(String::as_str))),
+                    Some("CMD-SHELL") => Some(command_join(&test[1..])),
                     _ => None,
                 }
             }

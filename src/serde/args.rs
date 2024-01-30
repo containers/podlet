@@ -6,6 +6,8 @@ use serde::{
 };
 use thiserror::Error;
 
+use crate::escape::arg_quote;
+
 /// Serializes a struct or map into arguments suitable for a shell.
 ///
 /// # Errors
@@ -275,7 +277,7 @@ impl<'a> ValueSerializer<'a> {
         if !arg.is_empty() {
             let output = &mut self.serializer.output;
             output.push(' ');
-            output.push_str(&shlex::quote(arg));
+            output.push_str(&arg_quote(arg));
         }
     }
 
@@ -576,7 +578,7 @@ mod tests {
         let sut = Test {
             test: "Hello, world!",
         };
-        assert_eq!(to_string(sut).unwrap(), r#"--test "Hello, world!""#);
+        assert_eq!(to_string(sut).unwrap(), "--test 'Hello, world!'");
     }
 
     #[test]

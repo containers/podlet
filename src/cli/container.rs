@@ -7,7 +7,7 @@ use std::mem;
 use clap::Args;
 use color_eyre::eyre::{self, Context, OptionExt};
 
-use crate::cli::compose;
+use crate::{cli::compose, escape::command_join};
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
 use super::{image_to_name, ComposeService};
@@ -143,7 +143,7 @@ impl From<Container> for crate::quadlet::Container {
             security_label_type,
             unmask,
             podman_args: (!podman_args.is_empty()).then(|| podman_args.trim().to_string()),
-            exec: (!command.is_empty()).then(|| shlex::join(command.iter().map(String::as_str))),
+            exec: (!command.is_empty()).then(|| command_join(command)),
             ..quadlet_options.into()
         }
     }
