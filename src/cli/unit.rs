@@ -1,10 +1,14 @@
 use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
+use serde::Serialize;
+
+use crate::serde::quadlet::quote_spaces_join_space;
 
 // Common systemd unit options
 // From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
-#[derive(Args, Default, Debug, Clone, PartialEq)]
+#[derive(Serialize, Args, Default, Debug, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
 pub struct Unit {
     /// Add a description to the unit
     ///
@@ -20,6 +24,10 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     wants: Vec<String>,
 
     /// Similar to --wants, but adds stronger requirement dependencies
@@ -28,6 +36,10 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     requires: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -36,6 +48,10 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     before: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -44,6 +60,10 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     after: Vec<String>,
 }
 
@@ -68,28 +88,7 @@ impl Unit {
 
 impl Display for Unit {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Unit]")?;
-
-        if let Some(description) = &self.description {
-            writeln!(f, "Description={description}")?;
-        }
-
-        if !self.wants.is_empty() {
-            writeln!(f, "Wants={}", self.wants.join(" "))?;
-        }
-
-        if !self.requires.is_empty() {
-            writeln!(f, "Requires={}", self.requires.join(" "))?;
-        }
-
-        if !self.before.is_empty() {
-            writeln!(f, "Before={}", self.before.join(" "))?;
-        }
-
-        if !self.before.is_empty() {
-            writeln!(f, "After={}", self.after.join(" "))?;
-        }
-
-        Ok(())
+        let unit = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
+        f.write_str(&unit)
     }
 }

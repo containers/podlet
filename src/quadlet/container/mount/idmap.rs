@@ -15,7 +15,7 @@ use thiserror::Error;
 /// or unit [`()`] if empty.
 ///
 /// See the [`--mount`](https://docs.podman.io/en/stable/markdown/podman-run.1.html#mount-type-type-type-specific-option)
-/// or [`--volume` "Idmapped mount"](https://docs.podman.io/en/stable/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options)
+/// or [`--volume` Idmapped mount](https://docs.podman.io/en/stable/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options)
 /// sections of **podman-run(1)**.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Idmap {
