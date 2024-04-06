@@ -406,6 +406,7 @@ impl Display for PodmanArgs {
     }
 }
 
+/*
 impl TryFrom<docker_compose_types::Service> for PodmanArgs {
     type Error = color_eyre::Report;
 
@@ -462,6 +463,7 @@ impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
         })
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

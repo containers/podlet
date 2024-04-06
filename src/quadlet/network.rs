@@ -101,6 +101,7 @@ impl Downgrade for Network {
     }
 }
 
+/*
 impl TryFrom<docker_compose_types::NetworkSettings> for Network {
     type Error = color_eyre::Report;
 
@@ -165,6 +166,7 @@ impl TryFrom<docker_compose_types::NetworkSettings> for Network {
         })
     }
 }
+*/
 
 impl Display for Network {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

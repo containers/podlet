@@ -47,6 +47,8 @@ impl TryFrom<ComposeService> for Container {
     type Error = color_eyre::Report;
 
     fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
+        todo!()
+        /*
         let service = &value.service;
         let unsupported_options = [
             ("deploy", service.deploy.is_none()),
@@ -92,6 +94,7 @@ impl TryFrom<ComposeService> for Container {
                 .transpose()?
                 .unwrap_or_default(),
         })
+        */
     }
 }
 

@@ -99,6 +99,7 @@ impl Downgrade for Volume {
     }
 }
 
+/*
 impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
     type Error = color_eyre::Report;
 
@@ -142,6 +143,7 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
         })
     }
 }
+*/
 
 impl Display for Volume {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

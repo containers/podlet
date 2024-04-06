@@ -26,6 +26,7 @@ impl Display for Service {
     }
 }
 
+/*
 impl TryFrom<&docker_compose_types::Service> for Service {
     type Error = color_eyre::Report;
 
@@ -39,6 +40,7 @@ impl TryFrom<&docker_compose_types::Service> for Service {
         Ok(Self { restart })
     }
 }
+*/
 
 /// Possible service restart configurations
 ///

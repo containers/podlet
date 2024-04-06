@@ -397,6 +397,8 @@ impl Commands {
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
             Self::Compose { pod, compose_file } => {
+                todo!()
+                /*
                 let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
 
                 eyre::ensure!(
@@ -433,6 +435,7 @@ impl Commands {
                         .map(|result| result.map(Into::into))
                         .collect()
                 }
+                */
             }
             Self::Generate(command) => {
                 Ok(vec![command.try_into_quadlet(name, unit, install)?.into()])
@@ -502,11 +505,14 @@ impl TryFrom<ComposeService> for PodmanCommands {
     type Error = color_eyre::Report;
 
     fn try_from(value: ComposeService) -> Result<Self, Self::Error> {
+        todo!()
+        /*
         let service = (&value.service).try_into()?;
         Ok(Self::Run {
             container: Box::new(value.try_into()?),
             service,
         })
+        */
     }
 }
 
@@ -704,7 +710,7 @@ impl Downgrade for File {
 
 #[derive(Debug)]
 struct ComposeService {
-    service: docker_compose_types::Service,
+    // service: docker_compose_types::Service,
     volume_has_options: Rc<HashMap<String, bool>>,
 }
 

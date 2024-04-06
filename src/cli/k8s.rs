@@ -4,11 +4,13 @@ use color_eyre::{
     eyre::{self, Context, OptionExt},
     Help,
 };
+/*
 use docker_compose_types::{
     AdvancedVolumes, Compose, ComposeVolume, Entrypoint, Environment, Healthcheck, HealthcheckTest,
     Labels, Ports, PublishedPort, Service, SingleValue, Tmpfs, Ulimit, Ulimits,
     Volumes as ComposeVolumes,
 };
+*/
 use indexmap::IndexMap;
 use k8s_openapi::{
     api::core::v1::{
@@ -24,6 +26,7 @@ use super::{
     container::security_opt::{LabelOpt, SecurityOpt},
 };
 
+/*
 pub fn compose_try_into_pod(
     mut compose: Compose,
     name: String,
@@ -288,6 +291,7 @@ fn healthcheck_try_into_probe(healthcheck: Healthcheck) -> color_eyre::Result<Pr
         ..Probe::default()
     })
 }
+*/
 
 fn parse_seconds(duration: &str) -> color_eyre::Result<i32> {
     duration_str::parse(duration)
@@ -365,6 +369,7 @@ fn security_opts_try_into_se_linux_options(
     )
 }
 
+/*
 fn ports_try_into_container_ports(ports: Ports) -> color_eyre::Result<Vec<ContainerPort>> {
     match ports {
         Ports::Short(ports) => ports
@@ -392,6 +397,7 @@ fn ports_try_into_container_ports(ports: Ports) -> color_eyre::Result<Vec<Contai
             .collect(),
     }
 }
+*/
 
 fn parse_container_port_from_short(port: &str) -> color_eyre::Result<ContainerPort> {
     let (port, protocol) = port
@@ -434,6 +440,7 @@ fn parse_container_port_from_short(port: &str) -> color_eyre::Result<ContainerPo
     })
 }
 
+/*
 fn environment_into_env_vars(environment: Environment) -> Vec<EnvVar> {
     match environment {
         Environment::List(environment) => environment
@@ -480,6 +487,7 @@ fn ulimits_into_resources(ulimits: Ulimits) -> Option<ResourceRequirements> {
         requests: None,
     })
 }
+*/
 
 fn parse_tmpfs_volume_mount(tmpfs: &str, container_name: &str) -> (VolumeMount, Volume) {
     let name = volume_name(container_name, tmpfs);
@@ -487,6 +495,7 @@ fn parse_tmpfs_volume_mount(tmpfs: &str, container_name: &str) -> (VolumeMount, 
     (volume_mount, tmpfs_volume(name, None))
 }
 
+/*
 fn compose_volumes_try_into_volume_mounts(
     volumes: Vec<ComposeVolumes>,
     container_name: &str,
@@ -501,6 +510,7 @@ fn compose_volumes_try_into_volume_mounts(
         })
         .collect()
 }
+*/
 
 fn parse_short_volume(
     volume: String,
@@ -605,6 +615,7 @@ fn parse_target_and_read_only(target: &str, options: &str) -> (String, bool) {
     (target, read_only)
 }
 
+/*
 fn advanced_volume_try_into_volume_mount(
     volume: AdvancedVolumes,
     container_name: &str,
@@ -651,6 +662,7 @@ fn advanced_volume_try_into_volume_mount(
 
     Ok((volume_mount(target, volume.name.clone(), read_only), volume))
 }
+*/
 
 fn volume_name(container_name: &str, path: &str) -> String {
     format!("{container_name}{}", path.replace(['/', '\\'], "-"))
@@ -813,6 +825,7 @@ fn named_volume(name: String) -> Volume {
     }
 }
 
+/*
 fn compose_volume_try_into_persistent_volume_claim(
     compose_volume: ComposeVolume,
     name: String,
@@ -880,6 +893,7 @@ fn driver_opts_try_into_annotations(
             ))],
         })
 }
+*/
 
 #[derive(Debug, Default)]
 struct MountOptions {

@@ -72,6 +72,7 @@ impl Unit {
         *self == Self::default()
     }
 
+    /*
     pub fn add_dependencies(&mut self, depends_on: docker_compose_types::DependsOnOptions) {
         let depends_on = match depends_on {
             docker_compose_types::DependsOnOptions::Simple(vec) => vec,
@@ -84,6 +85,7 @@ impl Unit {
                 .map(|dependency| dependency + ".service"),
         );
     }
+    */
 }
 
 impl Display for Unit {

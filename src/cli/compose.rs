@@ -10,12 +10,13 @@ use color_eyre::{
     eyre::{self, OptionExt, WrapErr},
     Help,
 };
-use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
+// use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
 
 use crate::quadlet::{self, Globals};
 
 use super::{image_to_name, unit::Unit, ComposeService, PodmanCommands};
 
+/*
 /// Read a [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
 ///
 /// If the path is '-', or stdin is not a terminal, the [`Compose`] is read from stdin.
@@ -230,3 +231,4 @@ fn volumes_try_into_quadlet_files<'a>(
         })
     })
 }
+*/

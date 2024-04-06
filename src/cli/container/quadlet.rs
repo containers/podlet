@@ -12,7 +12,7 @@ use color_eyre::{
     owo_colors::OwoColorize,
     Section,
 };
-use docker_compose_types::{AdvancedVolumes, MapOrEmpty, Volumes};
+// use docker_compose_types::{AdvancedVolumes, MapOrEmpty, Volumes};
 use smart_default::SmartDefault;
 
 use crate::{
@@ -490,6 +490,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
     }
 }
 
+/*
 impl TryFrom<ComposeService> for QuadletOptions {
     type Error = color_eyre::Report;
 
@@ -644,6 +645,7 @@ impl TryFrom<&mut ComposeService> for QuadletOptions {
         })
     }
 }
+*/
 
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -655,6 +657,7 @@ struct Healthcheck {
     health_start_period: Option<String>,
 }
 
+/*
 impl From<docker_compose_types::Healthcheck> for Healthcheck {
     fn from(value: docker_compose_types::Healthcheck) -> Self {
         let docker_compose_types::Healthcheck {
@@ -906,6 +909,7 @@ fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
             .collect(),
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
