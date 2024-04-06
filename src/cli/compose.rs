@@ -10,26 +10,34 @@ use color_eyre::{
     eyre::{self, OptionExt, WrapErr},
     Help,
 };
-// use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
+use compose_spec::Compose;
 
 use crate::quadlet::{self, Globals};
 
 use super::{image_to_name, unit::Unit, ComposeService, PodmanCommands};
 
-/*
-/// Read a [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
+/// Deserialize [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
 ///
-/// If the path is '-', or stdin is not a terminal, the [`Compose`] is read from stdin.
+/// If the path is '-', or stdin is not a terminal, the [`Compose`] is deserialized from stdin.
 /// If a path is not provided, the files `compose.yaml`, `compose.yml`, `docker-compose.yaml`,
 /// and `docker-compose.yml` are, in order, looked for in the current directory.
+///
+/// # Errors
+///
+/// Returns an error if:
+///
+/// - There was an error opening the given file.
+/// - Stdin was selected and stdin is a terminal.
+/// - No path was given and none of the default files could be opened.
+/// - There was an error deserializing [`Compose`].
 pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
     let (compose_file, path) = if let Some(path) = path {
         if path.as_os_str() == "-" {
             return from_stdin();
         }
         let compose_file = File::open(path)
-            .wrap_err("Could not open provided compose file")
-            .suggestion("Make sure you have the proper permissions for the given file.")?;
+            .wrap_err("could not open provided compose file")
+            .suggestion("make sure you have the proper permissions for the given file")?;
         (compose_file, path)
     } else {
         const FILE_NAMES: [&str; 4] = [
@@ -52,7 +60,7 @@ pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
         }
 
         result.ok_or_eyre(
-            "A compose file was not provided and none of \
+            "a compose file was not provided and none of \
                 `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
                 exist in the current directory or could not be read",
         )?
@@ -62,7 +70,11 @@ pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
         .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
 }
 
-/// Read a [`Compose`] from stdin.
+/// Deserialize [`Compose`] from stdin.
+///
+/// # Errors
+///
+/// Returns an error if stdin is a terminal or there was an error deserializing [`Compose`].
 fn from_stdin() -> color_eyre::Result<Compose> {
     let stdin = io::stdin();
     if stdin.is_terminal() {
@@ -72,6 +84,7 @@ fn from_stdin() -> color_eyre::Result<Compose> {
     serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
 }
 
+/*
 /// Converts a [`Command`] into a `Vec<String>`, splitting the `String` variant as a shell would.
 ///
 /// # Errors

@@ -427,6 +427,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
+name = "compose_spec"
+version = "0.1.1-beta.1"
+source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git#d268ea691cda807cd027e61cc3fea45110c13129"
+dependencies = [
+ "compose_spec_macros",
+ "indexmap",
+ "ipnet",
+ "itoa",
+ "serde",
+ "serde_yaml",
+ "thiserror",
+ "url",
+]
+
+[[package]]
+name = "compose_spec_macros"
+version = "0.1.0"
+source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git#d268ea691cda807cd027e61cc3fea45110c13129"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -738,9 +763,9 @@ checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
-version = "2.1.0"
+version = "2.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
+checksum = "168fb715dda47215e360912c096649d23d58bf392ac62f73919e831745e40f26"
 dependencies = [
  "equivalent",
  "hashbrown",
@@ -982,6 +1007,7 @@ version = "0.2.4"
 dependencies = [
  "clap",
  "color-eyre",
+ "compose_spec",
  "duration-str",
  "indexmap",
  "ipnet",
@@ -1543,6 +1569,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

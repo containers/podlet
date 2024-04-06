@@ -380,9 +380,12 @@ impl Commands {
     ///
     /// # Errors
     ///
-    /// Returns an error if there was an error reading the compose file,
-    /// converting the compose file to a podman command,
-    /// or getting the podman command from the existing resource.
+    /// Returns an error if there was an error:
+    ///
+    /// - Reading/deserializing the compose file.
+    /// - Converting the compose file to Kubernetes YAML.
+    /// - Converting the compose file to quadlet files.
+    /// - Creating a quadlet file from an existing object.
     fn try_into_files(
         self,
         name: Option<String>,
@@ -397,8 +400,6 @@ impl Commands {
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
             Self::Compose { pod, compose_file } => {
-                todo!()
-                /*
                 let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
 
                 eyre::ensure!(
@@ -406,6 +407,8 @@ impl Commands {
                     "extensions are not supported"
                 );
 
+                todo!()
+                /*
                 if let Some(pod_name) = pod {
                     let (pod, persistent_volume_claims) =
                         k8s::compose_try_into_pod(compose, pod_name.clone())?;
@@ -437,9 +440,10 @@ impl Commands {
                 }
                 */
             }
-            Self::Generate(command) => {
-                Ok(vec![command.try_into_quadlet(name, unit, install)?.into()])
-            }
+            Self::Generate(command) => Ok(vec![command
+                .try_into_quadlet(name, unit, install)
+                .wrap_err("error creating quadlet file from an existing object")?
+                .into()]),
         }
     }
 }
