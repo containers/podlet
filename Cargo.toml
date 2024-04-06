@@ -5,7 +5,7 @@ authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2021"
 description = "Generate podman quadlet files from a podman command, compose file, or existing object"
 readme = "README.md"
-repository = "https://github.com/k9withabone/podlet"
+repository = "https://github.com/containers/podlet"
 license = "MPL-2.0"
 keywords = ["podman", "quadlet", "containers"]
 categories = ["command-line-utilities"]
@@ -139,7 +139,7 @@ footer = """
 # postprocessors
 postprocessors = [
   { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "([#${2}](<REPO>/issues/${2}))" }, # replace issue numbers
-  { pattern = '<REPO>', replace = "https://github.com/k9withabone/podlet" },
+  { pattern = '<REPO>', replace = "https://github.com/containers/podlet" },
   { pattern = '### \pN+ ', replace = "### " },                                      # remove numbers from groups
 ]
 

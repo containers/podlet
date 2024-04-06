@@ -4,8 +4,8 @@
 
 ### Features
 
-- Set compatibility with `--podman-version` ([#45](https://github.com/k9withabone/podlet/issues/45))
-- Add support for quadlet options introduced in podman v4.8.0 ([#30](https://github.com/k9withabone/podlet/issues/30))
+- Set compatibility with `--podman-version` ([#45](https://github.com/containers/podlet/issues/45))
+- Add support for quadlet options introduced in podman v4.8.0 ([#30](https://github.com/containers/podlet/issues/30))
     - Container
         - `GIDMap=`
         - `ReadOnlyTmpfs=`
@@ -24,7 +24,7 @@
     - All quadlet file types
         - `ContainersConfModule=`
         - `GlobalArgs=`
-- Convert relative host paths to absolute paths with `--absolute-host-paths` ([#52](https://github.com/k9withabone/podlet/issues/52))
+- Convert relative host paths to absolute paths with `--absolute-host-paths` ([#52](https://github.com/containers/podlet/issues/52))
     - Does not affect paths in the `PodmanArgs=` quadlet option or Kubernetes YAML files.
     - As part of the work to implement this, the following quadlet options are now fully parsed and validated:
         - `AddDevice=`
@@ -39,7 +39,7 @@
 
 ### Documentation
 
-- *(readme)* Map user into podlet container ([#50](https://github.com/k9withabone/podlet/pull/50), thanks [@rugk](https://github.com/rugk)!)
+- *(readme)* Map user into podlet container ([#50](https://github.com/containers/podlet/pull/50), thanks [@rugk](https://github.com/rugk)!)
 - *(readme)* Update demo, features, and usage
 
 ### Refactor
@@ -57,7 +57,7 @@
 
 ### Features
 
-- Add support for quadlet options introduced in podman v4.7.0 ([#29](https://github.com/k9withabone/podlet/issues/29))
+- Add support for quadlet options introduced in podman v4.7.0 ([#29](https://github.com/containers/podlet/issues/29))
     - Container
         - `DNS=`
         - `DNSOption=`
@@ -70,13 +70,13 @@
     - Network
         - `DNS=`
 - Add `podlet generate` subcommands for generating quadlet files from existing:
-    - Containers ([#23](https://github.com/k9withabone/podlet/issues/23))
+    - Containers ([#23](https://github.com/containers/podlet/issues/23))
     - Networks
     - Volumes
 
 ### Bug Fixes
 
-- *(compose)* `network_mode` accept all podman values ([#38](https://github.com/k9withabone/podlet/issues/38))
+- *(compose)* `network_mode` accept all podman values ([#38](https://github.com/containers/podlet/issues/38))
     - Improved error message for unsupported values
 - *(network)* Support `<start-IP>-<end-IP>` syntax for `--ip-range`
 
@@ -95,9 +95,9 @@
 
 ### Features
 
-- Add support for quadlet options introduced in podman v4.6.0 ([#28](https://github.com/k9withabone/podlet/issues/28))
+- Add support for quadlet options introduced in podman v4.6.0 ([#28](https://github.com/containers/podlet/issues/28))
     - Container
-        - `Sysctl=` ([#22](https://github.com/k9withabone/podlet/pull/22), thanks [@b-rad15](https://github.com/b-rad15)!)
+        - `Sysctl=` ([#22](https://github.com/containers/podlet/pull/22), thanks [@b-rad15](https://github.com/b-rad15)!)
         - `AutoUpdate=`
         - `HostName=`
         - `Pull=`
@@ -113,9 +113,9 @@
 
 - *(container)* Arg `--tls-verify` requires =
 - *(network)* Filter out empty `Options=` quadlet option
-- Escape newlines in joined quadlet values ([#32](https://github.com/k9withabone/podlet/issues/32))
-- *(compose)* Support `cap_drop`, `userns_mode`, and `group_add` service fields ([#31](https://github.com/k9withabone/podlet/issues/31), [#34](https://github.com/k9withabone/podlet/issues/34))
-- *(compose)* Split `command` string ([#36](https://github.com/k9withabone/podlet/issues/36))
+- Escape newlines in joined quadlet values ([#32](https://github.com/containers/podlet/issues/32))
+- *(compose)* Support `cap_drop`, `userns_mode`, and `group_add` service fields ([#31](https://github.com/containers/podlet/issues/31), [#34](https://github.com/containers/podlet/issues/34))
+- *(compose)* Split `command` string ([#36](https://github.com/containers/podlet/issues/36))
     - When the command is converted to the `Exec=` quadlet option, it is now properly quoted. When converting to k8s, it is properly split into args.
 
 ### Documentation
@@ -136,18 +136,18 @@
 
 ### Features
 
-- Compose: Read compose file from stdin ([#18](https://github.com/k9withabone/podlet/discussions/18))
+- Compose: Read compose file from stdin ([#18](https://github.com/containers/podlet/discussions/18))
     - For `podlet compose`, if a compose file is not provided and stdin is not a terminal, or `-` is provided, podlet will attempt to read a compose file from stdin.
     - For example `cat compose-example.yaml | podlet compose` or `cat compose-example.yaml | podlet compose -`
 
 ### Bug Fixes
 
 - Truncate when overwriting existing files
-- Compose service volumes can be mixed long and short form ([#26](https://github.com/k9withabone/podlet/issues/26))
+- Compose service volumes can be mixed long and short form ([#26](https://github.com/containers/podlet/issues/26))
 
 ### Documentation
 
-- Readme: Add sample podlet container usage instructions ([#17](https://github.com/k9withabone/podlet/pull/17), thanks [@Nitrousoxide](https://github.com/Nitrousoxide)!)
+- Readme: Add sample podlet container usage instructions ([#17](https://github.com/containers/podlet/pull/17), thanks [@Nitrousoxide](https://github.com/Nitrousoxide)!)
 - Readme: Update description, add build and local ci instructions
 
 ### Miscellaneous Tasks
@@ -175,9 +175,9 @@
 
 ### Added
 
-- Check for existing systemd unit files with the same name as the service generated by quadlet from the podlet generated quadlet file and throw an error if there is a conflict ([#14](https://github.com/k9withabone/podlet/issues/14)).
+- Check for existing systemd unit files with the same name as the service generated by quadlet from the podlet generated quadlet file and throw an error if there is a conflict ([#14](https://github.com/containers/podlet/issues/14)).
     - Use `--skip-services-check` to opt-out.
-- Convert a (docker) compose file ([#9](https://github.com/k9withabone/podlet/issues/9)) to:
+- Convert a (docker) compose file ([#9](https://github.com/containers/podlet/issues/9)) to:
     - Multiple quadlet files
     - A pod with a quadlet kube file and Kubernetes YAML
 

@@ -1,7 +1,7 @@
 # Podlet
 
 ![Crates.io](https://img.shields.io/crates/v/podlet?style=flat-square)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/k9withabone/podlet/ci.yaml?event=push&label=ci&logo=github&style=flat-square)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/containers/podlet/ci.yaml?event=push&label=ci&logo=github&style=flat-square)
 ![Crates.io License](https://img.shields.io/crates/l/podlet?style=flat-square)
 
 Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a podman command, compose file, or existing object.
@@ -36,7 +36,7 @@ Demo created with [autocast](https://github.com/k9withabone/autocast). You can a
 
 Podlet can be acquired in several ways:
 
-- Download a prebuilt binary from [releases](https://github.com/k9withabone/podlet/releases).
+- Download a prebuilt binary from [releases](https://github.com/containers/podlet/releases).
 - As a container: `podman run quay.io/k9withabone/podlet`.
     - Container images are available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet).
 - Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`.
@@ -342,14 +342,14 @@ Podlet is not (yet) a validator for podman commands. Some podman options are inc
 
 ## Contribution
 
-Contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/k9withabone/podlet/issues), [discussion](https://github.com/k9withabone/podlet/discussions), or [pull request](https://github.com/k9withabone/podlet/pulls).
+Contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/containers/podlet/issues), [discussion](https://github.com/containers/podlet/discussions), or [pull request](https://github.com/containers/podlet/pulls).
 
 ### Building
 
 Podlet is a normal Rust project, so once [Rust is installed](https://www.rust-lang.org/tools/install), the source code can be cloned and built with:
 
 ```shell
-git clone git@github.com:k9withabone/podlet.git
+git clone git@github.com:containers/podlet.git
 cd podlet
 cargo build
 ```
