@@ -42,6 +42,18 @@ pub struct Unit {
     )]
     requires: Vec<String>,
 
+    /// Similar to --requires, but when the dependency stops, this unit also stops
+    ///
+    /// Converts to "BindsTo=BINDS_TO[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    #[serde(
+        serialize_with = "quote_spaces_join_space",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    binds_to: Vec<String>,
+
     /// Configure ordering dependency between units
     ///
     /// Converts to "Before=BEFORE[ ...]"
