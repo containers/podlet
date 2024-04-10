@@ -80,8 +80,23 @@ pub struct Unit {
 }
 
 impl Unit {
+    /// Returns `true` if all fields are empty.
     pub fn is_empty(&self) -> bool {
-        *self == Self::default()
+        let Self {
+            description,
+            wants,
+            requires,
+            binds_to,
+            before,
+            after,
+        } = self;
+
+        description.is_none()
+            && wants.is_empty()
+            && requires.is_empty()
+            && binds_to.is_empty()
+            && before.is_empty()
+            && after.is_empty()
     }
 
     /*
