@@ -10,7 +10,8 @@ use color_eyre::eyre::{self, Context, OptionExt};
 use crate::{cli::compose, escape::command_join};
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
-use super::{image_to_name, ComposeService};
+
+use super::image_to_name;
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
@@ -43,10 +44,22 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl TryFrom<ComposeService> for Container {
+impl Container {
+    /// The name that should be used for the generated [`File`](crate::quadlet::File).
+    ///
+    /// It is either the set container name or taken from the image.
+    pub fn name(&self) -> &str {
+        self.quadlet_options
+            .name
+            .as_deref()
+            .unwrap_or_else(|| image_to_name(&self.image))
+    }
+}
+
+impl TryFrom<compose_spec::Service> for Container {
     type Error = color_eyre::Report;
 
-    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
+    fn try_from(mut value: compose_spec::Service) -> Result<Self, Self::Error> {
         todo!()
         /*
         let service = &value.service;
@@ -155,15 +168,6 @@ impl From<Container> for crate::quadlet::Container {
 impl From<Container> for crate::quadlet::Resource {
     fn from(value: Container) -> Self {
         crate::quadlet::Container::from(value).into()
-    }
-}
-
-impl Container {
-    pub fn name(&self) -> &str {
-        self.quadlet_options
-            .name
-            .as_deref()
-            .unwrap_or_else(|| image_to_name(&self.image))
     }
 }
 

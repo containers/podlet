@@ -16,14 +16,12 @@ mod systemd_dbus;
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
     env,
     ffi::OsStr,
     fmt::{self, Display},
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 use clap::{Parser, Subcommand};
@@ -400,16 +398,19 @@ impl Commands {
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
             Self::Compose { pod, compose_file } => {
-                let compose = compose::from_file_or_stdin(compose_file.as_deref())?;
+                let compose = compose::from_file_or_stdin(compose_file.as_deref())
+                    .wrap_err("error reading compose file")?;
 
+                eyre::ensure!(compose.include.is_empty(), "`include` is not supported");
+                eyre::ensure!(compose.configs.is_empty(), "`configs` is not supported");
                 eyre::ensure!(
                     compose.extensions.is_empty(),
-                    "extensions are not supported"
+                    "compose extensions are not supported"
                 );
 
-                todo!()
-                /*
                 if let Some(pod_name) = pod {
+                    todo!()
+                    /*
                     let (pod, persistent_volume_claims) =
                         k8s::compose_try_into_pod(compose, pod_name.clone())?;
 
@@ -433,12 +434,20 @@ impl Commands {
                             persistent_volume_claims,
                         },
                     ])
+                    */
                 } else {
+                    eyre::ensure!(
+                        compose
+                            .secrets
+                            .values()
+                            .all(compose_spec::Resource::is_external),
+                        "only external secrets are supported",
+                    );
+
                     compose::try_into_quadlet_files(compose, unit.as_ref(), install.as_ref())
                         .map(|result| result.map(Into::into))
                         .collect()
                 }
-                */
             }
             Self::Generate(command) => Ok(vec![command
                 .try_into_quadlet(name, unit, install)
@@ -503,21 +512,6 @@ enum PodmanCommands {
         #[command(subcommand)]
         image: Box<Image>,
     },
-}
-
-impl TryFrom<ComposeService> for PodmanCommands {
-    type Error = color_eyre::Report;
-
-    fn try_from(value: ComposeService) -> Result<Self, Self::Error> {
-        todo!()
-        /*
-        let service = (&value.service).try_into()?;
-        Ok(Self::Run {
-            container: Box::new(value.try_into()?),
-            service,
-        })
-        */
-    }
 }
 
 impl From<PodmanCommands> for quadlet::Resource {
@@ -709,21 +703,6 @@ impl Downgrade for File {
             Self::Quadlet(file) => file.downgrade(version),
             Self::KubePod { .. } => Ok(()),
         }
-    }
-}
-
-#[derive(Debug)]
-struct ComposeService {
-    // service: docker_compose_types::Service,
-    volume_has_options: Rc<HashMap<String, bool>>,
-}
-
-impl ComposeService {
-    fn volume_has_options(&self, volume: &str) -> bool {
-        self.volume_has_options
-            .get(volume)
-            .copied()
-            .unwrap_or_default()
     }
 }
 

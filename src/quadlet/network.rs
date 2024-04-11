@@ -101,11 +101,12 @@ impl Downgrade for Network {
     }
 }
 
-/*
-impl TryFrom<docker_compose_types::NetworkSettings> for Network {
+impl TryFrom<compose_spec::Network> for Network {
     type Error = color_eyre::Report;
 
-    fn try_from(value: docker_compose_types::NetworkSettings) -> Result<Self, Self::Error> {
+    fn try_from(value: compose_spec::Network) -> Result<Self, Self::Error> {
+        todo!()
+        /*
         let unsupported_options = [
             ("attachable", !value.attachable),
             ("internal", !value.internal),
@@ -164,9 +165,9 @@ impl TryFrom<docker_compose_types::NetworkSettings> for Network {
             label,
             ..Self::default()
         })
+        */
     }
 }
-*/
 
 impl Display for Network {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

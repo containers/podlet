@@ -1,6 +1,11 @@
 use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
+use color_eyre::{
+    eyre::{self, bail, eyre},
+    Section,
+};
+use compose_spec::service::{Condition, Dependency};
 use serde::Serialize;
 
 use crate::serde::quadlet::quote_spaces_join_space;
@@ -99,20 +104,57 @@ impl Unit {
             && after.is_empty()
     }
 
-    /*
-    pub fn add_dependencies(&mut self, depends_on: docker_compose_types::DependsOnOptions) {
-        let depends_on = match depends_on {
-            docker_compose_types::DependsOnOptions::Simple(vec) => vec,
-            docker_compose_types::DependsOnOptions::Conditional(map) => map.into_keys().collect(),
+    /// Add a compose [`Service`](compose_spec::Service) [`Dependency`] to the unit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the [`Condition`] is not [`ServiceStarted`](Condition::ServiceStarted)
+    /// or the [`Dependency`] is set to `restart` but is not `required`.
+    pub fn add_dependency(
+        &mut self,
+        name: impl Display,
+        Dependency {
+            condition,
+            restart,
+            required,
+        }: Dependency,
+    ) -> eyre::Result<()> {
+        match condition {
+            Condition::ServiceStarted => {}
+            Condition::ServiceHealthy => {
+                return Err(condition_eyre(condition, "Notify=healthy", "Container"));
+            }
+            Condition::ServiceCompletedSuccessfully => {
+                return Err(condition_eyre(condition, "Type=oneshot", "Service"));
+            }
+        }
+
+        // Which list to add the dependency to depends on whether to restart this unit and if the
+        // dependency is required.
+        let list = match (restart, required) {
+            (true, true) => &mut self.binds_to,
+            (true, false) => {
+                bail!("restarting a service for a dependency that is not required is unsupported");
+            }
+            (false, true) => &mut self.requires,
+            (false, false) => &mut self.wants,
         };
 
-        self.requires.extend(
-            depends_on
-                .into_iter()
-                .map(|dependency| dependency + ".service"),
-        );
+        let name = format!("{name}.service");
+        list.push(name.clone());
+        self.after.push(name);
+
+        Ok(())
     }
-    */
+}
+
+/// Create an [`eyre::Report`] for an unsupported compose [`Dependency`] [`Condition`].
+///
+/// Suggests using `option` in `section` instead.
+fn condition_eyre(condition: Condition, option: &str, section: &str) -> eyre::Report {
+    eyre!("dependency condition `{condition}` is not directly supported").suggestion(format!(
+        "try using `{option}` in the [{section}] section of the dependency"
+    ))
 }
 
 impl Display for Unit {

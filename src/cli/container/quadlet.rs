@@ -16,7 +16,6 @@ use color_eyre::{
 use smart_default::SmartDefault;
 
 use crate::{
-    cli::ComposeService,
     escape::command_join,
     quadlet::{
         container::{volume::Source, Device, Mount, PullPolicy, Rootfs, Volume},

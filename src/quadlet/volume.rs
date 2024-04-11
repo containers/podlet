@@ -99,11 +99,12 @@ impl Downgrade for Volume {
     }
 }
 
-/*
-impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
+impl TryFrom<compose_spec::Volume> for Volume {
     type Error = color_eyre::Report;
 
-    fn try_from(value: docker_compose_types::ComposeVolume) -> Result<Self, Self::Error> {
+    fn try_from(value: compose_spec::Volume) -> Result<Self, Self::Error> {
+        todo!()
+        /*
         let unsupported_options = [
             ("external", value.external.is_none()),
             ("name", value.name.is_none()),
@@ -141,9 +142,9 @@ impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
             label,
             ..options.into()
         })
+        */
     }
 }
-*/
 
 impl Display for Volume {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
