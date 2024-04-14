@@ -183,7 +183,7 @@ pub struct Container {
     pub notify: bool,
 
     /// Tune the container’s pids limit.
-    pub pids_limit: Option<i16>,
+    pub pids_limit: Option<Limit<u32>>,
 
     /// A list of arguments passed directly to the end of the `podman run` command
     /// in the generated file, right before the image name in the command line.
@@ -468,7 +468,7 @@ struct OptionsV4_7 {
     dns: Vec<String>,
     dns_option: Vec<String>,
     dns_search: Vec<String>,
-    pids_limit: Option<i16>,
+    pids_limit: Option<Limit<u32>>,
     shm_size: Option<String>,
     ulimit: Vec<String>,
 }

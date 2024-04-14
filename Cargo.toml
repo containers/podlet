@@ -60,7 +60,7 @@ verbose_file_reads = "warn"
 [dependencies]
 clap = { version = "4.2", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
-compose_spec = { version = "0.1.1-beta.1", git = "ssh://git@github.com/k9withabone/compose_spec_rs.git" }
+compose_spec = { version = "0.2.0-alpha.1", git = "ssh://git@github.com/k9withabone/compose_spec_rs.git", branch = "compose_spec-v0.2.0" }
 duration-str = { version = "0.7", default-features = false }
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2.7", features = ["serde"] }

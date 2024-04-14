@@ -428,8 +428,8 @@ checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
 name = "compose_spec"
-version = "0.1.1-beta.1"
-source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git#d268ea691cda807cd027e61cc3fea45110c13129"
+version = "0.2.0-alpha.1"
+source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git?branch=compose_spec-v0.2.0#5650cd69d9105e7a2f9c130ee0e92757eb207023"
 dependencies = [
  "compose_spec_macros",
  "indexmap",
@@ -444,7 +444,7 @@ dependencies = [
 [[package]]
 name = "compose_spec_macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git#d268ea691cda807cd027e61cc3fea45110c13129"
+source = "git+ssh://git@github.com/k9withabone/compose_spec_rs.git?branch=compose_spec-v0.2.0#5650cd69d9105e7a2f9c130ee0e92757eb207023"
 dependencies = [
  "proc-macro2",
  "quote",

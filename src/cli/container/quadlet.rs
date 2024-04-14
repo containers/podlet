@@ -1,27 +1,38 @@
 use std::{
-    fmt::Write,
-    mem,
-    net::{Ipv4Addr, Ipv6Addr},
+    iter,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
-    str::FromStr,
 };
 
-use clap::{ArgAction, Args, ValueEnum};
+use clap::{builder::TypedValueParser, ArgAction, Args, ValueEnum};
 use color_eyre::{
-    eyre::{self, Context, OptionExt},
+    eyre::{ensure, eyre, Context, OptionExt},
     owo_colors::OwoColorize,
     Section,
 };
-// use docker_compose_types::{AdvancedVolumes, MapOrEmpty, Volumes};
+use compose_spec::{
+    duration,
+    service::{
+        self, env_file,
+        network_config::{Network, NetworkMode},
+        ports,
+        volumes::{
+            self,
+            mount::{Common, Tmpfs, TmpfsOptions},
+            ShortVolume,
+        },
+        ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
+    },
+    Identifier, ItemOrList, ShortOrLong,
+};
 use smart_default::SmartDefault;
 
-use crate::{
-    escape::command_join,
-    quadlet::{
-        container::{volume::Source, Device, Mount, PullPolicy, Rootfs, Volume},
-        AutoUpdate,
-    },
+use crate::quadlet::{
+    container::{Device, Mount, PullPolicy, Rootfs, Volume},
+    AutoUpdate,
 };
+
+use super::compose;
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
 #[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
@@ -253,8 +264,13 @@ pub struct QuadletOptions {
     /// Tune the container’s pids limit
     ///
     /// Converts to "PidsLimit=LIMIT"
-    #[arg(long, value_name = "LIMIT")]
-    pids_limit: Option<i16>,
+    #[arg(
+        long,
+        value_name = "LIMIT",
+        allow_negative_numbers = true,
+        value_parser = pids_limit_parser()
+    )]
+    pids_limit: Option<Limit<u32>>,
 
     /// The rootfs to use for the container
     ///
@@ -413,6 +429,21 @@ impl Default for Notify {
     fn default() -> Self {
         Self::Conmon
     }
+}
+
+/// Create a [`TypedValueParser`] for parsing the `pids_limit` field of [`QuadletOptions`].
+fn pids_limit_parser() -> impl TypedValueParser<Value = Limit<u32>> {
+    clap::value_parser!(i64)
+        .range(-1..=u32::MAX.into())
+        .try_map(|pids_limit| {
+            if pids_limit == -1 {
+                Ok(Limit::Unlimited)
+            } else if let Ok(pids_limit) = pids_limit.try_into() {
+                Ok(Limit::Value(pids_limit))
+            } else {
+                Err("`--pids-limit` must be -1, or a u32")
+            }
+        })
 }
 
 impl From<QuadletOptions> for crate::quadlet::Container {
