@@ -393,6 +393,10 @@ pub struct PodmanArgs {
     #[arg(long)]
     umask: Option<String>,
 
+    /// Set the UTS namespace mode for the container
+    #[arg(long, value_name = "MODE")]
+    uts: Option<String>,
+
     /// Set variant to use instead of the default architecture variant of the container image
     #[arg(long)]
     variant: Option<String>,
