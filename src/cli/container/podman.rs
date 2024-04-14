@@ -1,13 +1,20 @@
 use std::{
     fmt::{self, Display, Formatter},
-    mem,
     ops::Not,
     path::PathBuf,
+    time::Duration,
 };
 
 use clap::{builder::TypedValueParser, ArgAction, Args};
-use color_eyre::eyre::Context;
-use compose_spec::service::{blkio_config::Weight, BlkioConfig};
+use color_eyre::{
+    eyre::{eyre, Context},
+    owo_colors::OwoColorize,
+    Section,
+};
+use compose_spec::service::{
+    blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
+    BlkioConfig, Command, Ipc,
+};
 use serde::Serialize;
 use smart_default::SmartDefault;
 
@@ -83,27 +90,27 @@ pub struct PodmanArgs {
 
     /// Limit the CPU CFS (Completely Fair Scheduler) period
     #[arg(long, value_name = "LIMIT")]
-    cpu_period: Option<usize>,
+    cpu_period: Option<u128>,
 
     /// Limit the CPU CFS (Completely Fair Scheduler) quota
     #[arg(long, value_name = "LIMIT")]
-    cpu_quota: Option<usize>,
+    cpu_quota: Option<u128>,
 
     /// Limit the CPU real-time period in microseconds
     #[arg(long, value_name = "MICROSECONDS")]
-    cpu_rt_period: Option<usize>,
+    cpu_rt_period: Option<u128>,
 
     /// Limit the CPU real-time runtime in microseconds
     #[arg(long, value_name = "MICROSECONDS")]
-    cpu_rt_runtime: Option<usize>,
+    cpu_rt_runtime: Option<u128>,
 
     /// CPU shares (relative weight)
     #[arg(short, long, value_name = "SHARES")]
-    cpu_shares: Option<u32>,
+    cpu_shares: Option<u64>,
 
     /// Number of CPUs
     #[arg(long, value_name = "NUMBER")]
-    cpus: Option<f32>,
+    cpus: Option<f64>,
 
     /// CPUs in which to allow execution
     #[arg(long, value_name = "NUMBER")]
@@ -368,7 +375,7 @@ pub struct PodmanArgs {
     ///
     /// Default is 10
     #[arg(long, value_name = "SECONDS")]
-    stop_timeout: Option<u16>,
+    stop_timeout: Option<u64>,
 
     /// Run container in systemd mode
     ///
@@ -425,80 +432,179 @@ impl Display for PodmanArgs {
 impl TryFrom<compose::PodmanArgs> for PodmanArgs {
     type Error = color_eyre::Report;
 
-    fn try_from(value: compose::PodmanArgs) -> Result<Self, Self::Error> {
-        todo!();
-        // let log_opt = log_options
-        //     .into_iter()
-        //     .map(|(key, value)| {
-        //         let mut option = String::from(key);
-        //         if let Some(value) = value {
-        //             option.push('=');
-        //             option.push_str(&String::from(value));
-        //         }
-        //         option
-        //     })
-        //     .collect();
-    }
-}
-
-/*
-impl TryFrom<docker_compose_types::Service> for PodmanArgs {
-    type Error = color_eyre::Report;
-
-    fn try_from(mut value: docker_compose_types::Service) -> Result<Self, Self::Error> {
-        (&mut value).try_into()
-    }
-}
-
-impl TryFrom<&mut docker_compose_types::Service> for PodmanArgs {
-    type Error = color_eyre::Report;
-
-    fn try_from(value: &mut docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let entrypoint = value.entrypoint.take().map(|entrypoint| match entrypoint {
-            docker_compose_types::Entrypoint::Simple(entrypoint) => entrypoint,
-            docker_compose_types::Entrypoint::List(list) => format!("{list:?}"),
-        });
-
-        let stop_timeout = value
-            .stop_grace_period
-            .take()
-            .map(|timeout| {
-                duration_str::parse(&timeout)
-                    .map(|duration| duration.as_secs().try_into().unwrap_or(u16::MAX))
-                    .wrap_err_with(|| {
-                        format!(
-                            "could not parse `stop_grace_period` value `{timeout}` as a duration"
-                        )
-                    })
-            })
-            .transpose()?;
-
-        let log_opt = value
-            .logging
-            .as_mut()
-            .and_then(|logging| logging.options.take())
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(key, value)| format!("{key}={value}"))
-            .collect();
+    fn try_from(
+        compose::PodmanArgs {
+            blkio_config,
+            cpu_shares,
+            cpu_period,
+            cpu_quota,
+            cpu_rt_runtime,
+            cpu_rt_period,
+            cpus,
+            cpuset,
+            cgroup,
+            cgroup_parent,
+            device_cgroup_rules,
+            entrypoint,
+            extra_hosts,
+            group_add,
+            ipc,
+            uts,
+            log_options,
+            mac_address,
+            mem_limit,
+            mem_reservation,
+            mem_swappiness,
+            oom_kill_disable,
+            oom_score_adj,
+            pid,
+            platform,
+            privileged,
+            stdin_open,
+            stop_grace_period,
+            stop_signal,
+            tty,
+        }: compose::PodmanArgs,
+    ) -> Result<Self, Self::Error> {
+        let BlkioConfig {
+            device_read_bps,
+            device_read_iops,
+            device_write_bps,
+            device_write_iops,
+            weight: blkio_weight,
+            weight_device: blkio_weight_device,
+        } = blkio_config.unwrap_or_default();
 
         Ok(Self {
-            privileged: value.privileged,
-            pid: value.pid.take(),
-            entrypoint,
-            group_add: mem::take(&mut value.group_add),
-            stop_signal: value.stop_signal.take(),
-            stop_timeout,
-            ipc: value.ipc.take(),
-            interactive: value.stdin_open,
-            log_opt,
-            add_host: mem::take(&mut value.extra_hosts),
-            tty: value.tty,
+            device_read_bps: device_read_bps
+                .into_iter()
+                .map(bps_limit_into_short)
+                .collect(),
+            device_read_iops: device_read_iops
+                .into_iter()
+                .map(iops_limit_into_short)
+                .collect(),
+            device_write_bps: device_write_bps
+                .into_iter()
+                .map(bps_limit_into_short)
+                .collect(),
+            device_write_iops: device_write_iops
+                .into_iter()
+                .map(iops_limit_into_short)
+                .collect(),
+            blkio_weight,
+            blkio_weight_device: blkio_weight_device
+                .into_iter()
+                .map(|WeightDevice { path, weight }| format!("{}:{weight}", path.display()))
+                .collect(),
+            cpu_shares,
+            cpu_period: cpu_period.as_ref().map(Duration::as_micros),
+            cpu_quota: cpu_quota.as_ref().map(Duration::as_micros),
+            cpu_rt_runtime: cpu_rt_runtime.as_ref().map(Duration::as_micros),
+            cpu_rt_period: cpu_rt_period.as_ref().map(Duration::as_micros),
+            cpus: cpus.map(Into::into),
+            cpuset_cpus: (!cpuset.is_empty()).then(|| cpuset.to_string()),
+            cgroupns: cgroup.as_ref().map(ToString::to_string),
+            cgroup_parent: cgroup_parent.map(Into::into),
+            device_cgroup_rule: device_cgroup_rules
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            entrypoint: entrypoint
+                .map(|entrypoint| match entrypoint {
+                    Command::String(entrypoint) => Ok(entrypoint),
+                    Command::List(entrypoint) => serde_json::to_string(&entrypoint)
+                        .wrap_err("error serializing `entrypoint` command as JSON"),
+                })
+                .transpose()?,
+            add_host: extra_hosts
+                .into_iter()
+                .map(|(host, ip)| format!("{host}:{ip}"))
+                .collect(),
+            group_add: group_add.into_iter().map(Into::into).collect(),
+            ipc: ipc
+                .map(validate_ipc)
+                .transpose()
+                .wrap_err("`ipc` invalid")?,
+            uts: uts.as_ref().map(ToString::to_string),
+            log_opt: log_options
+                .into_iter()
+                .map(|(key, value)| {
+                    let mut option = String::from(key);
+                    if let Some(value) = value {
+                        option.push('=');
+                        option.push_str(&String::from(value));
+                    }
+                    option
+                })
+                .collect(),
+            mac_address: mac_address.as_ref().map(ToString::to_string),
+            memory: mem_limit.as_ref().map(ToString::to_string),
+            memory_reservation: mem_reservation.as_ref().map(ToString::to_string),
+            memory_swappiness: mem_swappiness.map(Into::into),
+            oom_kill_disable,
+            oom_score_adj: oom_score_adj.map(Into::into),
+            pid,
+            platform: platform.as_ref().map(ToString::to_string),
+            privileged,
+            attach: stdin_open
+                .then(|| vec!["stdin".to_owned()])
+                .unwrap_or_default(),
+            stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
+            stop_signal,
+            tty,
             ..Self::default()
         })
     }
 }
-*/
+
+/// Convert a [`BpsLimit`] from a [`compose_spec::Service`]'s [`BlkioConfig`] into a [`String`]
+/// suitable for the `device_read_bps` or `device_write_bps` field of [`PodmanArgs`].
+fn bps_limit_into_short(BpsLimit { path, rate }: BpsLimit) -> String {
+    format!("{}:{rate}", path.display())
+}
+
+/// Convert a [`IopsLimit`] from a [`compose_spec::Service`]'s [`BlkioConfig`] into a [`String`]
+/// suitable for the `device_read_iops` or `device_write_iops` field of [`PodmanArgs`].
+fn iops_limit_into_short(IopsLimit { path, rate }: IopsLimit) -> String {
+    format!("{}:{rate}", path.display())
+}
+
+/// Validate a compose [`Service`](compose_spec::Service) [`Ipc`] for use in [`PodmanArgs`].
+///
+/// # Errors
+///
+/// Returns an error if the given `ipc` is not supported by `podman run --ipc`.
+fn validate_ipc(ipc: Ipc) -> color_eyre::Result<String> {
+    match ipc {
+        Ipc::Shareable => Ok("shareable".to_owned()),
+        Ipc::Service(_) => Err(eyre!("`service:` IPC namespace mode is not supported")
+            .suggestion("try using the `container:` IPC namespace mode instead")),
+        Ipc::Other(ipc) => {
+            if ipc.is_empty()
+                || ipc.starts_with("container:")
+                || ipc == "host"
+                || ipc == "none"
+                || ipc.starts_with("ns:")
+                || ipc == "private"
+                || ipc == "shareable"
+            {
+                Ok(ipc)
+            } else {
+                Err(eyre!(
+                    "`{ipc}` IPC namespace mode is not supported by podman"
+                ))
+            }
+        }
+    }
+    .with_suggestion(|| {
+        format!(
+            "see the --ipc section of the {}(1) documentation for supported values: \
+                https://docs.podman.io/en/stable/markdown/podman-run.1.html#ipc-ipc",
+            "podman-run".bold()
+        )
+    })
+}
 
 #[cfg(test)]
 mod tests {

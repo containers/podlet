@@ -649,7 +649,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .map(ulimit_try_into_short)
                 .collect::<Result<_, _>>()
                 .wrap_err("error converting `ulimits`")?,
-            user: user.as_ref().map(ToString::to_string),
+            user: user.map(Into::into),
             userns,
             volume,
             workdir,
