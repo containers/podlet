@@ -7,6 +7,15 @@ use std::{
     str::FromStr,
 };
 
+use color_eyre::eyre::ensure;
+use compose_spec::{
+    service::volumes::{
+        self,
+        mount::{self, Bind, BindOptions, Common, VolumeOptions},
+        HostPath, ShortOptions, ShortVolume,
+    },
+    Identifier,
+};
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
@@ -124,6 +133,108 @@ impl Serialize for Volume {
     }
 }
 
+impl From<ShortVolume> for Volume {
+    fn from(
+        ShortVolume {
+            container_path,
+            options,
+        }: ShortVolume,
+    ) -> Self {
+        let container_path = container_path.into_inner();
+
+        if let Some(ShortOptions {
+            source,
+            read_only,
+            selinux,
+        }) = options
+        {
+            Self {
+                source: Some(source.into()),
+                container_path,
+                options: Options {
+                    read_only,
+                    selinux_relabel: selinux.map(Into::into),
+                    ..Options::default()
+                },
+            }
+        } else {
+            Self::new(container_path)
+        }
+    }
+}
+
+impl TryFrom<mount::Volume> for Volume {
+    type Error = color_eyre::Report;
+
+    fn try_from(
+        mount::Volume {
+            source,
+            volume,
+            common:
+                Common {
+                    target,
+                    read_only,
+                    consistency,
+                    extensions,
+                },
+        }: mount::Volume,
+    ) -> Result<Self, Self::Error> {
+        ensure!(
+            consistency.is_none(),
+            "`consistency` volume option is not supported"
+        );
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
+
+        let mut options = Options::try_from(volume.unwrap_or_default())?;
+        options.read_only = read_only;
+
+        Ok(Self {
+            source: source.map(Into::into),
+            container_path: target.into_inner(),
+            options,
+        })
+    }
+}
+
+impl TryFrom<Bind> for Volume {
+    type Error = color_eyre::Report;
+
+    fn try_from(
+        Bind {
+            source,
+            bind,
+            common:
+                Common {
+                    target,
+                    read_only,
+                    consistency,
+                    extensions,
+                },
+        }: Bind,
+    ) -> Result<Self, Self::Error> {
+        ensure!(
+            consistency.is_none(),
+            "`consistency` volume option is not supported"
+        );
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
+
+        let mut options = Options::try_from(bind.unwrap_or_default())?;
+        options.read_only = read_only;
+
+        Ok(Self {
+            source: Some(source.into()),
+            container_path: target.into_inner(),
+            options,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Source of a [`Volume`].
 pub enum Source {
@@ -184,6 +295,27 @@ impl Display for Source {
             Self::NamedVolume(volume) => f.write_str(volume),
             Self::HostPath(path) => path.display().fmt(f),
         }
+    }
+}
+
+impl From<volumes::Source> for Source {
+    fn from(value: volumes::Source) -> Self {
+        match value {
+            volumes::Source::HostPath(host_path) => Self::HostPath(host_path.into_inner()),
+            volumes::Source::Volume(volume) => Self::NamedVolume(volume.into()),
+        }
+    }
+}
+
+impl From<Identifier> for Source {
+    fn from(value: Identifier) -> Self {
+        Self::NamedVolume(value.into())
+    }
+}
+
+impl From<HostPath> for Source {
+    fn from(value: HostPath) -> Self {
+        Self::HostPath(value.into_inner())
     }
 }
 
@@ -438,6 +570,60 @@ impl<'a, 'b> OptionsFormatter<'a, 'b> {
             self.formatter.write_char(',')?;
         }
         option.fmt(self.formatter)
+    }
+}
+
+impl TryFrom<VolumeOptions> for Options {
+    type Error = color_eyre::Report;
+
+    fn try_from(
+        VolumeOptions {
+            nocopy: no_copy,
+            subpath,
+            extensions,
+        }: VolumeOptions,
+    ) -> Result<Self, Self::Error> {
+        ensure!(
+            subpath.is_none(),
+            "`subpath` volume option is not supported"
+        );
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
+
+        Ok(Self {
+            no_copy,
+            ..Self::default()
+        })
+    }
+}
+
+impl TryFrom<BindOptions> for Options {
+    type Error = color_eyre::Report;
+
+    fn try_from(
+        BindOptions {
+            propagation,
+            create_host_path,
+            selinux,
+            extensions,
+        }: BindOptions,
+    ) -> Result<Self, Self::Error> {
+        ensure!(
+            !create_host_path,
+            "`create_host_path` bind mount option is not supported"
+        );
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
+
+        Ok(Self {
+            bind_propagation: propagation.map_or_else(BindPropagation::default, Into::into),
+            selinux_relabel: selinux.map(Into::into),
+            ..Self::default()
+        })
     }
 }
 

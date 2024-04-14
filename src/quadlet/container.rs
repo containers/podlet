@@ -6,12 +6,14 @@ pub mod volume;
 use std::{
     fmt::{self, Display, Formatter},
     iter,
-    net::{Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     ops::Not,
     path::PathBuf,
 };
 
 use clap::ValueEnum;
+use color_eyre::eyre::eyre;
+use compose_spec::service::{self, Limit};
 use serde::{Serialize, Serializer};
 use smart_default::SmartDefault;
 
@@ -54,7 +56,7 @@ pub struct Container {
 
     /// Set network-scoped DNS resolver/nameserver for containers in this network.
     #[serde(rename = "DNS")]
-    pub dns: Vec<String>,
+    pub dns: Vec<IpAddr>,
 
     /// Set custom DNS options.
     #[serde(rename = "DNSOption")]
@@ -108,7 +110,7 @@ pub struct Container {
     pub health_on_failure: Option<String>,
 
     /// The number of retries allowed before a healthcheck is considered to be unhealthy.
-    pub health_retries: Option<u32>,
+    pub health_retries: Option<u64>,
 
     /// The initialization time needed for a container to bootstrap.
     pub health_start_period: Option<String>,
@@ -465,7 +467,7 @@ struct OptionsV4_8 {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_7 {
-    dns: Vec<String>,
+    dns: Vec<IpAddr>,
     dns_option: Vec<String>,
     dns_search: Vec<String>,
     pids_limit: Option<Limit<u32>>,
@@ -498,7 +500,7 @@ struct OptionsV4_5 {
     ip6: Option<Ipv6Addr>,
     health_interval: Option<String>,
     health_on_failure: Option<String>,
-    health_retries: Option<u32>,
+    health_retries: Option<u64>,
     health_start_period: Option<String>,
     health_startup_cmd: Option<String>,
     health_startup_interval: Option<String>,
@@ -560,6 +562,19 @@ impl Display for PullPolicy {
 impl Serialize for PullPolicy {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(self.as_ref())
+    }
+}
+
+impl TryFrom<service::PullPolicy> for PullPolicy {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: service::PullPolicy) -> Result<Self, Self::Error> {
+        match value {
+            service::PullPolicy::Always => Ok(Self::Always),
+            service::PullPolicy::Never => Ok(Self::Never),
+            service::PullPolicy::Missing => Ok(Self::Missing),
+            service::PullPolicy::Build => Err(eyre!("image pull policy `build` is not supported")),
+        }
     }
 }
 

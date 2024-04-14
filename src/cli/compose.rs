@@ -10,7 +10,9 @@ use color_eyre::{
     eyre::{bail, eyre, OptionExt, WrapErr},
     Help,
 };
-use compose_spec::{Compose, Identifier, Network, Networks, Resource, Service, Volumes};
+use compose_spec::{
+    service::Command, Compose, Identifier, Network, Networks, Resource, Service, Volumes,
+};
 
 use crate::quadlet::{self, container::volume::Source, Globals};
 
@@ -84,8 +86,8 @@ fn from_stdin() -> color_eyre::Result<Compose> {
     serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
 }
 
-/*
-/// Converts a [`Command`] into a `Vec<String>`, splitting the `String` variant as a shell would.
+/// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
+/// as a shell would.
 ///
 /// # Errors
 ///
@@ -93,16 +95,15 @@ fn from_stdin() -> color_eyre::Result<Compose> {
 /// has a trailing unescaped '\\'.
 pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>> {
     match command {
-        Command::Simple(s) => shlex::split(&s)
-            .ok_or_else(|| eyre::eyre!("invalid command: `{s}`"))
+        Command::String(command) => shlex::split(&command)
+            .ok_or_else(|| eyre!("invalid command: `{command}`"))
             .suggestion(
                 "In the command, make sure quotes are closed properly and there are no \
-                trailing \\. Alternatively, use an array instead of a string.",
+                    trailing \\. Alternatively, use an array instead of a string.",
             ),
-        Command::Args(args) => Ok(args),
+        Command::List(command) => Ok(command),
     }
 }
-*/
 
 /// Attempt to convert a [`Compose`] file into an [`Iterator`] of [`quadlet::File`]s.
 ///

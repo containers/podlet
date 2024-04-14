@@ -12,6 +12,8 @@ use smart_default::SmartDefault;
 
 use crate::serde::skip_true;
 
+use super::compose;
+
 #[allow(clippy::struct_excessive_bools, clippy::module_name_repetitions)]
 #[derive(Args, Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -403,6 +405,25 @@ impl Display for PodmanArgs {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;
         f.write_str(&args)
+    }
+}
+
+impl TryFrom<compose::PodmanArgs> for PodmanArgs {
+    type Error = color_eyre::Report;
+
+    fn try_from(value: compose::PodmanArgs) -> Result<Self, Self::Error> {
+        todo!();
+        // let log_opt = log_options
+        //     .into_iter()
+        //     .map(|(key, value)| {
+        //         let mut option = String::from(key);
+        //         if let Some(value) = value {
+        //             option.push('=');
+        //             option.push_str(&String::from(value));
+        //         }
+        //         option
+        //     })
+        //     .collect();
     }
 }
 

@@ -11,6 +11,7 @@ use std::{
     str::FromStr,
 };
 
+use compose_spec::service::volumes::{mount, SELinux};
 use serde::{
     de::{
         self,
@@ -265,6 +266,21 @@ impl Display for BindPropagation {
     }
 }
 
+impl From<mount::BindPropagation> for BindPropagation {
+    fn from(value: mount::BindPropagation) -> Self {
+        match value {
+            mount::BindPropagation::Private => Self::Private,
+            mount::BindPropagation::Shared => Self::Shared,
+            mount::BindPropagation::Slave => Self::Slave,
+            mount::BindPropagation::Unbindable => Self::Unbindable,
+            mount::BindPropagation::RPrivate => Self::RPrivate,
+            mount::BindPropagation::RShared => Self::RShared,
+            mount::BindPropagation::RSlave => Self::RSlave,
+            mount::BindPropagation::RUnbindable => Self::RUnbindable,
+        }
+    }
+}
+
 /// SELinux relabeling.
 #[allow(clippy::doc_markdown)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -279,6 +295,15 @@ impl From<SELinuxRelabel> for char {
         match value {
             SELinuxRelabel::Shared => 'z',
             SELinuxRelabel::Private => 'Z',
+        }
+    }
+}
+
+impl From<SELinux> for SELinuxRelabel {
+    fn from(value: SELinux) -> Self {
+        match value {
+            SELinux::Shared => Self::Shared,
+            SELinux::Private => Self::Private,
         }
     }
 }

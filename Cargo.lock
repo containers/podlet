@@ -1015,6 +1015,7 @@ dependencies = [
  "nix",
  "path-clean",
  "serde",
+ "serde_json",
  "serde_yaml",
  "shlex",
  "smart-default",
