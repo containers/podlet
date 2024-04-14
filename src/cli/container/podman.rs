@@ -5,8 +5,9 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{ArgAction, Args};
+use clap::{builder::TypedValueParser, ArgAction, Args};
 use color_eyre::eyre::Context;
+use compose_spec::service::{blkio_config::Weight, BlkioConfig};
 use serde::Serialize;
 use smart_default::SmartDefault;
 
@@ -41,8 +42,8 @@ pub struct PodmanArgs {
     authfile: Option<PathBuf>,
 
     /// Block IO relative weight, between 10 and 1000
-    #[arg(long, value_name = "WEIGHT")]
-    blkio_weight: Option<u16>,
+    #[arg(long, value_name = "WEIGHT", value_parser = blkio_weight_parser())]
+    blkio_weight: Option<Weight>,
 
     /// Block IO relative device weight
     #[arg(long, value_name = "DEVICE:WEIGHT")]
@@ -399,6 +400,13 @@ pub struct PodmanArgs {
     /// Can be specified multiple times
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
+}
+
+/// Create a [`TypedValueParser`] for parsing the `blkio_weight` field of [`PodmanArgs`].
+fn blkio_weight_parser() -> impl TypedValueParser<Value = Weight> {
+    clap::value_parser!(u16)
+        .range(10..=1000)
+        .try_map(TryInto::try_into)
 }
 
 impl Display for PodmanArgs {
