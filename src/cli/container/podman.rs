@@ -46,8 +46,10 @@ pub struct PodmanArgs {
     blkio_weight: Option<Weight>,
 
     /// Block IO relative device weight
+    ///
+    /// Can be specified multiple times
     #[arg(long, value_name = "DEVICE:WEIGHT")]
-    blkio_weight_device: Option<String>,
+    blkio_weight_device: Vec<String>,
 
     /// Specify the cgroup file to write to and its value
     ///
