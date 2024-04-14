@@ -14,7 +14,7 @@ use compose_spec::{Compose, Identifier, Network, Networks, Resource, Service, Vo
 
 use crate::quadlet::{self, container::volume::Source, Globals};
 
-use super::{Container, Unit};
+use super::{Container, GlobalArgs, Unit};
 
 /// Deserialize [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
 ///
@@ -183,6 +183,8 @@ fn service_try_into_quadlet_file(
         }
     }
 
+    let global_args = GlobalArgs::from_compose(&mut service);
+
     let restart = service.restart;
 
     let mut container = Container::try_from(service)
@@ -208,7 +210,7 @@ fn service_try_into_quadlet_file(
         name: name.into(),
         unit,
         resource: container.into(),
-        globals: Globals::default(),
+        globals: global_args.into(),
         service: restart.map(Into::into),
         install,
     })

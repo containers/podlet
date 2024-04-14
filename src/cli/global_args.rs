@@ -1,4 +1,4 @@
-use std::{ops::Not, path::PathBuf};
+use std::{mem, ops::Not, path::PathBuf};
 
 use clap::{Args, ValueEnum};
 use serde::Serialize;
@@ -146,6 +146,29 @@ pub struct GlobalArgs {
     /// Volume directory where builtin volume information is stored
     #[arg(long, global = true, value_name = "VALUE")]
     volumepath: Option<PathBuf>,
+}
+
+impl GlobalArgs {
+    /// Consruct [`GlobalArgs`] by taking fields from a [`compose_spec::Service`].
+    ///
+    /// Takes the `runtime` and `storage_opt` fields.
+    pub fn from_compose(service: &mut compose_spec::Service) -> Self {
+        Self {
+            runtime: service.runtime.take().map(Into::into),
+            storage_opt: mem::take(&mut service.storage_opt)
+                .into_iter()
+                .map(|(key, value)| {
+                    let mut opt = String::from(key);
+                    opt.push('=');
+                    if let Some(value) = value {
+                        opt.push_str(&String::from(value));
+                    }
+                    opt
+                })
+                .collect(),
+            ..Self::default()
+        }
+    }
 }
 
 impl From<GlobalArgs> for Globals {
