@@ -26,7 +26,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
-    eyre::{self, Context},
+    eyre::{self, Context, OptionExt},
     Help,
 };
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
@@ -352,7 +352,7 @@ enum Commands {
         ///
         /// A `.kube` file using the generated Kubernetes YAML file will also be created.
         #[arg(long)]
-        pod: Option<String>,
+        kube: bool,
 
         /// The compose file to convert
         ///
@@ -397,8 +397,8 @@ impl Commands {
             } => Ok(vec![command
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
-            Self::Compose { pod, compose_file } => {
-                let compose = compose::from_file_or_stdin(compose_file.as_deref())
+            Self::Compose { kube, compose_file } => {
+                let mut compose = compose::from_file_or_stdin(compose_file.as_deref())
                     .wrap_err("error reading compose file")?;
 
                 eyre::ensure!(compose.include.is_empty(), "`include` is not supported");
@@ -408,7 +408,12 @@ impl Commands {
                     "compose extensions are not supported"
                 );
 
-                if let Some(pod_name) = pod {
+                if kube {
+                    let name = compose
+                        .name
+                        .take()
+                        .ok_or_eyre("`name` is required when creating Kubernetes YAML")?;
+                    let pod_name = String::from(name);
                     todo!()
                     /*
                     let (pod, persistent_volume_claims) =
