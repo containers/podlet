@@ -1,4 +1,4 @@
-pub mod opt;
+mod opt;
 
 use clap::{Args, Subcommand};
 
