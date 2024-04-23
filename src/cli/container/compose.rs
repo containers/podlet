@@ -1,14 +1,14 @@
 //! Types for splitting up a [`compose_spec::Service`] into parts and constructing a
 //! [`Container`](super::Container).
 
-use std::{net::IpAddr, path::PathBuf, time::Duration};
+use std::{net::IpAddr, time::Duration};
 
 use color_eyre::eyre::ensure;
 use compose_spec::{
     service::{
-        build::Context, device::CgroupRule, BlkioConfig, Build, ByteValue, Cgroup, Command,
-        ConfigOrSecret, CpuSet, Cpus, CredentialSpec, Deploy, Develop, Device, EnvFile, Expose,
-        Extends, Healthcheck, Hostname, Image, Ipc, Limit, Link, Logging, MacAddress,
+        build::Context, device::CgroupRule, AbsolutePath, BlkioConfig, Build, ByteValue, Cgroup,
+        Command, ConfigOrSecret, CpuSet, Cpus, CredentialSpec, Deploy, Develop, Device, EnvFile,
+        Expose, Extends, Healthcheck, Hostname, Image, Ipc, Limit, Link, Logging, MacAddress,
         NetworkConfig, OomScoreAdj, Percent, Platform, Ports, PullPolicy, Ulimits, UserOrGroup,
         Uts, Volumes, VolumesFrom,
     },
@@ -331,12 +331,12 @@ pub struct Quadlet {
     pub secrets: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
     pub shm_size: Option<ByteValue>,
     pub sysctls: ListOrMap,
-    pub tmpfs: Option<ItemOrList<PathBuf>>,
+    pub tmpfs: Option<ItemOrList<AbsolutePath>>,
     pub ulimits: Ulimits,
     pub user: Option<UserOrGroup>,
     pub userns_mode: Option<String>,
     pub volumes: Volumes,
-    pub working_dir: Option<PathBuf>,
+    pub working_dir: Option<AbsolutePath>,
 }
 
 /// Fields taken from a [`compose_spec::Service`] for constructing a [`super::PodmanArgs`].

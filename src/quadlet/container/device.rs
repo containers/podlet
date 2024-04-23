@@ -180,7 +180,7 @@ impl From<service::Device> for Device {
     ) -> Self {
         Self {
             host,
-            container: Some(container),
+            container: Some(container.into_inner()),
             read,
             write,
             mknod,

@@ -7,7 +7,7 @@ use std::{
 };
 
 use color_eyre::{
-    eyre::{bail, eyre, OptionExt, WrapErr},
+    eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
 };
 use compose_spec::{
@@ -109,18 +109,40 @@ pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>>
 ///
 /// # Errors
 ///
+/// Returns an error if the [`Compose`] file has fields set that are not supported by quadlet.
+///
 /// The [`Iterator`] returns an [`Err`] if a [`Service`], [`Network`], or
 /// [`Volume`](compose_spec::Volume) could not be converted into a [`quadlet::File`].
 pub fn try_into_quadlet_files<'a>(
-    compose: Compose,
+    Compose {
+        version: _,
+        name: _,
+        include,
+        services,
+        networks,
+        volumes,
+        configs,
+        secrets,
+        extensions,
+    }: Compose,
     unit: Option<&'a Unit>,
     install: Option<&'a quadlet::Install>,
-) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+) -> color_eyre::Result<impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a> {
+    ensure!(include.is_empty(), "`include` is not supported");
+    ensure!(configs.is_empty(), "`configs` is not supported");
+    ensure!(
+        secrets.values().all(compose_spec::Resource::is_external),
+        "only external `secrets` are supported",
+    );
+    ensure!(
+        extensions.is_empty(),
+        "compose extensions are not supported"
+    );
+
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a quadlet file. Extra volume options must be specified in a
     // separate quadlet file which is referenced from the container quadlet file.
-    let volume_has_options = compose
-        .volumes
+    let volume_has_options = volumes
         .iter()
         .map(|(name, volume)| {
             let has_options = volume
@@ -131,8 +153,7 @@ pub fn try_into_quadlet_files<'a>(
         })
         .collect();
 
-    compose
-        .services
+    Ok(services
         .into_iter()
         .map(move |(name, service)| {
             service_try_into_quadlet_file(
@@ -143,16 +164,8 @@ pub fn try_into_quadlet_files<'a>(
                 &volume_has_options,
             )
         })
-        .chain(networks_try_into_quadlet_files(
-            compose.networks,
-            unit,
-            install,
-        ))
-        .chain(volumes_try_into_quadlet_files(
-            compose.volumes,
-            unit,
-            install,
-        ))
+        .chain(networks_try_into_quadlet_files(networks, unit, install))
+        .chain(volumes_try_into_quadlet_files(volumes, unit, install)))
 }
 
 /// Attempt to convert a compose [`Service`] into a [`quadlet::File`].

@@ -495,7 +495,9 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             blkio_weight,
             blkio_weight_device: blkio_weight_device
                 .into_iter()
-                .map(|WeightDevice { path, weight }| format!("{}:{weight}", path.display()))
+                .map(|WeightDevice { path, weight }| {
+                    format!("{}:{weight}", path.as_path().display())
+                })
                 .collect(),
             cpu_shares,
             cpu_period: cpu_period.as_ref().map(Duration::as_micros),
@@ -561,13 +563,13 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
 /// Convert a [`BpsLimit`] from a [`compose_spec::Service`]'s [`BlkioConfig`] into a [`String`]
 /// suitable for the `device_read_bps` or `device_write_bps` field of [`PodmanArgs`].
 fn bps_limit_into_short(BpsLimit { path, rate }: BpsLimit) -> String {
-    format!("{}:{rate}", path.display())
+    format!("{}:{rate}", path.as_path().display())
 }
 
 /// Convert a [`IopsLimit`] from a [`compose_spec::Service`]'s [`BlkioConfig`] into a [`String`]
 /// suitable for the `device_read_iops` or `device_write_iops` field of [`PodmanArgs`].
 fn iops_limit_into_short(IopsLimit { path, rate }: IopsLimit) -> String {
-    format!("{}:{rate}", path.display())
+    format!("{}:{rate}", path.as_path().display())
 }
 
 /// Validate a compose [`Service`](compose_spec::Service) [`Ipc`] for use in [`PodmanArgs`].

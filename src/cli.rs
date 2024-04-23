@@ -26,10 +26,9 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
-    eyre::{self, Context, OptionExt},
+    eyre::{ensure, eyre, WrapErr},
     Help,
 };
-use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 use path_clean::PathClean;
 
 use crate::quadlet::{self, Downgrade, DowngradeError, Globals, HostPaths, PodmanVersion};
@@ -141,13 +140,13 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn print_or_write_files(self) -> eyre::Result<()> {
+    pub fn print_or_write_files(self) -> color_eyre::Result<()> {
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
             if matches!(path, FilePath::Full(..))
                 && matches!(self.command, Commands::Compose { .. })
             {
-                return Err(eyre::eyre!(
+                return Err(eyre!(
                     "A file path was provided to `--file` and the `compose` command was used"
                 )
                 .suggestion(
@@ -165,7 +164,7 @@ impl Cli {
             #[cfg(unix)]
             if services_check {
                 check_existing(
-                    files.iter().filter_map(File::quadlet_file),
+                    files.iter().filter_map(File::as_quadlet_file),
                     &path,
                     overwrite,
                 )?;
@@ -189,7 +188,7 @@ impl Cli {
     }
 
     /// Returns the file path for the generated file
-    fn file_path(&self) -> eyre::Result<FilePath> {
+    fn file_path(&self) -> color_eyre::Result<FilePath> {
         let path = if self.unit_directory {
             #[cfg(unix)]
             if nix::unistd::Uid::current().is_root() {
@@ -239,7 +238,7 @@ impl Cli {
             .take()
             .map(|path| {
                 if let Some(path) = path {
-                    eyre::ensure!(
+                    ensure!(
                         path.is_absolute(),
                         "path `{}` is not absolute",
                         path.display()
@@ -398,32 +397,18 @@ impl Commands {
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
             Self::Compose { kube, compose_file } => {
-                let mut compose = compose::from_file_or_stdin(compose_file.as_deref())
+                let compose = compose::from_file_or_stdin(compose_file.as_deref())
                     .wrap_err("error reading compose file")?;
 
-                eyre::ensure!(compose.include.is_empty(), "`include` is not supported");
-                eyre::ensure!(compose.configs.is_empty(), "`configs` is not supported");
-                eyre::ensure!(
-                    compose.extensions.is_empty(),
-                    "compose extensions are not supported"
-                );
-
                 if kube {
-                    let name = compose
-                        .name
-                        .take()
-                        .ok_or_eyre("`name` is required when creating Kubernetes YAML")?;
-                    let pod_name = String::from(name);
-                    todo!()
-                    /*
-                    let (pod, persistent_volume_claims) =
-                        k8s::compose_try_into_pod(compose, pod_name.clone())?;
+                    let mut k8s_file = k8s::File::try_from(compose)
+                        .wrap_err("error converting compose file into Kubernetes YAML")?;
 
-                    let kube_file_name = format!("{pod_name}-kube");
-                    let kube = quadlet::Kube::new(format!("{kube_file_name}.yaml").into());
-
+                    let kube = quadlet::Kube::new(
+                        PathBuf::from(format!("{}-kube.yaml", k8s_file.name)).into(),
+                    );
                     let quadlet_file = quadlet::File {
-                        name: pod_name,
+                        name: k8s_file.name.clone(),
                         unit,
                         resource: kube.into(),
                         globals: Globals::default(),
@@ -431,27 +416,12 @@ impl Commands {
                         install,
                     };
 
-                    Ok(vec![
-                        quadlet_file.into(),
-                        File::KubePod {
-                            name: kube_file_name,
-                            pod,
-                            persistent_volume_claims,
-                        },
-                    ])
-                    */
+                    k8s_file.name.push_str("-kube");
+                    Ok(vec![quadlet_file.into(), k8s_file.into()])
                 } else {
-                    eyre::ensure!(
-                        compose
-                            .secrets
-                            .values()
-                            .all(compose_spec::Resource::is_external),
-                        "only external secrets are supported",
-                    );
-
                     compose::try_into_quadlet_files(compose, unit.as_ref(), install.as_ref())
-                        .map(|result| result.map(Into::into))
-                        .collect()
+                        .and_then(|files| files.map(|file| file.map(Into::into)).collect())
+                        .wrap_err("error converting compose file into quadlet files")
                 }
             }
             Self::Generate(command) => Ok(vec![command
@@ -574,11 +544,7 @@ impl PodmanCommands {
 #[allow(clippy::large_enum_variant)] // false positive, [Pod] is not zero-sized
 enum File {
     Quadlet(quadlet::File),
-    KubePod {
-        name: String,
-        pod: Pod,
-        persistent_volume_claims: Vec<PersistentVolumeClaim>,
-    },
+    Kubernetes(k8s::File),
 }
 
 impl From<quadlet::File> for File {
@@ -587,21 +553,17 @@ impl From<quadlet::File> for File {
     }
 }
 
+impl From<k8s::File> for File {
+    fn from(value: k8s::File) -> Self {
+        Self::Kubernetes(value)
+    }
+}
+
 impl Display for File {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Quadlet(file) => file.fmt(f),
-            Self::KubePod {
-                name: _,
-                pod,
-                persistent_volume_claims,
-            } => {
-                for volume in persistent_volume_claims {
-                    f.write_str(&serde_yaml::to_string(volume).map_err(|_| fmt::Error)?)?;
-                    writeln!(f, "---")?;
-                }
-                f.write_str(&serde_yaml::to_string(pod).map_err(|_| fmt::Error)?)
-            }
+            Self::Kubernetes(file) => file.fmt(f),
         }
     }
 }
@@ -610,30 +572,30 @@ impl File {
     fn name(&self) -> &str {
         match self {
             Self::Quadlet(file) => &file.name,
-            Self::KubePod { name, .. } => name,
+            Self::Kubernetes(file) => &file.name,
         }
     }
 
     fn extension(&self) -> &str {
         match self {
             Self::Quadlet(file) => file.resource.extension(),
-            Self::KubePod { .. } => "yaml",
+            Self::Kubernetes(_) => "yaml",
         }
     }
 
     /// Returns [`Some`] if a [`File::Quadlet`].
-    fn quadlet_file(&self) -> Option<&quadlet::File> {
+    fn as_quadlet_file(&self) -> Option<&quadlet::File> {
         match self {
             Self::Quadlet(file) => Some(file),
-            Self::KubePod { .. } => None,
+            Self::Kubernetes(_) => None,
         }
     }
 
     /// Returns [`Some`] if a [`File::Quadlet`].
-    fn quadlet_file_mut(&mut self) -> Option<&mut quadlet::File> {
+    fn as_quadlet_file_mut(&mut self) -> Option<&mut quadlet::File> {
         match self {
             Self::Quadlet(file) => Some(file),
-            Self::KubePod { .. } => None,
+            Self::Kubernetes(_) => None,
         }
     }
 
@@ -681,7 +643,7 @@ fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::
             let path = path.as_ref().display();
             match error.kind() {
                 io::ErrorKind::AlreadyExists => {
-                    eyre::eyre!("File already exists, not overwriting it: {path}")
+                    eyre!("File already exists, not overwriting it: {path}")
                         .suggestion("Use `--overwrite` if you wish overwrite existing files.")
                 }
                 _ => color_eyre::Report::new(error)
@@ -696,7 +658,7 @@ fn open_file(path: impl AsRef<Path>, overwrite: bool) -> color_eyre::Result<fs::
 
 impl HostPaths for File {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.quadlet_file_mut()
+        self.as_quadlet_file_mut()
             .into_iter()
             .flat_map(quadlet::File::host_paths)
     }
@@ -706,7 +668,7 @@ impl Downgrade for File {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         match self {
             Self::Quadlet(file) => file.downgrade(version),
-            Self::KubePod { .. } => Ok(()),
+            Self::Kubernetes(_) => Ok(()),
         }
     }
 }
@@ -726,7 +688,7 @@ fn check_existing<'a>(
     quadlet_files: impl IntoIterator<Item = &'a quadlet::File>,
     path: &FilePath,
     overwrite: bool,
-) -> eyre::Result<()> {
+) -> color_eyre::Result<()> {
     if let Ok(unit_files) = systemd_dbus::unit_files().map(Iterator::collect::<Vec<_>>) {
         let file_names: Vec<_> = quadlet_files
             .into_iter()
@@ -741,7 +703,7 @@ fn check_existing<'a>(
         for systemd_dbus::UnitFile { file_name, status } in unit_files {
             for (name, service) in &file_names {
                 if !(overwrite && status == "generated") && file_name.contains(service) {
-                    return Err(eyre::eyre!(
+                    return Err(eyre!(
                         "File name `{name}` conflicts with existing unit file: {file_name}"
                     )
                     .suggestion(

@@ -554,7 +554,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             user,
             userns_mode: userns,
             volumes,
-            working_dir: workdir,
+            working_dir,
         }: compose::Quadlet,
     ) -> Result<Self, Self::Error> {
         let Healthcheck {
@@ -572,7 +572,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
         let mut tmpfs = tmpfs
             .into_iter()
             .flat_map(ItemOrList::into_list)
-            .map(|tmpfs| tmpfs.display().to_string())
+            .map(|tmpfs| tmpfs.as_path().display().to_string())
             .collect();
 
         let volume = volumes
@@ -652,7 +652,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             user: user.map(Into::into),
             userns,
             volume,
-            workdir,
+            workdir: working_dir.map(Into::into),
             ..Self::default()
         })
     }
