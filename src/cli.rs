@@ -349,7 +349,10 @@ enum Commands {
     Compose {
         /// Create a Kubernetes YAML file for a pod instead of separate containers
         ///
-        /// A `.kube` file using the generated Kubernetes YAML file will also be created.
+        /// A `.kube` file using the generated Kubernetes YAML file is also created.
+        ///
+        /// The top-level `name` field in the compose file is required when using this option.
+        /// It is used for the name of the pod and in the filenames of the created files.
         #[arg(long)]
         kube: bool,
 
