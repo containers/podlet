@@ -342,35 +342,8 @@ Podlet is not (yet) a validator for podman commands. Some podman options are inc
 
 ## Contribution
 
-Contributions, suggestions, and/or comments are appreciated! Feel free to create an [issue](https://github.com/containers/podlet/issues), [discussion](https://github.com/containers/podlet/discussions), or [pull request](https://github.com/containers/podlet/pulls).
-
-### Building
-
-Podlet is a normal Rust project, so once [Rust is installed](https://www.rust-lang.org/tools/install), the source code can be cloned and built with:
-
-```shell
-git clone git@github.com:containers/podlet.git
-cd podlet
-cargo build
-```
-
-Release builds are created with the `dist` profile:
-
-```shell
-cargo build --profile dist
-```
-
-### Local CI
-
-If you are submitting code changes in a pull request and would like to run the CI jobs locally, you can run the following commands:
-
-- format: `cargo fmt --check`
-- clippy: `cargo clippy`
-- test: `cargo test`
-- build-container:
-    - Ensure the container builds for both x86 and ARM platforms.
-    - `podman build --platform linux/amd64 -t podlet .`
-    - `podman build --platform linux/arm64/v8 -t podlet .`
+Contributions, suggestions, and/or comments are appreciated!
+See the [contribution guide](./CONTRIBUTING.md) for more information.
 
 ## License
 
