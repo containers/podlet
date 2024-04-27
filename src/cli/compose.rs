@@ -1,34 +1,45 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{self, IsTerminal},
-    iter, mem,
+    mem,
     path::Path,
-    rc::Rc,
 };
 
 use color_eyre::{
-    eyre::{self, OptionExt, WrapErr},
+    eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
 };
-use docker_compose_types::{Command, Compose, ComposeNetworks, MapOrEmpty};
+use compose_spec::{
+    service::Command, Compose, Identifier, Network, Networks, Resource, Service, Volumes,
+};
 
-use crate::quadlet::{self, Globals};
+use crate::quadlet::{self, container::volume::Source, Globals};
 
-use super::{image_to_name, unit::Unit, ComposeService, PodmanCommands};
+use super::{Container, GlobalArgs, Unit};
 
-/// Read a [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
+/// Deserialize [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
 ///
-/// If the path is '-', or stdin is not a terminal, the [`Compose`] is read from stdin.
+/// If the path is '-', or stdin is not a terminal, the [`Compose`] is deserialized from stdin.
 /// If a path is not provided, the files `compose.yaml`, `compose.yml`, `docker-compose.yaml`,
 /// and `docker-compose.yml` are, in order, looked for in the current directory.
+///
+/// # Errors
+///
+/// Returns an error if:
+///
+/// - There was an error opening the given file.
+/// - Stdin was selected and stdin is a terminal.
+/// - No path was given and none of the default files could be opened.
+/// - There was an error deserializing [`Compose`].
 pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
     let (compose_file, path) = if let Some(path) = path {
         if path.as_os_str() == "-" {
             return from_stdin();
         }
         let compose_file = File::open(path)
-            .wrap_err("Could not open provided compose file")
-            .suggestion("Make sure you have the proper permissions for the given file.")?;
+            .wrap_err("could not open provided compose file")
+            .suggestion("make sure you have the proper permissions for the given file")?;
         (compose_file, path)
     } else {
         const FILE_NAMES: [&str; 4] = [
@@ -51,7 +62,7 @@ pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
         }
 
         result.ok_or_eyre(
-            "A compose file was not provided and none of \
+            "a compose file was not provided and none of \
                 `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
                 exist in the current directory or could not be read",
         )?
@@ -61,17 +72,22 @@ pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
         .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
 }
 
-/// Read a [`Compose`] from stdin.
+/// Deserialize [`Compose`] from stdin.
+///
+/// # Errors
+///
+/// Returns an error if stdin is a terminal or there was an error deserializing [`Compose`].
 fn from_stdin() -> color_eyre::Result<Compose> {
     let stdin = io::stdin();
     if stdin.is_terminal() {
-        eyre::bail!("cannot read compose from stdin, stdin is a terminal");
+        bail!("cannot read compose from stdin, stdin is a terminal");
     }
 
     serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
 }
 
-/// Converts a [`Command`] into a `Vec<String>`, splitting the `String` variant as a shell would.
+/// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
+/// as a shell would.
 ///
 /// # Errors
 ///
@@ -79,126 +95,166 @@ fn from_stdin() -> color_eyre::Result<Compose> {
 /// has a trailing unescaped '\\'.
 pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>> {
     match command {
-        Command::Simple(s) => shlex::split(&s)
-            .ok_or_else(|| eyre::eyre!("invalid command: `{s}`"))
+        Command::String(command) => shlex::split(&command)
+            .ok_or_else(|| eyre!("invalid command: `{command}`"))
             .suggestion(
                 "In the command, make sure quotes are closed properly and there are no \
-                trailing \\. Alternatively, use an array instead of a string.",
+                    trailing \\. Alternatively, use an array instead of a string.",
             ),
-        Command::Args(args) => Ok(args),
+        Command::List(command) => Ok(command),
     }
 }
 
-/// Attempt to convert a [`Compose`] into an iterator of [`quadlet::File`].
+/// Attempt to convert a [`Compose`] file into an [`Iterator`] of [`quadlet::File`]s.
+///
+/// # Errors
+///
+/// Returns an error if the [`Compose`] file has fields set that are not supported by quadlet.
+///
+/// The [`Iterator`] returns an [`Err`] if a [`Service`], [`Network`], or
+/// [`Volume`](compose_spec::Volume) could not be converted into a [`quadlet::File`].
 pub fn try_into_quadlet_files<'a>(
-    mut compose: Compose,
+    Compose {
+        version: _,
+        name: _,
+        include,
+        services,
+        networks,
+        volumes,
+        configs,
+        secrets,
+        extensions,
+    }: Compose,
     unit: Option<&'a Unit>,
     install: Option<&'a quadlet::Install>,
-) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+) -> color_eyre::Result<impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a> {
+    ensure!(include.is_empty(), "`include` is not supported");
+    ensure!(configs.is_empty(), "`configs` is not supported");
+    ensure!(
+        secrets.values().all(compose_spec::Resource::is_external),
+        "only external `secrets` are supported",
+    );
+    ensure!(
+        extensions.is_empty(),
+        "compose extensions are not supported"
+    );
+
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a quadlet file. Extra volume options must be specified in a
     // separate quadlet file which is referenced from the container quadlet file.
-    let volume_has_options = compose
-        .volumes
-        .0
+    let volume_has_options = volumes
         .iter()
-        .map(|(name, volume)| (name.clone(), matches!(volume, MapOrEmpty::Map(_))))
+        .map(|(name, volume)| {
+            let has_options = volume
+                .as_ref()
+                .and_then(Resource::as_compose)
+                .is_some_and(|volume| !volume.is_empty());
+            (name.clone(), has_options)
+        })
         .collect();
 
-    services(&mut compose)
-        .zip(iter::repeat(Rc::new(volume_has_options)))
-        .map(move |(result, volume_has_options)| {
-            let (name, service) = result?;
+    Ok(services
+        .into_iter()
+        .map(move |(name, service)| {
             service_try_into_quadlet_file(
-                ComposeService {
-                    service,
-                    volume_has_options,
-                },
+                service,
                 name,
                 unit.cloned(),
                 install.cloned(),
+                &volume_has_options,
             )
         })
-        .chain(networks_try_into_quadlet_files(
-            compose.networks,
-            unit,
-            install,
-        ))
-        .chain(volumes_try_into_quadlet_files(
-            compose.volumes,
-            unit,
-            install,
-        ))
+        .chain(networks_try_into_quadlet_files(networks, unit, install))
+        .chain(volumes_try_into_quadlet_files(volumes, unit, install)))
 }
 
-/// Extract an iterator of [`docker_compose_types::Service`] from a [`Compose`]
-pub fn services(
-    compose: &mut Compose,
-) -> impl Iterator<Item = color_eyre::Result<(String, docker_compose_types::Service)>> {
-    mem::take(&mut compose.services.0)
-        .into_iter()
-        .map(|(name, service)| {
-            let service_name = name.clone();
-            service.map(|service| (name, service)).ok_or_else(|| {
-                eyre::eyre!(
-                    "Service `{service_name}` does not have any corresponding options; \
-                        minimally, `image` is required"
-                )
-            })
-        })
-        .chain(
-            compose
-                .service
-                .take()
-                .map(|service| Ok((String::from(image_to_name(service.image())), service))),
-        )
-}
-
-/// Attempt to convert a [`ComposeService`] into a [`quadlet::File`].
+/// Attempt to convert a compose [`Service`] into a [`quadlet::File`].
+///
+/// `volume_has_options` should be a map from volume [`Identifier`]s to whether the volume has any
+/// options set. It is used to determine whether to link to a [`quadlet::Volume`] in the created
+/// [`quadlet::Container`].
+///
+/// # Errors
+///
+/// Returns an error if there was an error [adding](Unit::add_dependency()) a service
+/// [`Dependency`](compose_spec::service::Dependency) to the [`Unit`] or converting the [`Service`]
+/// into a [`quadlet::Container`].
 fn service_try_into_quadlet_file(
-    mut service: ComposeService,
-    name: String,
+    mut service: Service,
+    name: Identifier,
     mut unit: Option<Unit>,
     install: Option<quadlet::Install>,
+    volume_has_options: &HashMap<Identifier, bool>,
 ) -> color_eyre::Result<quadlet::File> {
-    // Add any service dependencies the [Unit] section of the quadlet file.
-    let depends_on = &mut service.service.depends_on;
-    if !depends_on.is_empty() {
-        unit.get_or_insert(Unit::default())
-            .add_dependencies(mem::take(depends_on));
+    // Add any service dependencies to the [Unit] section of the quadlet file.
+    let dependencies = mem::take(&mut service.depends_on).into_long();
+    if !dependencies.is_empty() {
+        let unit = unit.get_or_insert_with(Unit::default);
+        for (ident, dependency) in dependencies {
+            unit.add_dependency(&ident, dependency).wrap_err_with(|| {
+                format!("error adding dependency on `{ident}` to service `{name}`")
+            })?;
+        }
     }
 
-    let command = PodmanCommands::try_from(service)
-        .wrap_err_with(|| format!("Could not parse service `{name}` as a valid podman command"))?;
+    let global_args = GlobalArgs::from_compose(&mut service);
 
-    let service = command.service().cloned();
+    let restart = service.restart;
+
+    let mut container = Container::try_from(service)
+        .map(quadlet::Container::from)
+        .wrap_err_with(|| format!("error converting service `{name}` into a quadlet container"))?;
+
+    // For each named volume, check to see if it has any options set.
+    // If it does, add `.volume` to the source to link this `.container` file to the generated
+    // `.volume` file.
+    for volume in &mut container.volume {
+        if let Some(Source::NamedVolume(source)) = &mut volume.source {
+            let volume_has_options = volume_has_options
+                .get(source.as_str())
+                .copied()
+                .unwrap_or_default();
+            if volume_has_options {
+                source.push_str(".volume");
+            }
+        }
+    }
 
     Ok(quadlet::File {
-        name,
+        name: name.into(),
         unit,
-        resource: command.into(),
-        globals: Globals::default(),
-        service,
+        resource: container.into(),
+        globals: global_args.into(),
+        service: restart.map(Into::into),
         install,
     })
 }
 
-/// Attempt to convert [`ComposeNetworks`] into an iterator of [`quadlet::File`].
+/// Attempt to convert compose [`Networks`] into an [`Iterator`] of [`quadlet::File`]s.
+///
+/// # Errors
+///
+/// The [`Iterator`] returns an [`Err`] if a [`Network`] could not be converted into a
+/// [`quadlet::Network`].
 fn networks_try_into_quadlet_files<'a>(
-    networks: ComposeNetworks,
+    networks: Networks,
     unit: Option<&'a Unit>,
     install: Option<&'a quadlet::Install>,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
-    networks.0.into_iter().map(move |(name, network)| {
-        let network = Option::<docker_compose_types::NetworkSettings>::from(network)
-            .map(quadlet::Network::try_from)
-            .transpose()
-            .wrap_err_with(|| {
-                format!("Could not parse network `{name}` as a valid podman network")
-            })?
-            .unwrap_or_default();
+    networks.into_iter().map(move |(name, network)| {
+        let network = match network {
+            Some(Resource::Compose(network)) => network,
+            None => Network::default(),
+            Some(Resource::External { .. }) => {
+                bail!("external networks (`{name}`) are not supported");
+            }
+        };
+        let network = quadlet::Network::try_from(network).wrap_err_with(|| {
+            format!("error converting network `{name}` into a quadlet network")
+        })?;
+
         Ok(quadlet::File {
-            name,
+            name: name.into(),
             unit: unit.cloned(),
             resource: network.into(),
             globals: Globals::default(),
@@ -208,25 +264,39 @@ fn networks_try_into_quadlet_files<'a>(
     })
 }
 
-/// Attempt to convert compose volumes into an iterator of [`quadlet::File`].
+/// Attempt to convert compose [`Volumes`] into an [`Iterator`] of [`quadlet::File`]s.
+///
+/// [`Volume`](compose_spec::Volume)s which are [empty](compose_spec::Volume::is_empty()) are
+/// filtered out as they do not need a `.volume` quadlet file to define extra options.
+///
+/// # Errors
+///
+/// The [`Iterator`] returns an [`Err`] if a [`Volume`](compose_spec::Volume) could not be converted
+/// to a [`quadlet::Volume`].
 fn volumes_try_into_quadlet_files<'a>(
-    volumes: docker_compose_types::TopLevelVolumes,
+    volumes: Volumes,
     unit: Option<&'a Unit>,
     install: Option<&'a quadlet::Install>,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
-    volumes.0.into_iter().filter_map(move |(name, volume)| {
-        Option::<docker_compose_types::ComposeVolume>::from(volume).map(|volume| {
-            let volume = quadlet::Volume::try_from(volume).wrap_err_with(|| {
-                format!("could not parse volume `{name}` as a valid podman volume")
-            })?;
-            Ok(quadlet::File {
-                name,
-                unit: unit.cloned(),
-                resource: volume.into(),
-                globals: Globals::default(),
-                service: None,
-                install: install.cloned(),
-            })
+    volumes.into_iter().filter_map(move |(name, volume)| {
+        volume.and_then(|volume| match volume {
+            Resource::Compose(volume) => (!volume.is_empty()).then(|| {
+                quadlet::Volume::try_from(volume)
+                    .wrap_err_with(|| {
+                        format!("error converting volume `{name}` into a quadlet volume")
+                    })
+                    .map(|volume| quadlet::File {
+                        name: name.into(),
+                        unit: unit.cloned(),
+                        resource: volume.into(),
+                        globals: Globals::default(),
+                        service: None,
+                        install: install.cloned(),
+                    })
+            }),
+            Resource::External { .. } => {
+                Some(Err(eyre!("external volumes (`{name}`) are not supported")))
+            }
         })
     })
 }

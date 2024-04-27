@@ -4,10 +4,10 @@ use std::{
     path::PathBuf,
 };
 
-use color_eyre::eyre::{self, Context};
+use color_eyre::eyre::{ensure, Context};
 use serde::Serialize;
 
-use crate::{cli::volume::opt::Opt, serde::quadlet::quote_spaces_join_space};
+use crate::{cli::volume::Opt, serde::quadlet::quote_spaces_join_space};
 
 use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
@@ -99,45 +99,40 @@ impl Downgrade for Volume {
     }
 }
 
-impl TryFrom<docker_compose_types::ComposeVolume> for Volume {
+impl TryFrom<compose_spec::Volume> for Volume {
     type Error = color_eyre::Report;
 
-    fn try_from(value: docker_compose_types::ComposeVolume) -> Result<Self, Self::Error> {
-        let unsupported_options = [
-            ("external", value.external.is_none()),
-            ("name", value.name.is_none()),
-        ];
-        for (option, not_present) in unsupported_options {
-            eyre::ensure!(not_present, "`{option}` is not supported");
-        }
+    fn try_from(
+        compose_spec::Volume {
+            driver,
+            driver_opts,
+            labels,
+            name,
+            extensions,
+        }: compose_spec::Volume,
+    ) -> Result<Self, Self::Error> {
+        ensure!(name.is_none(), "`name` is not supported");
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
 
-        let options: Vec<Opt> = value
-            .driver_opts
+        let options: Vec<Opt> = driver_opts
             .into_iter()
-            .map(|(key, value)| {
-                let driver_opt = key.clone();
-                match value {
-                    Some(value) if key != "copy" => format!("{key}={value}"),
-                    _ => key,
-                }
-                .parse()
-                .wrap_err_with(|| {
-                    format!("driver_opt `{driver_opt}` is not a valid podman volume driver option")
-                })
+            .enumerate()
+            .map(|(index, (option, value))| {
+                let value = String::from(value);
+                let value = (!value.is_empty()
+                    && (option != "copy" || !matches!(value.as_str(), "true" | "1")))
+                .then_some(value);
+                Opt::parse(option.as_str(), value)
+                    .wrap_err_with(|| format!("error converting `driver_opts[{index}]`"))
             })
             .collect::<Result<_, _>>()?;
 
-        let label = match value.labels {
-            docker_compose_types::Labels::List(labels) => labels,
-            docker_compose_types::Labels::Map(labels) => labels
-                .into_iter()
-                .map(|(key, value)| format!("{key}={value}"))
-                .collect(),
-        };
-
         Ok(Self {
-            driver: value.driver,
-            label,
+            driver,
+            label: labels.into_list().into_iter().collect(),
             ..options.into()
         })
     }

@@ -1,7 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 
 use clap::{Args, ValueEnum};
-use color_eyre::eyre;
+use compose_spec::service::Restart;
 
 #[derive(Args, Default, Debug, Clone, PartialEq, Eq)]
 pub struct Service {
@@ -26,17 +26,17 @@ impl Display for Service {
     }
 }
 
-impl TryFrom<&docker_compose_types::Service> for Service {
-    type Error = color_eyre::Report;
+impl From<RestartConfig> for Service {
+    fn from(restart: RestartConfig) -> Self {
+        Self {
+            restart: Some(restart),
+        }
+    }
+}
 
-    fn try_from(value: &docker_compose_types::Service) -> Result<Self, Self::Error> {
-        let restart = value
-            .restart
-            .as_ref()
-            .map(|s| RestartConfig::from_str(s, true))
-            .transpose()
-            .map_err(|error| eyre::eyre!("Service's restart value is invalid: {error}"))?;
-        Ok(Self { restart })
+impl From<Restart> for Service {
+    fn from(restart: Restart) -> Self {
+        RestartConfig::from(restart).into()
     }
 }
 
@@ -53,4 +53,14 @@ enum RestartConfig {
     OnAbort,
     #[value(alias = "unless-stopped")]
     Always,
+}
+
+impl From<Restart> for RestartConfig {
+    fn from(value: Restart) -> Self {
+        match value {
+            Restart::No => Self::No,
+            Restart::Always | Restart::UnlessStopped => Self::Always,
+            Restart::OnFailure => Self::OnFailure,
+        }
+    }
 }

@@ -8,6 +8,7 @@ use std::{
     str::FromStr,
 };
 
+use compose_spec::service::{self, device::Permissions};
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
@@ -166,6 +167,24 @@ impl Display for Device {
 impl Serialize for Device {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_str(self)
+    }
+}
+
+impl From<service::Device> for Device {
+    fn from(
+        service::Device {
+            host_path: host,
+            container_path: container,
+            permissions: Permissions { read, write, mknod },
+        }: service::Device,
+    ) -> Self {
+        Self {
+            host,
+            container: Some(container.into_inner()),
+            read,
+            write,
+            mknod,
+        }
     }
 }
 

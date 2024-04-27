@@ -1,28 +1,38 @@
 use std::{
-    fmt::Write,
-    mem,
-    net::{Ipv4Addr, Ipv6Addr},
+    iter,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
-    str::FromStr,
 };
 
-use clap::{ArgAction, Args, ValueEnum};
+use clap::{builder::TypedValueParser, ArgAction, Args, ValueEnum};
 use color_eyre::{
-    eyre::{self, Context, OptionExt},
+    eyre::{ensure, eyre, Context, OptionExt},
     owo_colors::OwoColorize,
     Section,
 };
-use docker_compose_types::{AdvancedVolumes, MapOrEmpty, Volumes};
+use compose_spec::{
+    duration,
+    service::{
+        self, env_file,
+        network_config::{Network, NetworkMode},
+        ports,
+        volumes::{
+            self,
+            mount::{Common, Tmpfs, TmpfsOptions},
+            ShortVolume,
+        },
+        ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
+    },
+    Identifier, ItemOrList, ShortOrLong,
+};
 use smart_default::SmartDefault;
 
-use crate::{
-    cli::ComposeService,
-    escape::command_join,
-    quadlet::{
-        container::{volume::Source, Device, Mount, PullPolicy, Rootfs, Volume},
-        AutoUpdate,
-    },
+use crate::quadlet::{
+    container::{Device, Mount, PullPolicy, Rootfs, Volume},
+    AutoUpdate,
 };
+
+use super::compose;
 
 #[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
 #[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
@@ -65,7 +75,7 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Vec<String>,
+    dns: Vec<IpAddr>,
 
     /// Set custom DNS options
     ///
@@ -153,7 +163,7 @@ pub struct QuadletOptions {
     ///
     /// Converts to "HealthRetries=RETRIES"
     #[arg(long, value_name = "RETRIES")]
-    health_retries: Option<u32>,
+    health_retries: Option<u64>,
 
     /// The initialization time needed for the container to bootstrap
     ///
@@ -254,8 +264,13 @@ pub struct QuadletOptions {
     /// Tune the container’s pids limit
     ///
     /// Converts to "PidsLimit=LIMIT"
-    #[arg(long, value_name = "LIMIT")]
-    pids_limit: Option<i16>,
+    #[arg(
+        long,
+        value_name = "LIMIT",
+        allow_negative_numbers = true,
+        value_parser = pids_limit_parser()
+    )]
+    pids_limit: Option<Limit<u32>>,
 
     /// The rootfs to use for the container
     ///
@@ -416,6 +431,21 @@ impl Default for Notify {
     }
 }
 
+/// Create a [`TypedValueParser`] for parsing the `pids_limit` field of [`QuadletOptions`].
+fn pids_limit_parser() -> impl TypedValueParser<Value = Limit<u32>> {
+    clap::value_parser!(i64)
+        .range(-1..=u32::MAX.into())
+        .try_map(|pids_limit| {
+            if pids_limit == -1 {
+                Ok(Limit::Unlimited)
+            } else if let Ok(pids_limit) = pids_limit.try_into() {
+                Ok(Limit::Value(pids_limit))
+            } else {
+                Err("`--pids-limit` must be -1, or a u32")
+            }
+        })
+}
+
 impl From<QuadletOptions> for crate::quadlet::Container {
     fn from(value: QuadletOptions) -> Self {
         let mut label = value.label;
@@ -490,420 +520,459 @@ impl From<QuadletOptions> for crate::quadlet::Container {
     }
 }
 
-impl TryFrom<ComposeService> for QuadletOptions {
+impl TryFrom<compose::Quadlet> for QuadletOptions {
     type Error = color_eyre::Report;
 
-    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
-        (&mut value).try_into()
-    }
-}
-
-impl TryFrom<&mut ComposeService> for QuadletOptions {
-    type Error = color_eyre::Report;
-
-    #[allow(clippy::too_many_lines)]
-    fn try_from(value: &mut ComposeService) -> Result<Self, Self::Error> {
-        let service = &mut value.service;
-
-        let device = mem::take(&mut service.devices)
-            .into_iter()
-            .map(|device| {
-                Device::from_str(&device).wrap_err_with(|| format!("invalid device: {device}"))
-            })
-            .collect::<Result<_, _>>()?;
-
+    fn try_from(
+        compose::Quadlet {
+            cap_add,
+            cap_drop,
+            container_name,
+            devices,
+            dns,
+            dns_opt,
+            dns_search,
+            env_file,
+            environment,
+            expose,
+            annotations,
+            healthcheck,
+            hostname,
+            init,
+            labels,
+            log_driver,
+            network_config,
+            pids_limit,
+            ports,
+            pull_policy,
+            read_only,
+            secrets,
+            shm_size,
+            sysctls,
+            tmpfs,
+            ulimits,
+            user,
+            userns_mode: userns,
+            volumes,
+            working_dir,
+        }: compose::Quadlet,
+    ) -> Result<Self, Self::Error> {
         let Healthcheck {
             health_cmd,
             health_interval,
             health_timeout,
             health_retries,
             health_start_period,
-        } = service
-            .healthcheck
-            .take()
-            .map(Healthcheck::from)
-            .unwrap_or_default();
+            health_startup_interval,
+        } = healthcheck
+            .unwrap_or_default()
+            .try_into()
+            .wrap_err("error converting `healthcheck`")?;
 
-        let publish =
-            ports_try_into_publish(mem::take(&mut service.ports)).wrap_err("invalid port")?;
-
-        let env = match mem::take(&mut service.environment) {
-            docker_compose_types::Environment::List(list) => list,
-            docker_compose_types::Environment::KvPair(map) => map
-                .into_iter()
-                .map(|(key, value)| {
-                    let value = value.as_ref().map(ToString::to_string).unwrap_or_default();
-                    format!("{key}={value}")
-                })
-                .collect(),
-        };
-
-        let network = service
-            .network_mode
-            .take()
-            .map(filter_network_mode)
-            .transpose()?
+        let mut tmpfs = tmpfs
             .into_iter()
-            .chain(map_networks(mem::take(&mut service.networks)))
+            .flat_map(ItemOrList::into_list)
+            .map(|tmpfs| tmpfs.as_path().display().to_string())
             .collect();
 
-        let label = match mem::take(&mut service.labels) {
-            docker_compose_types::Labels::List(vec) => vec,
-            docker_compose_types::Labels::Map(map) => map
-                .into_iter()
-                .map(|(key, value)| format!("{key}={value}"))
-                .collect(),
-        };
-
-        let sysctl = match mem::take(&mut service.sysctls) {
-            docker_compose_types::SysCtls::List(vec) => vec,
-            docker_compose_types::SysCtls::Map(map) => map
-                .into_iter()
-                .map(|(key, value)| {
-                    if let Some(value) = value {
-                        format!("{key}={value}")
-                    } else {
-                        key + "=null"
-                    }
-                })
-                .collect(),
-        };
-
-        let ulimit = mem::take(&mut service.ulimits)
-            .0
+        let volume = volumes
             .into_iter()
-            .map(|(kind, ulimit)| match ulimit {
-                docker_compose_types::Ulimit::Single(soft) => format!("{kind}={soft}"),
-                docker_compose_types::Ulimit::SoftHard { soft, hard } => {
-                    if hard == 0 {
-                        format!("{kind}={soft}")
-                    } else {
-                        format!("{kind}={soft}:{hard}")
-                    }
-                }
-            })
-            .collect();
-
-        let mut tmpfs = service
-            .tmpfs
-            .take()
-            .map(|tmpfs| match tmpfs {
-                docker_compose_types::Tmpfs::Simple(tmpfs) => vec![tmpfs],
-                docker_compose_types::Tmpfs::List(tmpfs) => tmpfs,
-            })
-            .unwrap_or_default();
-
-        let volume =
-            compose_volumes_try_into_volumes(value, &mut tmpfs).wrap_err("invalid volume")?;
-
-        let service = &mut value.service;
-
-        let env_file = service
-            .env_file
-            .take()
-            .map(|env_file| match env_file {
-                docker_compose_types::EnvFile::Simple(s) => vec![s.into()],
-                docker_compose_types::EnvFile::List(list) => {
-                    list.into_iter().map(Into::into).collect()
-                }
-            })
-            .unwrap_or_default();
+            .filter_map(|volume| volume_try_into_short(volume, &mut tmpfs).transpose())
+            .collect::<Result<_, _>>()
+            .wrap_err("error converting `volumes`")?;
 
         Ok(Self {
-            cap_add: mem::take(&mut service.cap_add),
-            name: service.container_name.take(),
-            dns: mem::take(&mut service.dns),
-            cap_drop: mem::take(&mut service.cap_drop),
-            publish,
-            env,
-            env_file,
-            network,
-            device,
-            label,
+            cap_add: cap_add.into_iter().collect(),
+            cap_drop: cap_drop.into_iter().collect(),
+            name: container_name.map(Into::into),
+            device: devices.into_iter().map(Into::into).collect(),
+            dns: dns.into_iter().flat_map(ItemOrList::into_list).collect(),
+            dns_option: dns_opt.into_iter().collect(),
+            dns_search: dns_search
+                .into_iter()
+                .flat_map(ItemOrList::into_list)
+                .map(Into::into)
+                .collect(),
+            env_file: env_file
+                .into_iter()
+                .flat_map(EnvFile::into_list)
+                .map(ShortOrLong::into_long)
+                .map(|env_file::Config { path, required }| {
+                    required
+                        .then_some(path)
+                        .ok_or_eyre("optional environment files are not supported")
+                })
+                .collect::<color_eyre::Result<_>>()
+                .wrap_err("error converting `env_file`")?,
+            env: environment.into_list().into_iter().collect(),
+            expose: expose.iter().map(ToString::to_string).collect(),
+            annotation: annotations.into_list().into_iter().collect(),
             health_cmd,
             health_interval,
+            health_timeout,
             health_retries,
             health_start_period,
-            health_timeout,
-            hostname: service.hostname.take(),
-            shm_size: service.shm_size.take(),
-            sysctl,
+            health_startup_interval,
+            hostname: hostname.map(Into::into),
+            init,
+            label: labels.into_list().into_iter().collect(),
+            log_driver,
+            network: network_config
+                .map(network_config_try_into_network_options)
+                .transpose()
+                .wrap_err("error converting network configuration")?
+                .unwrap_or_default(),
+            pids_limit,
+            publish: ports::into_short_iter(ports)
+                .map(|port| {
+                    port.as_ref().map(ToString::to_string).map_err(|port| {
+                        eyre!("could not convert port to short syntax, port = {port:#?}")
+                    })
+                })
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `ports`")?,
+            pull: pull_policy
+                .map(TryInto::try_into)
+                .transpose()
+                .wrap_err("error converting `pull_policy`")?,
+            read_only,
+            secret: secrets
+                .into_iter()
+                .map(secret_try_into_short)
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `secrets`")?,
+            shm_size: shm_size.as_ref().map(ToString::to_string),
+            sysctl: sysctls.into_list().into_iter().collect(),
             tmpfs,
-            ulimit,
-            user: service.user.take(),
-            userns: service.userns_mode.take(),
-            expose: mem::take(&mut service.expose),
-            log_driver: service
-                .logging
-                .as_mut()
-                .map(|logging| mem::take(&mut logging.driver)),
-            init: service.init,
+            ulimit: ulimits
+                .into_iter()
+                .map(ulimit_try_into_short)
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `ulimits`")?,
+            user: user.map(Into::into),
+            userns,
             volume,
-            workdir: service.working_dir.take().map(Into::into),
+            workdir: working_dir.map(Into::into),
             ..Self::default()
         })
     }
 }
 
+/// Healthcheck options used in [`QuadletOptions`].
+///
+/// Used for converting from [`compose_spec::service::Healthcheck`].
 #[allow(clippy::struct_field_names)]
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Healthcheck {
     health_cmd: Option<String>,
     health_interval: Option<String>,
     health_timeout: Option<String>,
-    health_retries: Option<u32>,
+    health_retries: Option<u64>,
     health_start_period: Option<String>,
+    health_startup_interval: Option<String>,
 }
 
-impl From<docker_compose_types::Healthcheck> for Healthcheck {
-    fn from(value: docker_compose_types::Healthcheck) -> Self {
-        let docker_compose_types::Healthcheck {
-            test,
-            interval,
-            timeout,
-            retries,
-            start_period,
-            mut disable,
-        } = value;
+impl TryFrom<service::Healthcheck> for Healthcheck {
+    type Error = color_eyre::Report;
 
-        let mut command = test.and_then(|test| match test {
-            docker_compose_types::HealthcheckTest::Single(s) => Some(s),
-            docker_compose_types::HealthcheckTest::Multiple(test) => {
-                #[allow(clippy::indexing_slicing)]
-                match test.first().map(String::as_str) {
-                    Some("NONE") => {
-                        disable = true;
-                        None
-                    }
-                    Some("CMD") => Some(format!("{:?}", &test[1..])),
-                    Some("CMD-SHELL") => Some(command_join(&test[1..])),
-                    _ => None,
-                }
+    fn try_from(value: service::Healthcheck) -> Result<Self, Self::Error> {
+        use service::healthcheck::{Command, Healthcheck, Test};
+
+        match value {
+            Healthcheck::Command(Command {
+                test,
+                interval,
+                timeout,
+                retries,
+                start_period,
+                start_interval,
+                extensions,
+            }) => {
+                ensure!(
+                    extensions.is_empty(),
+                    "compose extensions are not supported"
+                );
+                Ok(Self {
+                    health_cmd: test
+                        .map(|test| match test {
+                            Test::Command(command) => serde_json::to_string(&command)
+                                .wrap_err("error serializing healthcheck test command as JSON"),
+                            Test::ShellCommand(command) => Ok(command),
+                        })
+                        .transpose()?,
+                    health_interval: interval.map(duration::to_string),
+                    health_timeout: timeout.map(duration::to_string),
+                    health_retries: retries,
+                    health_start_period: start_period.map(duration::to_string),
+                    health_startup_interval: start_interval.map(duration::to_string),
+                })
             }
-        });
-
-        if disable {
-            command = Some(String::from("none"));
-        }
-
-        let retries = (retries > 0).then(|| u32::try_from(retries).unwrap_or_default());
-        Self {
-            health_cmd: command,
-            health_interval: interval,
-            health_timeout: timeout,
-            health_retries: retries,
-            health_start_period: start_period,
+            Healthcheck::Disable => Ok(Self {
+                health_cmd: Some("none".to_owned()),
+                ..Self::default()
+            }),
         }
     }
 }
 
-fn ports_try_into_publish(ports: docker_compose_types::Ports) -> color_eyre::Result<Vec<String>> {
-    match ports {
-        docker_compose_types::Ports::Short(ports) => Ok(ports),
-        docker_compose_types::Ports::Long(ports) => ports
+/// Attempt to convert a volume from a [`compose_spec::Service`] into a form suitable for
+/// `podman run --volume` or `podman run --tmpfs`.
+///
+/// [`Tmpfs`] volumes will be converted, added to `tmpfs`, and [`None`] is returned.
+///
+/// # Errors
+///
+/// Returns an error if the volume is not compatible with `podman run --volume` or
+/// `podman run --tmpfs`.
+fn volume_try_into_short(
+    volume: ShortOrLong<ShortVolume, volumes::Mount>,
+    tmpfs: &mut Vec<String>,
+) -> color_eyre::Result<Option<Volume>> {
+    match volume {
+        ShortOrLong::Short(volume) => Ok(Some(volume.into())),
+        ShortOrLong::Long(volumes::Mount::Volume(mount)) => mount.try_into().map(Some),
+        ShortOrLong::Long(volumes::Mount::Bind(mount)) => mount.try_into().map(Some),
+        ShortOrLong::Long(volumes::Mount::Tmpfs(mount)) => {
+            let mount = tmpfs_try_into_short(mount).wrap_err("error converting tmpfs volume")?;
+            tmpfs.push(mount);
+            Ok(None)
+        }
+        ShortOrLong::Long(volumes::Mount::NamedPipe(_)) => {
+            Err(eyre!("`npipe` type volumes are not supported"))
+        }
+        ShortOrLong::Long(volumes::Mount::Cluster(_)) => {
+            Err(eyre!("`cluster` type volumes are not supported"))
+        }
+    }
+}
+
+/// Attempt to convert a [`Tmpfs`] volume from a [`compose_spec::Service`] into a form suitable for
+/// `podman run --tmpfs`.
+///
+/// # Errors
+///
+/// Returns an error if the [`Tmpfs`] is not compatible with `podman run --tmpfs`.
+fn tmpfs_try_into_short(
+    Tmpfs {
+        tmpfs,
+        common:
+            Common {
+                target,
+                read_only,
+                consistency,
+                extensions,
+            },
+    }: Tmpfs,
+) -> color_eyre::Result<String> {
+    ensure!(
+        consistency.is_none(),
+        "`consistency` volume option is not supported"
+    );
+    ensure!(
+        extensions.is_empty(),
+        "compose extensions are not supported"
+    );
+
+    let TmpfsOptions {
+        size,
+        mode,
+        extensions,
+    } = tmpfs.unwrap_or_default();
+
+    ensure!(
+        extensions.is_empty(),
+        "compose extensions are not supported"
+    );
+
+    let mut tmpfs = target.as_path().display().to_string();
+
+    let options = read_only
+        .then(|| "ro".to_owned())
+        .into_iter()
+        .chain(size.map(|size| format!("size={size}")))
+        .chain(mode.map(|mode| format!("mode={mode:o}")));
+
+    let mut first = true;
+    for option in options {
+        let separator = if first {
+            first = false;
+            ':'
+        } else {
+            ','
+        };
+        tmpfs.push(separator);
+        tmpfs.push_str(&option);
+    }
+
+    Ok(tmpfs)
+}
+
+/// Attempt to convert a compose service [`NetworkConfig`] into network options for the `network`
+/// field of [`QuadletOptions`].
+///
+/// # Errors
+///
+/// Returns an error if an option is not supported by `podman run --network`.
+fn network_config_try_into_network_options(
+    network_config: NetworkConfig,
+) -> color_eyre::Result<Vec<String>> {
+    match network_config {
+        NetworkConfig::NetworkMode(network_mode) => {
+            validate_network_mode(network_mode).map(|network_mode| vec![network_mode])
+        }
+        NetworkConfig::Networks(networks) => networks
+            .into_long()
             .into_iter()
-            .map(|port| {
-                let docker_compose_types::Port {
-                    target,
-                    host_ip,
-                    published,
-                    protocol,
-                    mode,
-                } = port;
-                if let Some(mode) = mode {
-                    eyre::ensure!(mode == "host", "unsupported port mode: {mode}");
+            .map(|(network, options)| {
+                let mut network = String::from(network);
+                if let Some(options) = options {
+                    let options = network_options(options).wrap_err_with(|| {
+                        format!("error converting `{network}` network options")
+                    })?;
+                    network.push(':');
+                    network.push_str(&options);
                 }
-
-                let host_ip = host_ip.map(|host_ip| host_ip + ":").unwrap_or_default();
-
-                let host_port = published
-                        .map(|port| match port {
-                            docker_compose_types::PublishedPort::Single(port) => port.to_string(),
-                            docker_compose_types::PublishedPort::Range(range) => range,
-                        } + ":")
-                        .unwrap_or_default();
-
-                let protocol = protocol
-                    .map(|protocol| format!("/{protocol}"))
-                    .unwrap_or_default();
-
-                Ok(format!("{host_ip}{host_port}{target}{protocol}"))
+                Ok(network)
             })
             .collect(),
     }
 }
 
-/// Takes the [`Volumes`] from a service and converts them to a quadlet container [`Volume`],
-/// or adds them to `tmpfs` if a tmpfs mount.
+/// Validate a compose service [`NetworkMode`] for use in [`QuadletOptions`].
 ///
 /// # Errors
 ///
-/// Returns an error if a volume cannot be parsed.
-fn compose_volumes_try_into_volumes(
-    service: &mut ComposeService,
-    tmpfs: &mut Vec<String>,
-) -> color_eyre::Result<Vec<Volume>> {
-    mem::take(&mut service.service.volumes)
-        .into_iter()
-        .try_fold(Vec::new(), |mut volumes, volume| {
-            let mut volume = match volume {
-                Volumes::Simple(volume) => volume
-                    .parse()
-                    .wrap_err_with(|| format!("error parsing `{volume}` as volume"))?,
-                Volumes::Advanced(volume) => {
-                    if let Some(volume) = advanced_volume_try_into_volume(volume, tmpfs)? {
-                        volume
-                    } else {
-                        return Ok(volumes);
-                    }
-                }
-            };
-
-            if let Some(Source::NamedVolume(volume)) = &mut volume.source {
-                if service.volume_has_options(volume) {
-                    volume.push_str(".volume");
-                }
-            }
-
-            volumes.push(volume);
-            Ok(volumes)
-        })
-}
-
-/// Convert [`AdvancedVolumes`] into [`Volume`].
-///
-/// Returns [`None`] if volume is a tmpfs mount which is added to `tmpfs`.
-///
-/// # Errors
-///
-/// Returns an error if a volume is specified without a source or the bind propagation value
-/// could not be parsed.
-fn advanced_volume_try_into_volume(
-    AdvancedVolumes {
-        source,
-        target,
-        _type: kind,
-        read_only,
-        bind,
-        volume: volume_options,
-        tmpfs: tmpfs_settings,
-    }: AdvancedVolumes,
-    tmpfs: &mut Vec<String>,
-) -> color_eyre::Result<Option<Volume>> {
-    match kind.as_str() {
-        "bind" | "volume" => {
-            let source = source.ok_or_eyre("volume without a source")?;
-            let mut volume = Volume::new(target.into());
-            volume.source = Some(source.into());
-            volume.options.read_only = read_only;
-
-            if let Some(bind) = &bind {
-                volume.options.bind_propagation = bind.propagation.parse().wrap_err_with(|| {
-                    format!(
-                        "error parsing `{}` as bind propagation value",
-                        bind.propagation
-                    )
-                })?;
-            }
-
-            if volume_options.is_some_and(|options| options.nocopy) {
-                volume.options.no_copy = true;
-            }
-
-            Ok(Some(volume))
-        }
-        "tmpfs" => {
-            let mut options = String::new();
-
-            if read_only {
-                options.push_str("ro");
-            }
-
-            if let Some(docker_compose_types::TmpfsSettings { size }) = tmpfs_settings {
-                if read_only {
-                    options.push(',');
-                }
-                write!(options, "size={size}").expect("writing to String never fails");
-            }
-
-            let tmpfs_volume = if options.is_empty() {
-                target
+/// Returns an error if the given `network_mode` is not supported by `podman run --network`.
+fn validate_network_mode(network_mode: NetworkMode) -> color_eyre::Result<String> {
+    match network_mode {
+        NetworkMode::None | NetworkMode::Host => Ok(network_mode.to_string()),
+        NetworkMode::Service(_) => Err(eyre!("network_mode `service:` is not supported")
+            .suggestion("try using the `container:` network_mode instead")),
+        NetworkMode::Other(s) => {
+            if s.starts_with("bridge")
+                || s.starts_with("container")
+                || s.starts_with("ns:")
+                || s == "private"
+                || s.starts_with("slirp4netns")
+                || s.starts_with("pasta")
+            {
+                Ok(s)
             } else {
-                format!("{target}:{options}")
-            };
-
-            tmpfs.push(tmpfs_volume);
-            Ok(None)
+                Err(eyre!("network_mode `{s}` is not supported by podman"))
+            }
         }
-        _ => eyre::bail!("unsupported volume type: {kind}"),
-    }
-}
-
-/// Filters out unsupported compose service `network_mode`s.
-///
-/// # Errors
-///
-/// Returns an error if the given `mode` is not supported by `podman run --network`.
-fn filter_network_mode(mode: String) -> color_eyre::Result<String> {
-    match mode.as_str() {
-        "host" | "none" | "private" => Ok(mode),
-        s if s.starts_with("bridge")
-            || s.starts_with("container")
-            || s.starts_with("slirp4netns")
-            || s.starts_with("pasta") =>
-        {
-            Ok(mode)
-        }
-        s if s.starts_with("service") => Err(eyre::eyre!(
-            "network_mode `service:` is not supported by podman"
-        ))
-        .suggestion("try using the `container:` network_mode instead"),
-        _ => Err(eyre::eyre!("network_mode `{mode}` is not supported")),
     }
     .with_suggestion(|| {
         format!(
-            "see the --network section of the {} documentation for supported values: \
+            "see the --network section of the {}(1) documentation for supported values: \
                 https://docs.podman.io/en/stable/markdown/podman-run.1.html#network-mode-net",
-            "podman-run(1)".bold()
+            "podman-run".bold()
         )
     })
 }
 
-fn map_networks(networks: docker_compose_types::Networks) -> Vec<String> {
-    match networks {
-        docker_compose_types::Networks::Simple(networks) => networks
-            .into_iter()
-            .map(|network| network + ".network")
-            .collect(),
-        docker_compose_types::Networks::Advanced(networks) => networks
-            .0
-            .into_iter()
-            .map(|(network, settings)| {
-                let options =
-                    if let MapOrEmpty::Map(docker_compose_types::AdvancedNetworkSettings {
-                        ipv4_address,
-                        ipv6_address,
-                        aliases,
-                    }) = settings
-                    {
-                        let mut options = Vec::new();
-                        for ip in ipv4_address.into_iter().chain(ipv6_address) {
-                            options.push(format!("ip={ip}"));
-                        }
-                        for alias in aliases {
-                            options.push(format!("alias={alias}"));
-                        }
-                        if options.is_empty() {
-                            String::new()
-                        } else {
-                            format!(":{}", options.join(","))
-                        }
-                    } else {
-                        String::new()
-                    };
-                format!("{network}.network{options}")
-            })
-            .collect(),
+/// Convert compose service [`Network`] options into a comma (,) separated list of key value pairs.
+///
+/// # Errors
+///
+/// Returns an error if an option not supported by `podman run --network` is used.
+fn network_options(
+    Network {
+        aliases,
+        ipv4_address,
+        ipv6_address,
+        link_local_ips,
+        mac_address,
+        priority,
+        extensions,
+    }: Network,
+) -> color_eyre::Result<String> {
+    ensure!(
+        link_local_ips.is_empty(),
+        "network `link_local_ips` option is not supported"
+    );
+    ensure!(
+        priority.is_none(),
+        "network `priority` option is not supported"
+    );
+    ensure!(
+        extensions.is_empty(),
+        "compose extensions are not supported"
+    );
+
+    let ip_addrs = ipv4_address
+        .map(IpAddr::from)
+        .into_iter()
+        .chain(ipv6_address.map(IpAddr::from))
+        .map(|ip_addr| format!("ip={ip_addr}"));
+
+    let options: Vec<_> = aliases
+        .into_iter()
+        .map(|alias| format!("alias={alias}"))
+        .chain(ip_addrs)
+        .chain(mac_address.map(|mac| format!("mac={mac}")))
+        .collect();
+
+    Ok(options.join(","))
+}
+
+/// Attempt to convert a secret from a [`compose_spec::Service`] into a form suitable for
+/// `podman run --secret`.
+///
+/// # Errors
+///
+/// Returns an error if the secret has extensions.
+fn secret_try_into_short(
+    secret: ShortOrLong<Identifier, ConfigOrSecret>,
+) -> color_eyre::Result<String> {
+    match secret {
+        ShortOrLong::Short(secret) => Ok(secret.into()),
+        ShortOrLong::Long(ConfigOrSecret {
+            source,
+            target,
+            uid,
+            gid,
+            mode,
+            extensions,
+        }) => {
+            ensure!(
+                extensions.is_empty(),
+                "compose extensions are not supported"
+            );
+
+            Ok(iter::once(source.into())
+                .chain(target.map(|target| format!("target={}", target.display())))
+                .chain(uid.map(|uid| format!("uid={uid}")))
+                .chain(gid.map(|gid| format!("gid={gid}")))
+                .chain(mode.map(|mode| format!("mode={mode:o}")))
+                .collect::<Vec<_>>()
+                .join(","))
+        }
+    }
+}
+
+/// Attempt to convert a ulimit from a [`compose_spec::Service`] into a form suitable for
+/// `podman run --ulimit`.
+///
+/// # Errors
+///
+/// Returns an error if the [`Ulimit`] has extensions.
+fn ulimit_try_into_short(
+    (resource, ulimit): (service::Resource, ShortOrLong<u64, Ulimit>),
+) -> color_eyre::Result<String> {
+    match ulimit {
+        ShortOrLong::Short(ulimit) => Ok(format!("{resource}={ulimit}")),
+        ShortOrLong::Long(Ulimit {
+            soft,
+            hard,
+            extensions,
+        }) => {
+            ensure!(
+                extensions.is_empty(),
+                "compose extensions are not supported"
+            );
+            Ok(format!("{resource}={soft}:{hard}"))
+        }
     }
 }
 

@@ -5,7 +5,8 @@ use std::{
     str::FromStr,
 };
 
-use color_eyre::eyre::{self, Context};
+use color_eyre::eyre::{ensure, eyre, Context};
+use compose_spec::network::{Ipam, IpamConfig};
 use ipnet::IpNet;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
@@ -55,7 +56,7 @@ pub struct Network {
     pub label: Vec<String>,
 
     /// Set driver specific options.
-    pub options: Option<String>,
+    pub options: Vec<String>,
 
     /// This key contains a list of arguments passed directly to the end of the `podman network create`
     /// command in the generated file, right before the name of the network in the command line.
@@ -101,68 +102,81 @@ impl Downgrade for Network {
     }
 }
 
-impl TryFrom<docker_compose_types::NetworkSettings> for Network {
+impl TryFrom<compose_spec::Network> for Network {
     type Error = color_eyre::Report;
 
-    fn try_from(value: docker_compose_types::NetworkSettings) -> Result<Self, Self::Error> {
+    fn try_from(
+        compose_spec::Network {
+            driver,
+            driver_opts,
+            attachable,
+            enable_ipv6: ipv6,
+            ipam,
+            internal,
+            labels,
+            name,
+            extensions,
+        }: compose_spec::Network,
+    ) -> Result<Self, Self::Error> {
+        let Ipam {
+            driver: ipam_driver,
+            config: ipam_config,
+            options: ipam_options,
+            extensions: ipam_extensions,
+        } = ipam.unwrap_or_default();
+
         let unsupported_options = [
-            ("attachable", !value.attachable),
-            ("internal", !value.internal),
-            ("external", value.external.is_none()),
-            ("name", value.name.is_none()),
+            ("attachable", !attachable),
+            ("name", name.is_none()),
+            ("ipam.options", ipam_options.is_empty()),
         ];
         for (option, not_present) in unsupported_options {
-            eyre::ensure!(not_present, "`{option}` is not supported");
+            ensure!(not_present, "`{option}` is not supported");
         }
+        ensure!(
+            extensions.is_empty() && ipam_extensions.is_empty(),
+            "compose extensions are not supported"
+        );
 
-        let options: Vec<String> = value
-            .driver_opts
-            .into_iter()
-            .map(|(key, value)| {
-                let value = value.as_ref().map(ToString::to_string).unwrap_or_default();
-                format!("{key}={value}")
-            })
-            .collect();
-
-        let mut gateway = Vec::new();
-        let mut subnet = Vec::new();
-        let ipam_driver = value
-            .ipam
-            .map(|ipam| -> color_eyre::Result<_> {
-                for config in ipam.config {
-                    if let Some(ip) = config.gateway {
-                        gateway.push(ip.parse().wrap_err_with(|| {
-                            format!("could not parse `{ip}` as a valid IP address")
-                        })?);
-                    }
-                    subnet.push(config.subnet.parse().wrap_err_with(|| {
-                        format!("could not parse `{}` as a valid IP subnet", config.subnet)
-                    })?);
-                }
-                Ok(ipam.driver)
-            })
-            .transpose()
-            .wrap_err("invalid ipam config")?
-            .flatten();
-
-        let label = match value.labels {
-            docker_compose_types::Labels::List(labels) => labels,
-            docker_compose_types::Labels::Map(labels) => labels
+        let network = Self {
+            driver: driver.map(Into::into),
+            options: driver_opts
                 .into_iter()
                 .map(|(key, value)| format!("{key}={value}"))
                 .collect(),
+            ipv6,
+            ipam_driver,
+            internal,
+            label: labels.into_list().into_iter().collect(),
+            ..Self::default()
         };
 
-        Ok(Self {
-            driver: value.driver,
-            options: (!options.is_empty()).then(|| options.join(",")),
-            ipv6: value.enable_ipv6,
-            gateway,
-            subnet,
-            ipam_driver,
-            label,
-            ..Self::default()
-        })
+        ipam_config.into_iter().enumerate().try_fold(
+            network,
+            |mut network,
+             (
+                index,
+                IpamConfig {
+                    subnet,
+                    ip_range,
+                    gateway,
+                    aux_addresses,
+                    extensions,
+                },
+            )| {
+                if !aux_addresses.is_empty() {
+                    Err(eyre!("`aux_addresses` is not supported"))
+                } else if !extensions.is_empty() {
+                    Err(eyre!("compose extensions are not supported"))
+                } else {
+                    network.subnet.extend(subnet);
+                    network.ip_range.extend(ip_range.map(Into::into));
+                    network.gateway.extend(gateway);
+                    Ok(network)
+                }
+                .wrap_err_with(|| format!("error converting `ipam.config[{index}]`"))
+            },
+        )
     }
 }
 
@@ -179,6 +193,12 @@ pub enum IpRange {
     Cidr(IpNet),
     Ipv4Range(Range<Ipv4Addr>),
     Ipv6Range(Range<Ipv6Addr>),
+}
+
+impl From<IpNet> for IpRange {
+    fn from(value: IpNet) -> Self {
+        Self::Cidr(value)
+    }
 }
 
 impl Serialize for IpRange {

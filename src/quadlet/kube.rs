@@ -198,16 +198,6 @@ pub enum YamlFile {
 }
 
 impl YamlFile {
-    /// Parse a [`YamlFile`] from a string.
-    fn parse<T>(file: T) -> Self
-    where
-        T: AsRef<str> + Into<PathBuf>,
-    {
-        file.as_ref()
-            .parse()
-            .map_or_else(|_| Self::Path(file.into()), Self::Url)
-    }
-
     /// Name of the kube file, without the extension.
     pub(crate) fn name(&self) -> Option<&str> {
         match self {
@@ -230,15 +220,15 @@ impl YamlFile {
     }
 }
 
-impl From<String> for YamlFile {
-    fn from(value: String) -> Self {
-        Self::parse(value)
+impl From<Url> for YamlFile {
+    fn from(value: Url) -> Self {
+        Self::Url(value)
     }
 }
 
-impl From<&str> for YamlFile {
-    fn from(value: &str) -> Self {
-        Self::parse(value)
+impl From<PathBuf> for YamlFile {
+    fn from(value: PathBuf) -> Self {
+        Self::Path(value)
     }
 }
 
@@ -246,7 +236,7 @@ impl FromStr for YamlFile {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(s.into())
+        Ok(s.parse().map_or_else(|_| Self::Path(s.into()), Self::Url))
     }
 }
 
@@ -271,7 +261,7 @@ mod tests {
 
     #[test]
     fn kube_default_empty() {
-        let kube = Kube::new("yaml".into());
+        let kube = Kube::new(PathBuf::from("yaml").into());
         assert_eq!(kube.to_string(), "[Kube]\nYaml=yaml\n");
     }
 

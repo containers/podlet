@@ -1,16 +1,16 @@
+mod compose;
 mod podman;
 mod quadlet;
 pub mod security_opt;
 
-use std::mem;
-
 use clap::Args;
-use color_eyre::eyre::{self, Context, OptionExt};
+use color_eyre::eyre::{Context, OptionExt};
 
-use crate::{cli::compose, escape::command_join};
+use crate::escape::command_join;
 
 use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOpt};
-use super::{image_to_name, ComposeService};
+
+use super::image_to_name;
 
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
@@ -43,30 +43,37 @@ pub struct Container {
     command: Vec<String>,
 }
 
-impl TryFrom<ComposeService> for Container {
+impl Container {
+    /// The name that should be used for the generated [`File`](crate::quadlet::File).
+    ///
+    /// It is either the set container name or taken from the image.
+    pub fn name(&self) -> &str {
+        self.quadlet_options
+            .name
+            .as_deref()
+            .unwrap_or_else(|| image_to_name(&self.image))
+    }
+}
+
+impl TryFrom<compose_spec::Service> for Container {
     type Error = color_eyre::Report;
 
-    fn try_from(mut value: ComposeService) -> Result<Self, Self::Error> {
-        let service = &value.service;
-        let unsupported_options = [
-            ("deploy", service.deploy.is_none()),
-            ("build", service.build_.is_none()),
-            ("profiles", service.profiles.is_empty()),
-            ("links", service.links.is_empty()),
-            ("net", service.net.is_none()),
-            ("volumes_from", service.volumes_from.is_empty()),
-            ("extends", service.extends.is_empty()),
-            ("scale", service.scale == 0),
-        ];
-        for (option, not_present) in unsupported_options {
-            eyre::ensure!(not_present, "`{option}` is unsupported");
-        }
-        eyre::ensure!(
-            service.extensions.is_empty(),
-            "compose extensions are not supported"
-        );
+    fn try_from(value: compose_spec::Service) -> Result<Self, Self::Error> {
+        let compose::Service {
+            unsupported,
+            quadlet,
+            podman_args,
+            container:
+                compose::Container {
+                    command,
+                    image,
+                    security_opt,
+                },
+        } = compose::Service::from(value);
 
-        let security_opt = mem::take(&mut value.service.security_opt)
+        unsupported.ensure_empty()?;
+
+        let security_opt = security_opt
             .into_iter()
             .filter_map(|s| {
                 if s == "no-new-privileges:true" {
@@ -81,14 +88,12 @@ impl TryFrom<ComposeService> for Container {
             .wrap_err("invalid security option")?;
 
         Ok(Self {
-            quadlet_options: (&mut value).try_into()?,
-            podman_args: (&mut value.service).try_into()?,
+            quadlet_options: quadlet.try_into()?,
+            podman_args: podman_args.try_into()?,
             security_opt,
-            image: value.service.image.ok_or_eyre("image is required")?,
-            command: value
-                .service
-                .command
-                .map(compose::command_try_into_vec)
+            image: image.ok_or_eyre("`image` is required")?.into(),
+            command: command
+                .map(super::compose::command_try_into_vec)
                 .transpose()?
                 .unwrap_or_default(),
         })
@@ -152,15 +157,6 @@ impl From<Container> for crate::quadlet::Container {
 impl From<Container> for crate::quadlet::Resource {
     fn from(value: Container) -> Self {
         crate::quadlet::Container::from(value).into()
-    }
-}
-
-impl Container {
-    pub fn name(&self) -> &str {
-        self.quadlet_options
-            .name
-            .as_deref()
-            .unwrap_or_else(|| image_to_name(&self.image))
     }
 }
 
