@@ -270,22 +270,39 @@ pub trait Downgrade {
 #[non_exhaustive]
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PodmanVersion {
+    /// Podman v4.4
     #[value(name = "4.4", aliases = ["4.4.0", "4.4.1", "4.4.2", "4.4.3", "4.4.4"])]
     V4_4,
+
+    /// Podman v4.5
     #[value(name = "4.5", aliases = ["4.5.0", "4.5.1"])]
     V4_5,
+
+    /// Podman v4.6
     #[value(name = "4.6", aliases = ["4.6.0", "4.6.1", "4.6.2"])]
     V4_6,
+
+    /// Podman v4.7
     #[value(name = "4.7", aliases = ["4.7.0", "4.7.1", "4.7.2"])]
     V4_7,
-    #[value(name = "4.8", aliases = ["latest", "4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0"])]
+
+    /// Podman v4.8 and v4.9
+    #[value(
+        name = "4.8",
+        aliases = ["4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0", "4.9.1", "4.9.2", "4.9.3", "4.9.4"]
+    )]
     V4_8,
+
+    /// Podman v5.0
+    #[value(name = "5.0", aliases = ["latest", "5.0.0", "5.0.1", "5.0.2"])]
+    V5_0,
 }
 
 impl PodmanVersion {
     /// Latest supported version of podman with regards to quadlet.
-    pub const LATEST: Self = Self::V4_8;
+    pub const LATEST: Self = Self::V5_0;
 
+    /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::V4_4 => "4.4",
@@ -293,6 +310,7 @@ impl PodmanVersion {
             Self::V4_6 => "4.6",
             Self::V4_7 => "4.7",
             Self::V4_8 => "4.8",
+            Self::V5_0 => "5.0",
         }
     }
 }
