@@ -21,7 +21,7 @@ use compose_spec::{
             mount::{Common, Tmpfs, TmpfsOptions},
             ShortVolume,
         },
-        ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
+        Command, ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
     },
     Identifier, ItemOrList, ShortOrLong,
 };
@@ -102,6 +102,12 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "CAPABILITY")]
     cap_drop: Vec<String>,
+
+    /// Override the default entrypoint of the image
+    ///
+    /// Converts to "Entrypoint=ENTRYPOINT"
+    #[arg(long, value_name = "\"COMMAND\" | '[\"COMMAND\", \"ARG1\", ...]'")]
+    entrypoint: Option<String>,
 
     /// Set environment variables in the container
     ///
@@ -470,6 +476,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             dns_option: value.dns_option,
             dns_search: value.dns_search,
             drop_capability: value.cap_drop,
+            entrypoint: value.entrypoint,
             environment: value.env,
             environment_file: value.env_file,
             environment_host: value.env_host,
@@ -523,6 +530,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
 impl TryFrom<compose::Quadlet> for QuadletOptions {
     type Error = color_eyre::Report;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(
         compose::Quadlet {
             cap_add,
@@ -532,6 +540,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             dns,
             dns_opt,
             dns_search,
+            entrypoint,
             env_file,
             environment,
             expose,
@@ -593,6 +602,13 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .flat_map(ItemOrList::into_list)
                 .map(Into::into)
                 .collect(),
+            entrypoint: entrypoint
+                .map(|entrypoint| match entrypoint {
+                    Command::String(entrypoint) => Ok(entrypoint),
+                    Command::List(entrypoint) => serde_json::to_string(&entrypoint)
+                        .wrap_err("error serializing `entrypoint` command as JSON"),
+                })
+                .transpose()?,
             env_file: env_file
                 .into_iter()
                 .flat_map(EnvFile::into_list)

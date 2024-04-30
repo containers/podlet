@@ -73,6 +73,9 @@ pub struct Container {
     )]
     pub drop_capability: Vec<String>,
 
+    /// Override the default `ENTRYPOINT` from the image.
+    pub entrypoint: Option<String>,
+
     /// Set an environment variable in the container.
     #[serde(
         serialize_with = "quote_spaces_join_space",
@@ -292,6 +295,10 @@ impl Display for Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_0 {
+            self.remove_v5_0_options();
+        }
+
         if version < PodmanVersion::V4_8 {
             self.remove_v4_8_options();
         }
@@ -322,6 +329,14 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove quadlet options added in podman v5.0.0
+    fn remove_v5_0_options(&mut self) {
+        let options = extract!(self, OptionsV5_0 { entrypoint });
+
+        self.push_args(options)
+            .expect("OptionsV5_0 serializable as args");
+    }
+
     /// Remove quadlet options added in podman v4.8.0
     fn remove_v4_8_options(&mut self) {
         if !self.read_only_tmpfs {
@@ -449,6 +464,13 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container quadlet options added in podman v5.0.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_0 {
+    entrypoint: Option<String>,
 }
 
 /// Container quadlet options added in podman v4.8.0

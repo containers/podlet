@@ -13,7 +13,7 @@ use color_eyre::{
 };
 use compose_spec::service::{
     blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
-    BlkioConfig, Command, Ipc,
+    BlkioConfig, Ipc,
 };
 use serde::Serialize;
 use smart_default::SmartDefault;
@@ -169,10 +169,6 @@ pub struct PodmanArgs {
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
     disable_content_trust: bool,
-
-    /// Override the default entrypoint of the image
-    #[arg(long, value_name = "\"COMMAND\" | '[\"COMMAND\", \"ARG1\", ...]'")]
-    entrypoint: Option<String>,
 
     /// Preprocess default environment variables for the container
     ///
@@ -445,7 +441,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             cgroup,
             cgroup_parent,
             device_cgroup_rules,
-            entrypoint,
             extra_hosts,
             group_add,
             ipc,
@@ -512,13 +507,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            entrypoint: entrypoint
-                .map(|entrypoint| match entrypoint {
-                    Command::String(entrypoint) => Ok(entrypoint),
-                    Command::List(entrypoint) => serde_json::to_string(&entrypoint)
-                        .wrap_err("error serializing `entrypoint` command as JSON"),
-                })
-                .transpose()?,
             add_host: extra_hosts
                 .into_iter()
                 .map(|(host, ip)| format!("{host}:{ip}"))
