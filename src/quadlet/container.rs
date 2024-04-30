@@ -430,7 +430,9 @@ impl Container {
     /// Serialize args and add them to `PodmanArgs=`.
     fn push_args(&mut self, args: impl Serialize) -> Result<(), crate::serde::args::Error> {
         let args = crate::serde::args::to_string(args)?;
-        self.podman_args_push_str(&args);
+        if !args.is_empty() {
+            self.podman_args_push_str(&args);
+        }
         Ok(())
     }
 
