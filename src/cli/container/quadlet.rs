@@ -2,6 +2,7 @@ use std::{
     iter,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
+    time::Duration,
 };
 
 use clap::{builder::TypedValueParser, ArgAction, Args, ValueEnum};
@@ -334,6 +335,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size: Option<String>,
 
+    /// Timeout to stop a container
+    ///
+    /// Default is 10 seconds
+    ///
+    /// Converts to "StopTimeout=SECONDS"
+    #[arg(long, value_name = "SECONDS")]
+    stop_timeout: Option<u64>,
+
     /// Name of range listed in /etc/subgid for use in user namespace
     ///
     /// Converts to "SubGIDMap=NAME"
@@ -499,6 +508,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             init: run_init,
             secret,
             shm_size,
+            stop_timeout,
             subgidname: sub_gid_map,
             subuidname: sub_uid_map,
             sysctl,
@@ -568,6 +578,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             run_init,
             secret,
             shm_size,
+            stop_timeout,
             sub_gid_map,
             sub_uid_map,
             sysctl,
@@ -614,6 +625,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             read_only,
             secrets,
             shm_size,
+            stop_grace_period,
             sysctls,
             tmpfs,
             ulimits,
@@ -715,6 +727,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .collect::<Result<_, _>>()
                 .wrap_err("error converting `secrets`")?,
             shm_size: shm_size.as_ref().map(ToString::to_string),
+            stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
             sysctl: sysctls.into_list().into_iter().collect(),
             tmpfs,
             ulimit: ulimits

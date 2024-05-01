@@ -367,12 +367,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "SIGNAL")]
     stop_signal: Option<String>,
 
-    /// Timeout to stop a container
-    ///
-    /// Default is 10
-    #[arg(long, value_name = "SECONDS")]
-    stop_timeout: Option<u64>,
-
     /// Run container in systemd mode
     ///
     /// Default is true
@@ -456,7 +450,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             platform,
             privileged,
             stdin_open,
-            stop_grace_period,
             stop_signal,
             tty,
         }: compose::PodmanArgs,
@@ -540,7 +533,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             attach: stdin_open
                 .then(|| vec!["stdin".to_owned()])
                 .unwrap_or_default(),
-            stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
             stop_signal,
             tty,
             ..Self::default()

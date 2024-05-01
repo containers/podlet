@@ -241,6 +241,12 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Seconds to wait before forcibly stopping the container.
+    ///
+    /// Note, this value should be lower than the actual systemd unit timeout to make sure the
+    /// `podman rm` command is not killed by systemd.
+    pub stop_timeout: Option<u64>,
+
     /// Run the container in a new user namespace using the map with name in the /etc/subgid file.
     #[serde(rename = "SubGIDMap")]
     pub sub_gid_map: Option<String>,
@@ -331,7 +337,13 @@ macro_rules! extract {
 impl Container {
     /// Remove quadlet options added in podman v5.0.0
     fn remove_v5_0_options(&mut self) {
-        let options = extract!(self, OptionsV5_0 { entrypoint });
+        let options = extract!(
+            self,
+            OptionsV5_0 {
+                entrypoint,
+                stop_timeout,
+            }
+        );
 
         self.push_args(options)
             .expect("OptionsV5_0 serializable as args");
@@ -471,6 +483,7 @@ impl Container {
 #[serde(rename_all = "kebab-case")]
 struct OptionsV5_0 {
     entrypoint: Option<String>,
+    stop_timeout: Option<u64>,
 }
 
 /// Container quadlet options added in podman v4.8.0
