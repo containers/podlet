@@ -176,6 +176,12 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENV")]
     env_merge: Vec<String>,
 
+    /// GPU devices to add to the container (`all` to pass all GPUs)
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "ENTRY")]
+    gpus: Vec<String>,
+
     /// Assign additional groups to the primary user running within the container process
     ///
     /// Can be specified multiple times
