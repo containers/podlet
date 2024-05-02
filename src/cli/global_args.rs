@@ -17,6 +17,10 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "MANAGER")]
     cgroup_manager: Option<CGroupManager>,
 
+    /// Location of the authentication config file
+    #[arg(long, global = true, value_name = "PATH")]
+    config: Option<PathBuf>,
+
     /// Path of the conmon binary
     #[arg(long, global = true, value_name = "PATH")]
     conmon: Option<PathBuf>,
