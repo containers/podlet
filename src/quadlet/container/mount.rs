@@ -167,7 +167,7 @@ impl HostPaths for Mount {
 }
 
 /// Bind or glob type [`Mount`].
-#[allow(clippy::struct_field_names)]
+#[allow(clippy::struct_field_names, clippy::struct_excessive_bools)]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Bind {
@@ -213,6 +213,10 @@ pub struct Bind {
     /// container.
     #[serde(default, alias = "U", skip_serializing_if = "Not::not")]
     pub chown: bool,
+
+    /// Do not dereference symlinks but copy the link source into the mount destination.
+    #[serde(default, skip_serializing_if = "Not::not")]
+    pub no_dereference: bool,
 }
 
 impl Bind {
@@ -228,6 +232,7 @@ impl Bind {
             relabel: None,
             idmap: None,
             chown: false,
+            no_dereference: false,
         }
     }
 }
@@ -449,7 +454,7 @@ mod tests {
 
         let string =
             "type=bind,source=/src,destination=/dst,readonly=true,bind-propagation=shared,\
-                bind-nonrecursive=true,relabel=shared,idmap,chown=true";
+                bind-nonrecursive=true,relabel=shared,idmap,chown=true,no-dereference=true";
         let mount: Mount = string.parse().unwrap();
         assert_eq!(
             mount,
@@ -462,6 +467,7 @@ mod tests {
                 relabel: Some(SELinuxRelabel::Shared),
                 idmap: Some(Idmap::default()),
                 chown: true,
+                no_dereference: true,
             }),
         );
         assert_eq!(mount.to_string(), string);
