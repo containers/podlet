@@ -183,9 +183,9 @@ pub struct Container {
     /// The rootfs to use for the container.
     pub rootfs: Option<Rootfs>,
 
-    /// Enable container handling of `sd_notify`.
-    #[serde(skip_serializing_if = "Not::not")]
-    pub notify: bool,
+    /// How `sd_notify` support should be handled.
+    #[serde(skip_serializing_if = "Notify::is_conmon")]
+    pub notify: Notify,
 
     /// Tune the container’s pids limit.
     pub pids_limit: Option<Limit<u32>>,
@@ -303,6 +303,18 @@ impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V5_0 {
             self.remove_v5_0_options();
+
+            if self.notify.is_healthy() {
+                if version < PodmanVersion::V4_7 {
+                    return Err(DowngradeError::Option {
+                        quadlet_option: "Notify",
+                        value: "healthy".to_owned(),
+                        supported_version: PodmanVersion::V4_7,
+                    });
+                }
+                self.notify = Notify::default();
+                self.push_arg("sdnotify", "healthy");
+            }
         }
 
         if version < PodmanVersion::V4_8 {
@@ -403,11 +415,11 @@ impl Container {
         if !self.mask.is_empty() {
             // `Unmask::Paths` has the same format as `Mask`
             let mask = Unmask::Paths(std::mem::take(&mut self.mask));
-            self.push_arg("security-opt", format!("mask={mask}"));
+            self.push_arg("security-opt", format_args!("mask={mask}"));
         }
 
         if let Some(unmask) = self.unmask.take() {
-            self.push_arg("security-opt", format!("unmask={unmask}"));
+            self.push_arg("security-opt", format_args!("unmask={unmask}"));
         }
 
         let options = extract!(
@@ -560,6 +572,52 @@ impl HostPaths for Container {
             .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
             .chain(&mut self.seccomp_profile)
             .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+    }
+}
+
+/// Accepted values for `podman run --sdnotify`.
+///
+/// Determines how to use the `NOTIFY_SOCKET`, as passed with systemd and `Type=notify`.
+#[derive(ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Notify {
+    /// Sends `READY` when the container has started.
+    #[default]
+    Conmon,
+
+    /// Allow the OCI runtime to proxy the socket into the container to receive ready notification.
+    Container,
+
+    /// Sends `READY` when the container has turned healthy.
+    Healthy,
+}
+
+impl Notify {
+    /// Returns `true` if notify is [`Conmon`].
+    ///
+    /// [`Conmon`]: Notify::Conmon
+    #[must_use]
+    // Reference required for `#[serde(skip_serializing_if = "Notify::is_conmon")]`.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    fn is_conmon(&self) -> bool {
+        matches!(self, Self::Conmon)
+    }
+
+    /// Returns `true` if notify is [`Healthy`].
+    ///
+    /// [`Healthy`]: Notify::Healthy
+    #[must_use]
+    fn is_healthy(self) -> bool {
+        matches!(self, Self::Healthy)
+    }
+}
+
+impl Serialize for Notify {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Conmon => serializer.serialize_bool(false),
+            Self::Container => serializer.serialize_bool(true),
+            Self::Healthy => serializer.serialize_str("healthy"),
+        }
     }
 }
 

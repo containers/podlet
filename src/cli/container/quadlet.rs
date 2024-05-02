@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Args, ValueEnum};
+use clap::{builder::TypedValueParser, ArgAction, Args};
 use color_eyre::{
     eyre::{ensure, eyre, Context, OptionExt},
     owo_colors::OwoColorize,
@@ -29,7 +29,7 @@ use compose_spec::{
 use smart_default::SmartDefault;
 
 use crate::quadlet::{
-    container::{Device, Mount, PullPolicy, Rootfs, Volume},
+    container::{Device, Mount, Notify, PullPolicy, Rootfs, Volume},
     AutoUpdate,
 };
 
@@ -265,6 +265,8 @@ pub struct QuadletOptions {
     /// Control sd-notify behavior
     ///
     /// If `container`, converts to "Notify=true"
+    ///
+    /// If `healthy`, converts to "Notify=healthy"
     #[arg(long, value_enum, default_value_t)]
     sdnotify: Notify,
 
@@ -424,28 +426,6 @@ pub struct QuadletOptions {
     workdir: Option<PathBuf>,
 }
 
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
-enum Notify {
-    Conmon,
-    Container,
-}
-
-impl Notify {
-    /// Returns `true` if the notify is [`Container`].
-    ///
-    /// [`Container`]: Notify::Container
-    #[must_use]
-    fn is_container(self) -> bool {
-        matches!(self, Self::Container)
-    }
-}
-
-impl Default for Notify {
-    fn default() -> Self {
-        Self::Conmon
-    }
-}
-
 /// Create a [`TypedValueParser`] for parsing the `pids_limit` field of [`QuadletOptions`].
 fn pids_limit_parser() -> impl TypedValueParser<Value = Limit<u32>> {
     clap::value_parser!(i64)
@@ -498,7 +478,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_driver,
             mount,
             network,
-            sdnotify,
+            sdnotify: notify,
             pids_limit,
             rootfs,
             publish: publish_port,
@@ -569,7 +549,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             mount,
             network,
             rootfs,
-            notify: sdnotify.is_container(),
+            notify,
             pids_limit,
             publish_port,
             pull,
