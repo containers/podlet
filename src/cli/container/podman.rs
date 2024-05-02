@@ -353,6 +353,12 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ATTEMPTS")]
     retry: Option<u64>,
 
+    /// Duration of delay between retry attempts when pulling or pushing images
+    ///
+    /// Default is to start at two seconds and then exponentially back off
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
+
     /// Remove container (and pod if created) after exit
     ///
     /// Automatically set by quadlet
