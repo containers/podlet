@@ -347,6 +347,12 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "CONTAINER[,...]")]
     requires: Option<String>,
 
+    /// Number of times to retry pulling or pushing images between the registry and local storage
+    ///
+    /// Default is 3
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
     /// Remove container (and pod if created) after exit
     ///
     /// Automatically set by quadlet
