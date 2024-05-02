@@ -307,6 +307,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "FILE")]
     pod_id_file: Option<PathBuf>,
 
+    /// Pass down to the process additional file descriptors
+    #[arg(long, value_name = "FD1[,FD2,…]")]
+    preserve_fd: Option<String>,
+
     /// Pass a number of additional file descriptors into the container
     #[arg(long, value_name = "N")]
     preserve_fds: Option<u16>,
