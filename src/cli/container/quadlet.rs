@@ -281,12 +281,6 @@ pub struct QuadletOptions {
     )]
     pids_limit: Option<Limit<u32>>,
 
-    /// The rootfs to use for the container
-    ///
-    /// Converts to "Rootfs=PATH"
-    #[arg(long, value_name = "PATH[:OPTIONS]")]
-    rootfs: Option<Rootfs>,
-
     /// Publish a container's port, or a range of ports, to the host
     ///
     /// Converts to "PublishPort=PORT"
@@ -316,6 +310,12 @@ pub struct QuadletOptions {
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
     #[default = true]
     read_only_tmpfs: bool,
+
+    /// The rootfs to use for the container
+    ///
+    /// Converts to "Rootfs=PATH"
+    #[arg(long, value_name = "PATH[:OPTIONS]")]
+    rootfs: Option<Rootfs>,
 
     /// Run an init inside the container
     ///
@@ -365,6 +365,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NAME=VALUE")]
     sysctl: Vec<String>,
 
+    /// Set the timezone in the container
+    ///
+    /// Converts to "Timezone=TIMEZONE"
+    #[arg(long, value_name = "TIMEZONE")]
+    tz: Option<String>,
+
     /// Create a tmpfs mount
     ///
     /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
@@ -372,12 +378,6 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "FS")]
     tmpfs: Vec<String>,
-
-    /// Set the timezone in the container
-    ///
-    /// Converts to "Timezone=TIMEZONE"
-    #[arg(long, value_name = "TIMEZONE")]
-    tz: Option<String>,
 
     /// Run the container in a new user namespace using the supplied UID mapping
     ///
@@ -480,11 +480,11 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             network,
             sdnotify: notify,
             pids_limit,
-            rootfs,
             publish: publish_port,
             pull,
             read_only,
             read_only_tmpfs,
+            rootfs,
             init: run_init,
             secret,
             shm_size,
@@ -492,8 +492,8 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             subgidname: sub_gid_map,
             subuidname: sub_uid_map,
             sysctl,
-            tmpfs,
             tz: timezone,
+            tmpfs,
             uidmap: uid_map,
             ulimit,
             user,
@@ -548,13 +548,13 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_driver,
             mount,
             network,
-            rootfs,
             notify,
             pids_limit,
             publish_port,
             pull,
             read_only,
             read_only_tmpfs,
+            rootfs,
             run_init,
             secret,
             shm_size,
@@ -562,8 +562,8 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             sub_gid_map,
             sub_uid_map,
             sysctl,
-            tmpfs,
             timezone,
+            tmpfs,
             uid_map,
             ulimit,
             user,

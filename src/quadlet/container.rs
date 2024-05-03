@@ -180,9 +180,6 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub no_new_privileges: bool,
 
-    /// The rootfs to use for the container.
-    pub rootfs: Option<Rootfs>,
-
     /// How `sd_notify` support should be handled.
     #[serde(skip_serializing_if = "Notify::is_conmon")]
     pub notify: Notify,
@@ -210,6 +207,9 @@ pub struct Container {
     #[default = true]
     pub read_only_tmpfs: bool,
 
+    /// The rootfs to use for the container.
+    pub rootfs: Option<Rootfs>,
+
     /// If enabled, the container has a minimal init process inside the container
     /// that forwards signals and reaps processes.
     #[serde(skip_serializing_if = "Not::not")]
@@ -217,6 +217,9 @@ pub struct Container {
 
     /// Set the seccomp profile to use in the container.
     pub seccomp_profile: Option<PathBuf>,
+
+    /// Use a Podman secret in the container either as a file or an environment variable.
+    pub secret: Vec<String>,
 
     /// Turn off label separation for the container.
     #[serde(skip_serializing_if = "Not::not")]
@@ -234,9 +237,6 @@ pub struct Container {
 
     /// Set the label process type for the container processes.
     pub security_label_type: Option<String>,
-
-    /// Use a Podman secret in the container either as a file or an environment variable.
-    pub secret: Vec<String>,
 
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
@@ -262,11 +262,11 @@ pub struct Container {
     )]
     pub sysctl: Vec<String>,
 
-    /// Mount a tmpfs in the container.
-    pub tmpfs: Vec<String>,
-
     /// The timezone to run the container in.
     pub timezone: Option<String>,
+
+    /// Mount a tmpfs in the container.
+    pub tmpfs: Vec<String>,
 
     /// Run the container in a new user namespace using the supplied UID mapping.
     #[serde(rename = "UIDMap")]
