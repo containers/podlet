@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Args};
+use clap::{ArgAction, Args};
 use color_eyre::{
     eyre::{eyre, Context},
     owo_colors::OwoColorize,
@@ -18,7 +18,7 @@ use compose_spec::service::{
 use serde::Serialize;
 use smart_default::SmartDefault;
 
-use crate::serde::skip_true;
+use crate::{cli::blkio_weight_parser, serde::skip_true};
 
 use super::compose;
 
@@ -425,13 +425,6 @@ pub struct PodmanArgs {
     /// Can be specified multiple times
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
-}
-
-/// Create a [`TypedValueParser`] for parsing the `blkio_weight` field of [`PodmanArgs`].
-fn blkio_weight_parser() -> impl TypedValueParser<Value = Weight> {
-    clap::value_parser!(u16)
-        .range(10..=1000)
-        .try_map(TryInto::try_into)
 }
 
 impl Display for PodmanArgs {

@@ -7,6 +7,7 @@ mod install;
 mod k8s;
 mod kube;
 mod network;
+mod pod;
 pub mod service;
 pub mod unit;
 pub mod volume;
@@ -24,18 +25,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{builder::TypedValueParser, Parser, Subcommand};
 use color_eyre::{
     eyre::{ensure, eyre, WrapErr},
     Help,
 };
+use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
 use crate::quadlet::{self, Downgrade, DowngradeError, Globals, HostPaths, PodmanVersion};
 
 use self::{
     container::Container, generate::Generate, global_args::GlobalArgs, image::Image,
-    install::Install, kube::Kube, network::Network, service::Service, unit::Unit, volume::Volume,
+    install::Install, kube::Kube, network::Network, pod::Pod, service::Service, unit::Unit,
+    volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -451,6 +454,16 @@ enum PodmanCommands {
         service: Service,
     },
 
+    /// Generate a podman quadlet `.pod` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html
+    Pod {
+        /// The \[Pod\] section
+        #[command(subcommand)]
+        pod: Box<Pod>,
+    },
+
     /// Generate a podman quadlet `.kube` file
     ///
     /// For details on options see:
@@ -496,6 +509,7 @@ impl From<PodmanCommands> for quadlet::Resource {
     fn from(value: PodmanCommands) -> Self {
         match value {
             PodmanCommands::Run { container, .. } => (*container).into(),
+            PodmanCommands::Pod { pod } => (*pod).into(),
             PodmanCommands::Kube { kube } => (*kube).into(),
             PodmanCommands::Network { network } => (*network).into(),
             PodmanCommands::Volume { volume } => volume.into(),
@@ -535,6 +549,7 @@ impl PodmanCommands {
     fn name(&self) -> &str {
         match self {
             Self::Run { container, .. } => container.name(),
+            Self::Pod { pod } => pod.name(),
             Self::Kube { kube } => kube.name(),
             Self::Network { network } => network.name(),
             Self::Volume { volume } => volume.name(),
@@ -719,6 +734,13 @@ fn check_existing<'a>(
     }
 
     Ok(())
+}
+
+/// Create a [`TypedValueParser`] for parsing a `blkio_weight` field.
+fn blkio_weight_parser() -> impl TypedValueParser<Value = Weight> {
+    clap::value_parser!(u16)
+        .range(10..=1000)
+        .try_map(TryInto::try_into)
 }
 
 #[cfg(test)]
