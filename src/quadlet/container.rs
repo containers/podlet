@@ -6,9 +6,10 @@ pub mod volume;
 use std::{
     fmt::{self, Display, Formatter},
     iter,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr},
     ops::Not,
     path::PathBuf,
+    str::FromStr,
 };
 
 use clap::ValueEnum;
@@ -56,7 +57,7 @@ pub struct Container {
 
     /// Set network-scoped DNS resolver/nameserver for containers in this network.
     #[serde(rename = "DNS")]
-    pub dns: Vec<IpAddr>,
+    pub dns: Dns,
 
     /// Set custom DNS options.
     #[serde(rename = "DNSOption")]
@@ -516,7 +517,7 @@ struct OptionsV4_8 {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_7 {
-    dns: Vec<IpAddr>,
+    dns: Dns,
     dns_option: Vec<String>,
     dns_search: Vec<String>,
     pids_limit: Option<Limit<u32>>,
@@ -572,6 +573,72 @@ impl HostPaths for Container {
             .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
             .chain(&mut self.seccomp_profile)
             .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+    }
+}
+
+/// Options for the `dns` field of [`Container`].
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Dns {
+    /// Disable creation of `/etc/resolv.conf` in the container.
+    None,
+    /// Set custom DNS servers.
+    Custom(Vec<IpAddr>),
+}
+
+impl Default for Dns {
+    fn default() -> Self {
+        Self::Custom(Vec::default())
+    }
+}
+
+impl From<Vec<DnsEntry>> for Dns {
+    fn from(value: Vec<DnsEntry>) -> Self {
+        Self::from_iter(value)
+    }
+}
+
+impl FromIterator<DnsEntry> for Dns {
+    fn from_iter<T: IntoIterator<Item = DnsEntry>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let (min, _) = iter.size_hint();
+        let mut ip_addrs = Vec::with_capacity(min);
+
+        for entry in iter {
+            match entry {
+                DnsEntry::None => return Self::None,
+                DnsEntry::IpAddr(ip_addr) => ip_addrs.push(ip_addr),
+            }
+        }
+
+        Self::Custom(ip_addrs)
+    }
+}
+
+/// A single [`Dns`] value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DnsEntry {
+    /// Disable creation of `/etc/resolv.conf` in the container.
+    None,
+    /// A custom DNS server.
+    IpAddr(IpAddr),
+}
+
+impl From<IpAddr> for DnsEntry {
+    fn from(value: IpAddr) -> Self {
+        Self::IpAddr(value)
+    }
+}
+
+impl FromStr for DnsEntry {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "none" {
+            Ok(Self::None)
+        } else {
+            s.parse().map(Self::IpAddr)
+        }
     }
 }
 

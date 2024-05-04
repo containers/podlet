@@ -29,7 +29,7 @@ use compose_spec::{
 use smart_default::SmartDefault;
 
 use crate::quadlet::{
-    container::{Device, Mount, Notify, PullPolicy, Rootfs, Volume},
+    container::{Device, DnsEntry, Mount, Notify, PullPolicy, Rootfs, Volume},
     AutoUpdate,
 };
 
@@ -76,7 +76,8 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Vec<IpAddr>,
+    // TODO: use `Dns` directly if clap ever supports custom collections (https://github.com/clap-rs/clap/issues/3114).
+    dns: Vec<DnsEntry>,
 
     /// Set custom DNS options
     ///
@@ -519,7 +520,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             annotation,
             auto_update,
             container_name,
-            dns,
+            dns: dns.into(),
             dns_option,
             dns_search,
             drop_capability,
@@ -644,7 +645,11 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             cap_drop: cap_drop.into_iter().collect(),
             name: container_name.map(Into::into),
             device: devices.into_iter().map(Into::into).collect(),
-            dns: dns.into_iter().flat_map(ItemOrList::into_list).collect(),
+            dns: dns
+                .into_iter()
+                .flat_map(ItemOrList::into_list)
+                .map(Into::into)
+                .collect(),
             dns_option: dns_opt.into_iter().collect(),
             dns_search: dns_search
                 .into_iter()

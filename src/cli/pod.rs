@@ -1,19 +1,19 @@
 use std::{
     fmt::{self, Display, Formatter},
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{Ipv4Addr, Ipv6Addr},
     ops::Not,
     path::PathBuf,
 };
 
 use clap::{ArgAction, Args, Subcommand, ValueEnum};
 use compose_spec::service::blkio_config::Weight;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use smart_default::SmartDefault;
 
 use crate::{
     quadlet::{
         self,
-        container::{Device, Volume},
+        container::{Device, Dns, DnsEntry, Volume},
     },
     serde::skip_true,
 };
@@ -191,7 +191,9 @@ struct PodmanArgs {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Vec<IpAddr>,
+    #[serde(serialize_with = "serialize_dns")]
+    // TODO: use `Dns` directly if clap ever supports custom collections (https://github.com/clap-rs/clap/issues/3114).
+    dns: Vec<DnsEntry>,
 
     /// Set custom DNS options.
     ///
@@ -370,6 +372,11 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
+}
+
+/// Serialize the `dns` field of [`PodmanArgs`] as [`Dns`].
+fn serialize_dns<S: Serializer>(dns: &[DnsEntry], serializer: S) -> Result<S::Ok, S::Error> {
+    dns.iter().copied().collect::<Dns>().serialize(serializer)
 }
 
 impl Display for PodmanArgs {
