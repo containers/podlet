@@ -188,6 +188,9 @@ pub struct Container {
     /// Tune the container’s pids limit.
     pub pids_limit: Option<Limit<u32>>,
 
+    /// Specify a Quadlet .pod unit to link the container to.
+    pub pod: Option<String>,
+
     /// A list of arguments passed directly to the end of the `podman run` command
     /// in the generated file, right before the image name in the command line.
     pub podman_args: Option<String>,
@@ -303,8 +306,6 @@ impl Display for Container {
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V5_0 {
-            self.remove_v5_0_options();
-
             if self.notify.is_healthy() {
                 if version < PodmanVersion::V4_7 {
                     return Err(DowngradeError::Option {
@@ -316,6 +317,16 @@ impl Downgrade for Container {
                 self.notify = Notify::default();
                 self.push_arg("sdnotify", "healthy");
             }
+
+            if let Some(pod) = self.pod.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "Pod",
+                    value: pod.clone(),
+                    supported_version: PodmanVersion::V5_0,
+                });
+            }
+
+            self.remove_v5_0_options();
         }
 
         if version < PodmanVersion::V4_8 {

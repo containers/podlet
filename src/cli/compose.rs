@@ -40,13 +40,24 @@ pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>>
 /// [`Args`] for the `podlet compose` subcommand.
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
 pub struct Compose {
+    /// Create a `.pod` file and link it with each `.container` file.
+    ///
+    /// The top-level `name` field in the compose file is required when using this option.
+    /// It is used for the name of the pod and in the filenames of the created files.
+    ///
+    /// Each container becomes a part of the pod and is renamed to "{pod}-{container}".
+    ///
+    /// Published ports are taken from each container and applied to the pod.
+    #[arg(long, conflicts_with = "kube")]
+    pub pod: bool,
+
     /// Create a Kubernetes YAML file for a pod instead of separate containers
     ///
     /// A `.kube` file using the generated Kubernetes YAML file is also created.
     ///
     /// The top-level `name` field in the compose file is required when using this option.
     /// It is used for the name of the pod and in the filenames of the created files.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "pod")]
     pub kube: bool,
 
     /// The compose file to convert
@@ -57,6 +68,7 @@ pub struct Compose {
     /// If not provided, and stdin is a terminal, podlet will look for (in order)
     /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
     /// in the current working directory.
+    #[allow(clippy::struct_field_names)]
     pub compose_file: Option<PathBuf>,
 }
 
@@ -75,7 +87,12 @@ impl Compose {
         unit: Option<Unit>,
         install: Option<quadlet::Install>,
     ) -> color_eyre::Result<Vec<File>> {
-        let Self { kube, compose_file } = self;
+        let Self {
+            pod,
+            kube,
+            compose_file,
+        } = self;
+
         let compose = read_from_file_or_stdin(compose_file.as_deref())
             .wrap_err("error reading compose file")?;
 
@@ -99,7 +116,7 @@ impl Compose {
         } else {
             let compose_spec::Compose {
                 version: _,
-                name: _,
+                name,
                 include,
                 services,
                 networks,
@@ -108,6 +125,11 @@ impl Compose {
                 secrets,
                 extensions,
             } = compose;
+
+            let pod_name = pod
+                .then(|| name.ok_or_eyre("`name` is required when using `--pod`"))
+                .transpose()?
+                .map(Into::into);
 
             ensure!(include.is_empty(), "`include` is not supported");
             ensure!(configs.is_empty(), "`configs` is not supported");
@@ -120,9 +142,7 @@ impl Compose {
                 "compose extensions are not supported"
             );
 
-            try_into_quadlet_files(services, networks, volumes, unit.as_ref(), install.as_ref())
-                .map(|result| result.map(Into::into))
-                .collect::<Result<_, _>>()
+            parts_try_into_files(services, networks, volumes, pod_name, unit, install)
                 .wrap_err("error converting compose file into quadlet files")
         }
     }
@@ -197,21 +217,20 @@ fn read_from_stdin() -> color_eyre::Result<compose_spec::Compose> {
     serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
 }
 
-/// Attempt to convert [`Service`]s, [`Networks`], and [`Volumes`] into [`quadlet::File`]s.
+/// Attempt to convert [`Service`]s, [`Networks`], and [`Volumes`] into [`File`]s.
 ///
 /// # Errors
 ///
-/// Returns an error
-///
-/// The [`Iterator`] returns an [`Err`] if a [`Service`], [`Network`], or
-/// [`Volume`](compose_spec::Volume) could not be converted into a [`quadlet::File`].
-fn try_into_quadlet_files<'a>(
+/// Returns an error if a [`Service`], [`Network`], or [`Volume`](compose_spec::Volume) could not be
+/// converted into a [`quadlet::File`].
+fn parts_try_into_files(
     services: IndexMap<Identifier, Service>,
     networks: Networks,
     volumes: Volumes,
-    unit: Option<&'a Unit>,
-    install: Option<&'a quadlet::Install>,
-) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+    pod_name: Option<String>,
+    unit: Option<Unit>,
+    install: Option<quadlet::Install>,
+) -> color_eyre::Result<Vec<File>> {
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a quadlet file. Extra volume options must be specified in a
     // separate quadlet file which is referenced from the container quadlet file.
@@ -226,19 +245,62 @@ fn try_into_quadlet_files<'a>(
         })
         .collect();
 
-    services
+    let mut pod_ports = Vec::new();
+    let mut files = services
         .into_iter()
-        .map(move |(name, service)| {
-            service_try_into_quadlet_file(
+        .map(|(name, service)| {
+            let mut file = service_try_into_quadlet_file(
                 service,
                 name,
-                unit.cloned(),
-                install.cloned(),
+                unit.clone(),
+                install.clone(),
                 &volume_has_options,
-            )
+            )?;
+            if let (
+                Some(pod_name),
+                quadlet::File {
+                    name,
+                    resource: quadlet::Resource::Container(container),
+                    ..
+                },
+            ) = (&pod_name, &mut file)
+            {
+                *name = format!("{pod_name}-{name}");
+                pod_ports.extend(mem::take(&mut container.publish_port));
+                container.pod = Some(format!("{pod_name}.pod"));
+            }
+            Ok(file)
         })
-        .chain(networks_try_into_quadlet_files(networks, unit, install))
-        .chain(volumes_try_into_quadlet_files(volumes, unit, install))
+        .chain(networks_try_into_quadlet_files(
+            networks,
+            unit.as_ref(),
+            install.as_ref(),
+        ))
+        .chain(volumes_try_into_quadlet_files(
+            volumes,
+            unit.as_ref(),
+            install.as_ref(),
+        ))
+        .map(|result| result.map(Into::into))
+        .collect::<Result<Vec<File>, _>>()?;
+
+    if let Some(name) = pod_name {
+        let pod = quadlet::Pod {
+            publish_port: pod_ports,
+            ..quadlet::Pod::default()
+        };
+        let pod = quadlet::File {
+            name,
+            unit,
+            resource: pod.into(),
+            globals: Globals::default(),
+            service: None,
+            install,
+        };
+        files.push(pod.into());
+    }
+
+    Ok(files)
 }
 
 /// Attempt to convert a compose [`Service`] into a [`quadlet::File`].
