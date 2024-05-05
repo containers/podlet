@@ -1,90 +1,22 @@
 use std::{
     collections::HashMap,
-    fs::File,
+    fs,
     io::{self, IsTerminal},
     mem,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
+use clap::Args;
 use color_eyre::{
     eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
 };
-use compose_spec::{
-    service::Command, Compose, Identifier, Network, Networks, Resource, Service, Volumes,
-};
+use compose_spec::{service::Command, Identifier, Network, Networks, Resource, Service, Volumes};
+use indexmap::IndexMap;
 
 use crate::quadlet::{self, container::volume::Source, Globals};
 
-use super::{Container, GlobalArgs, Unit};
-
-/// Deserialize [`Compose`] from a file at the given [`Path`], stdin, or a list of default files.
-///
-/// If the path is '-', or stdin is not a terminal, the [`Compose`] is deserialized from stdin.
-/// If a path is not provided, the files `compose.yaml`, `compose.yml`, `docker-compose.yaml`,
-/// and `docker-compose.yml` are, in order, looked for in the current directory.
-///
-/// # Errors
-///
-/// Returns an error if:
-///
-/// - There was an error opening the given file.
-/// - Stdin was selected and stdin is a terminal.
-/// - No path was given and none of the default files could be opened.
-/// - There was an error deserializing [`Compose`].
-pub fn from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<Compose> {
-    let (compose_file, path) = if let Some(path) = path {
-        if path.as_os_str() == "-" {
-            return from_stdin();
-        }
-        let compose_file = File::open(path)
-            .wrap_err("could not open provided compose file")
-            .suggestion("make sure you have the proper permissions for the given file")?;
-        (compose_file, path)
-    } else {
-        const FILE_NAMES: [&str; 4] = [
-            "compose.yaml",
-            "compose.yml",
-            "docker-compose.yaml",
-            "docker-compose.yml",
-        ];
-
-        if !io::stdin().is_terminal() {
-            return from_stdin();
-        }
-
-        let mut result = None;
-        for file_name in FILE_NAMES {
-            if let Ok(compose_file) = File::open(file_name) {
-                result = Some((compose_file, file_name.as_ref()));
-                break;
-            }
-        }
-
-        result.ok_or_eyre(
-            "a compose file was not provided and none of \
-                `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
-                exist in the current directory or could not be read",
-        )?
-    };
-
-    serde_yaml::from_reader(compose_file)
-        .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
-}
-
-/// Deserialize [`Compose`] from stdin.
-///
-/// # Errors
-///
-/// Returns an error if stdin is a terminal or there was an error deserializing [`Compose`].
-fn from_stdin() -> color_eyre::Result<Compose> {
-    let stdin = io::stdin();
-    if stdin.is_terminal() {
-        bail!("cannot read compose from stdin, stdin is a terminal");
-    }
-
-    serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
-}
+use super::{k8s, Container, File, GlobalArgs, Unit};
 
 /// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
 /// as a shell would.
@@ -105,40 +37,181 @@ pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>>
     }
 }
 
-/// Attempt to convert a [`Compose`] file into an [`Iterator`] of [`quadlet::File`]s.
+/// [`Args`] for the `podlet compose` subcommand.
+#[derive(Args, Debug, Clone, PartialEq, Eq)]
+pub struct Compose {
+    /// Create a Kubernetes YAML file for a pod instead of separate containers
+    ///
+    /// A `.kube` file using the generated Kubernetes YAML file is also created.
+    ///
+    /// The top-level `name` field in the compose file is required when using this option.
+    /// It is used for the name of the pod and in the filenames of the created files.
+    #[arg(long)]
+    pub kube: bool,
+
+    /// The compose file to convert
+    ///
+    /// If `-` or not provided and stdin is not a terminal,
+    /// the compose file will be read from stdin.
+    ///
+    /// If not provided, and stdin is a terminal, podlet will look for (in order)
+    /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
+    /// in the current working directory.
+    pub compose_file: Option<PathBuf>,
+}
+
+impl Compose {
+    /// Attempt to convert the `compose_file` into [`File`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there was an error:
+    ///
+    /// - Reading/deserializing the compose file.
+    /// - Converting the compose file to Kubernetes YAML.
+    /// - Converting the compose file to quadlet files.
+    pub fn try_into_files(
+        self,
+        unit: Option<Unit>,
+        install: Option<quadlet::Install>,
+    ) -> color_eyre::Result<Vec<File>> {
+        let Self { kube, compose_file } = self;
+        let compose = read_from_file_or_stdin(compose_file.as_deref())
+            .wrap_err("error reading compose file")?;
+
+        if kube {
+            let mut k8s_file = k8s::File::try_from(compose)
+                .wrap_err("error converting compose file into Kubernetes YAML")?;
+
+            let kube =
+                quadlet::Kube::new(PathBuf::from(format!("{}-kube.yaml", k8s_file.name)).into());
+            let quadlet_file = quadlet::File {
+                name: k8s_file.name.clone(),
+                unit,
+                resource: kube.into(),
+                globals: Globals::default(),
+                service: None,
+                install,
+            };
+
+            k8s_file.name.push_str("-kube");
+            Ok(vec![quadlet_file.into(), k8s_file.into()])
+        } else {
+            let compose_spec::Compose {
+                version: _,
+                name: _,
+                include,
+                services,
+                networks,
+                volumes,
+                configs,
+                secrets,
+                extensions,
+            } = compose;
+
+            ensure!(include.is_empty(), "`include` is not supported");
+            ensure!(configs.is_empty(), "`configs` is not supported");
+            ensure!(
+                secrets.values().all(Resource::is_external),
+                "only external `secrets` are supported",
+            );
+            ensure!(
+                extensions.is_empty(),
+                "compose extensions are not supported"
+            );
+
+            try_into_quadlet_files(services, networks, volumes, unit.as_ref(), install.as_ref())
+                .map(|result| result.map(Into::into))
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting compose file into quadlet files")
+        }
+    }
+}
+
+/// Read and deserialize a [`compose_spec::Compose`] from a file at the given [`Path`], stdin, or a
+/// list of default files.
+///
+/// If the path is '-', or stdin is not a terminal, the compose file is deserialized from stdin.
+/// If a path is not provided, the files `compose.yaml`, `compose.yml`, `docker-compose.yaml`,
+/// and `docker-compose.yml` are, in order, looked for in the current directory.
 ///
 /// # Errors
 ///
-/// Returns an error if the [`Compose`] file has fields set that are not supported by quadlet.
+/// Returns an error if:
+///
+/// - There was an error opening the given file.
+/// - Stdin was selected and stdin is a terminal.
+/// - No path was given and none of the default files could be opened.
+/// - There was an error deserializing [`compose_spec::Compose`].
+fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_spec::Compose> {
+    let (compose_file, path) = if let Some(path) = path {
+        if path.as_os_str() == "-" {
+            return read_from_stdin();
+        }
+        let compose_file = fs::File::open(path)
+            .wrap_err("could not open provided compose file")
+            .suggestion("make sure you have the proper permissions for the given file")?;
+        (compose_file, path)
+    } else {
+        const FILE_NAMES: [&str; 4] = [
+            "compose.yaml",
+            "compose.yml",
+            "docker-compose.yaml",
+            "docker-compose.yml",
+        ];
+
+        if !io::stdin().is_terminal() {
+            return read_from_stdin();
+        }
+
+        let mut result = None;
+        for file_name in FILE_NAMES {
+            if let Ok(compose_file) = fs::File::open(file_name) {
+                result = Some((compose_file, file_name.as_ref()));
+                break;
+            }
+        }
+
+        result.ok_or_eyre(
+            "a compose file was not provided and none of \
+                `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
+                exist in the current directory or could not be read",
+        )?
+    };
+
+    serde_yaml::from_reader(compose_file)
+        .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
+}
+
+/// Read and deserialize [`compose_spec::Compose`] from stdin.
+///
+/// # Errors
+///
+/// Returns an error if stdin is a terminal or there was an error deserializing.
+fn read_from_stdin() -> color_eyre::Result<compose_spec::Compose> {
+    let stdin = io::stdin();
+    if stdin.is_terminal() {
+        bail!("cannot read compose from stdin, stdin is a terminal");
+    }
+
+    serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
+}
+
+/// Attempt to convert [`Service`]s, [`Networks`], and [`Volumes`] into [`quadlet::File`]s.
+///
+/// # Errors
+///
+/// Returns an error
 ///
 /// The [`Iterator`] returns an [`Err`] if a [`Service`], [`Network`], or
 /// [`Volume`](compose_spec::Volume) could not be converted into a [`quadlet::File`].
-pub fn try_into_quadlet_files<'a>(
-    Compose {
-        version: _,
-        name: _,
-        include,
-        services,
-        networks,
-        volumes,
-        configs,
-        secrets,
-        extensions,
-    }: Compose,
+fn try_into_quadlet_files<'a>(
+    services: IndexMap<Identifier, Service>,
+    networks: Networks,
+    volumes: Volumes,
     unit: Option<&'a Unit>,
     install: Option<&'a quadlet::Install>,
-) -> color_eyre::Result<impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a> {
-    ensure!(include.is_empty(), "`include` is not supported");
-    ensure!(configs.is_empty(), "`configs` is not supported");
-    ensure!(
-        secrets.values().all(compose_spec::Resource::is_external),
-        "only external `secrets` are supported",
-    );
-    ensure!(
-        extensions.is_empty(),
-        "compose extensions are not supported"
-    );
-
+) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a quadlet file. Extra volume options must be specified in a
     // separate quadlet file which is referenced from the container quadlet file.
@@ -153,7 +226,7 @@ pub fn try_into_quadlet_files<'a>(
         })
         .collect();
 
-    Ok(services
+    services
         .into_iter()
         .map(move |(name, service)| {
             service_try_into_quadlet_file(
@@ -165,7 +238,7 @@ pub fn try_into_quadlet_files<'a>(
             )
         })
         .chain(networks_try_into_quadlet_files(networks, unit, install))
-        .chain(volumes_try_into_quadlet_files(volumes, unit, install)))
+        .chain(volumes_try_into_quadlet_files(volumes, unit, install))
 }
 
 /// Attempt to convert a compose [`Service`] into a [`quadlet::File`].
