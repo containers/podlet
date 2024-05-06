@@ -35,7 +35,11 @@ use crate::quadlet::{
 
 use super::compose;
 
-#[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
+#[allow(
+    clippy::module_name_repetitions,
+    clippy::struct_excessive_bools,
+    clippy::doc_markdown
+)]
 #[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
     /// Add Linux capabilities

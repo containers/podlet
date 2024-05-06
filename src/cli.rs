@@ -391,6 +391,7 @@ impl Commands {
     }
 }
 
+#[allow(clippy::doc_markdown)]
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 enum PodmanCommands {
     /// Generate a podman quadlet `.container` file

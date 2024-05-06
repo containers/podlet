@@ -12,6 +12,7 @@ use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOp
 
 use super::image_to_name;
 
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
     #[command(flatten)]

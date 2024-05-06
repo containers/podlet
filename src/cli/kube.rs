@@ -19,6 +19,7 @@ pub enum Kube {
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-kube-play.1.html and
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#kube-units-kube
+    #[allow(clippy::doc_markdown)]
     #[group(skip)]
     Play {
         #[command(flatten)]

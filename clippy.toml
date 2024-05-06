@@ -1,0 +1,3 @@
+# Clippy configuration
+
+doc-valid-idents = ["SELinux", ".."]

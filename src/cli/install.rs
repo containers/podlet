@@ -1,5 +1,6 @@
 use clap::Args;
 
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Install {
     /// Add an [Install] section to the unit

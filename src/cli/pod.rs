@@ -28,6 +28,7 @@ pub enum Pod {
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html and
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#pod-units-pod
+    #[allow(clippy::doc_markdown)]
     #[group(skip)]
     Create {
         #[command(flatten)]
@@ -56,6 +57,7 @@ impl From<Pod> for quadlet::Resource {
 }
 
 /// [`Args`] for `podman pod create`.
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
     /// Specify a custom network for the pod.

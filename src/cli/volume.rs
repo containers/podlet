@@ -11,6 +11,7 @@ pub enum Volume {
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-volume-create.1.html and
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#volume-units-volume
+    #[allow(clippy::doc_markdown)]
     #[group(skip)]
     Create {
         #[command(flatten)]

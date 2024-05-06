@@ -15,6 +15,7 @@ pub enum Image {
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pull.1.html and
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#image-units-image
+    #[allow(clippy::doc_markdown)]
     #[group(skip)]
     Pull {
         #[command(flatten)]
@@ -47,6 +48,7 @@ impl From<Image> for quadlet::Resource {
 }
 
 /// [`Args`] for `podman image pull`
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Pull {
     /// All tagged images in the repository are pulled.

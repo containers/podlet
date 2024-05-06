@@ -235,7 +235,7 @@ pub struct Container {
     /// Set the label process level for the container processes.
     pub security_label_level: Option<String>,
 
-    /// Allow SecurityLabels to function within the container.
+    /// Allow security labels to function within the container.
     #[serde(skip_serializing_if = "Not::not")]
     pub security_label_nested: bool,
 
