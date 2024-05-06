@@ -427,6 +427,13 @@ pub struct PodmanArgs {
     volumes_from: Vec<String>,
 }
 
+impl PodmanArgs {
+    /// Set the `--pod` option.
+    pub(super) fn set_pod(&mut self, pod: Option<String>) {
+        self.pod = pod;
+    }
+}
+
 impl Display for PodmanArgs {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;

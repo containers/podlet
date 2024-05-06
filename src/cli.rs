@@ -351,7 +351,7 @@ enum Commands {
     /// Modify the compose file to resolve the error.
     Compose(#[command(flatten)] Compose),
 
-    /// Generate a podman quadlet file from an existing container, network, volume, or image.
+    /// Generate a podman quadlet file from an existing object.
     ///
     /// Note: these commands require that podman is installed and is searchable
     /// from the `PATH` environment variable.
@@ -381,10 +381,12 @@ impl Commands {
             Self::Compose(compose) => compose
                 .try_into_files(unit, install)
                 .wrap_err("error converting compose file"),
-            Self::Generate(command) => Ok(vec![command
-                .try_into_quadlet(name, unit, install)
-                .wrap_err("error creating quadlet file from an existing object")?
-                .into()]),
+            Self::Generate(command) => Ok(command
+                .try_into_quadlet_files(name, unit, install)
+                .wrap_err("error creating quadlet file(s) from an existing object")?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
         }
     }
 }

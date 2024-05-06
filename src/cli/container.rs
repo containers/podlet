@@ -53,6 +53,11 @@ impl Container {
             .as_deref()
             .unwrap_or_else(|| image_to_name(&self.image))
     }
+
+    /// Set the `--pod` option.
+    pub(super) fn set_pod(&mut self, pod: Option<String>) {
+        self.podman_args.set_pod(pod);
+    }
 }
 
 impl TryFrom<compose_spec::Service> for Container {
