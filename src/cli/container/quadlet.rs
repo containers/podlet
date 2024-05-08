@@ -2,9 +2,10 @@ use std::{
     iter,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     path::PathBuf,
+    time::Duration,
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Args, ValueEnum};
+use clap::{builder::TypedValueParser, ArgAction, Args};
 use color_eyre::{
     eyre::{ensure, eyre, Context, OptionExt},
     owo_colors::OwoColorize,
@@ -21,20 +22,24 @@ use compose_spec::{
             mount::{Common, Tmpfs, TmpfsOptions},
             ShortVolume,
         },
-        ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
+        Command, ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
     },
     Identifier, ItemOrList, ShortOrLong,
 };
 use smart_default::SmartDefault;
 
 use crate::quadlet::{
-    container::{Device, Mount, PullPolicy, Rootfs, Volume},
+    container::{Device, DnsEntry, Mount, Notify, PullPolicy, Rootfs, Volume},
     AutoUpdate,
 };
 
 use super::compose;
 
-#[allow(clippy::module_name_repetitions, clippy::struct_excessive_bools)]
+#[allow(
+    clippy::module_name_repetitions,
+    clippy::struct_excessive_bools,
+    clippy::doc_markdown
+)]
 #[derive(Args, SmartDefault, Debug, Clone, PartialEq)]
 pub struct QuadletOptions {
     /// Add Linux capabilities
@@ -75,7 +80,8 @@ pub struct QuadletOptions {
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "IP_ADDRESS")]
-    dns: Vec<IpAddr>,
+    // TODO: use `Dns` directly if clap ever supports custom collections (https://github.com/clap-rs/clap/issues/3114).
+    dns: Vec<DnsEntry>,
 
     /// Set custom DNS options
     ///
@@ -102,6 +108,12 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "CAPABILITY")]
     cap_drop: Vec<String>,
+
+    /// Override the default entrypoint of the image
+    ///
+    /// Converts to "Entrypoint=ENTRYPOINT"
+    #[arg(long, value_name = "\"COMMAND\" | '[\"COMMAND\", \"ARG1\", ...]'")]
+    entrypoint: Option<String>,
 
     /// Set environment variables in the container
     ///
@@ -258,6 +270,8 @@ pub struct QuadletOptions {
     /// Control sd-notify behavior
     ///
     /// If `container`, converts to "Notify=true"
+    ///
+    /// If `healthy`, converts to "Notify=healthy"
     #[arg(long, value_enum, default_value_t)]
     sdnotify: Notify,
 
@@ -271,12 +285,6 @@ pub struct QuadletOptions {
         value_parser = pids_limit_parser()
     )]
     pids_limit: Option<Limit<u32>>,
-
-    /// The rootfs to use for the container
-    ///
-    /// Converts to "Rootfs=PATH"
-    #[arg(long, value_name = "PATH[:OPTIONS]")]
-    rootfs: Option<Rootfs>,
 
     /// Publish a container's port, or a range of ports, to the host
     ///
@@ -308,6 +316,12 @@ pub struct QuadletOptions {
     #[default = true]
     read_only_tmpfs: bool,
 
+    /// The rootfs to use for the container
+    ///
+    /// Converts to "Rootfs=PATH"
+    #[arg(long, value_name = "PATH[:OPTIONS]")]
+    rootfs: Option<Rootfs>,
+
     /// Run an init inside the container
     ///
     /// Converts to "RunInit=true"
@@ -327,6 +341,14 @@ pub struct QuadletOptions {
     /// Converts to "ShmSize=NUMBER[UNIT]"
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size: Option<String>,
+
+    /// Timeout to stop a container
+    ///
+    /// Default is 10 seconds
+    ///
+    /// Converts to "StopTimeout=SECONDS"
+    #[arg(long, value_name = "SECONDS")]
+    stop_timeout: Option<u64>,
 
     /// Name of range listed in /etc/subgid for use in user namespace
     ///
@@ -348,6 +370,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NAME=VALUE")]
     sysctl: Vec<String>,
 
+    /// Set the timezone in the container
+    ///
+    /// Converts to "Timezone=TIMEZONE"
+    #[arg(long, value_name = "TIMEZONE")]
+    tz: Option<String>,
+
     /// Create a tmpfs mount
     ///
     /// Converts to "Tmpfs=FS" or, if FS == /tmp, "VolatileTmp=true"
@@ -355,12 +383,6 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "FS")]
     tmpfs: Vec<String>,
-
-    /// Set the timezone in the container
-    ///
-    /// Converts to "Timezone=TIMEZONE"
-    #[arg(long, value_name = "TIMEZONE")]
-    tz: Option<String>,
 
     /// Run the container in a new user namespace using the supplied UID mapping
     ///
@@ -409,28 +431,6 @@ pub struct QuadletOptions {
     workdir: Option<PathBuf>,
 }
 
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
-enum Notify {
-    Conmon,
-    Container,
-}
-
-impl Notify {
-    /// Returns `true` if the notify is [`Container`].
-    ///
-    /// [`Container`]: Notify::Container
-    #[must_use]
-    fn is_container(self) -> bool {
-        matches!(self, Self::Container)
-    }
-}
-
-impl Default for Notify {
-    fn default() -> Self {
-        Self::Conmon
-    }
-}
-
 /// Create a [`TypedValueParser`] for parsing the `pids_limit` field of [`QuadletOptions`].
 fn pids_limit_parser() -> impl TypedValueParser<Value = Limit<u32>> {
     clap::value_parser!(i64)
@@ -447,12 +447,70 @@ fn pids_limit_parser() -> impl TypedValueParser<Value = Limit<u32>> {
 }
 
 impl From<QuadletOptions> for crate::quadlet::Container {
-    fn from(value: QuadletOptions) -> Self {
-        let mut label = value.label;
+    // Triggers on uid and gid options
+    #[allow(clippy::similar_names)]
+    fn from(
+        QuadletOptions {
+            cap_add: add_capability,
+            device: add_device,
+            annotation,
+            name: container_name,
+            dns,
+            dns_option,
+            dns_search,
+            cap_drop: drop_capability,
+            entrypoint,
+            env,
+            env_file: environment_file,
+            env_host: environment_host,
+            expose: expose_host_port,
+            gidmap: gid_map,
+            health_cmd,
+            health_interval,
+            health_on_failure,
+            health_retries,
+            health_start_period,
+            health_startup_cmd,
+            health_startup_interval,
+            health_startup_retries,
+            health_startup_success,
+            health_startup_timeout,
+            health_timeout,
+            hostname: host_name,
+            ip,
+            ip6,
+            mut label,
+            log_driver,
+            mount,
+            network,
+            sdnotify: notify,
+            pids_limit,
+            publish: publish_port,
+            pull,
+            read_only,
+            read_only_tmpfs,
+            rootfs,
+            init: run_init,
+            secret,
+            shm_size,
+            stop_timeout,
+            subgidname: sub_gid_map,
+            subuidname: sub_uid_map,
+            sysctl,
+            tz: timezone,
+            tmpfs,
+            uidmap: uid_map,
+            ulimit,
+            user,
+            userns: user_ns,
+            volume,
+            workdir: working_dir,
+        }: QuadletOptions,
+    ) -> Self {
         let auto_update = AutoUpdate::extract_from_labels(&mut label);
 
         // `--user` is in the format: `uid[:gid]`
-        let (user, group) = value.user.map_or((None, None), |user| {
+        let (user, group) = user.map_or((None, None), |user| {
             if let Some((uid, gid)) = user.split_once(':') {
                 (Some(uid.into()), Some(gid.into()))
             } else {
@@ -461,60 +519,62 @@ impl From<QuadletOptions> for crate::quadlet::Container {
         });
 
         Self {
-            add_capability: value.cap_add,
-            add_device: value.device,
-            annotation: value.annotation,
+            add_capability,
+            add_device,
+            annotation,
             auto_update,
-            container_name: value.name,
-            dns: value.dns,
-            dns_option: value.dns_option,
-            dns_search: value.dns_search,
-            drop_capability: value.cap_drop,
-            environment: value.env,
-            environment_file: value.env_file,
-            environment_host: value.env_host,
-            expose_host_port: value.expose,
-            gid_map: value.gidmap,
+            container_name,
+            dns: dns.into(),
+            dns_option,
+            dns_search,
+            drop_capability,
+            entrypoint,
+            environment: env,
+            environment_file,
+            environment_host,
+            expose_host_port,
+            gid_map,
             group,
-            health_cmd: value.health_cmd,
-            health_interval: value.health_interval,
-            health_on_failure: value.health_on_failure,
-            health_retries: value.health_retries,
-            health_start_period: value.health_start_period,
-            health_startup_cmd: value.health_startup_cmd,
-            health_startup_interval: value.health_startup_interval,
-            health_startup_retries: value.health_startup_retries,
-            health_startup_success: value.health_startup_success,
-            health_startup_timeout: value.health_startup_timeout,
-            health_timeout: value.health_timeout,
-            host_name: value.hostname,
-            ip: value.ip,
-            ip6: value.ip6,
+            health_cmd,
+            health_interval,
+            health_on_failure,
+            health_retries,
+            health_start_period,
+            health_startup_cmd,
+            health_startup_interval,
+            health_startup_retries,
+            health_startup_success,
+            health_startup_timeout,
+            health_timeout,
+            host_name,
+            ip,
+            ip6,
             label,
-            log_driver: value.log_driver,
-            mount: value.mount,
-            network: value.network,
-            rootfs: value.rootfs,
-            notify: value.sdnotify.is_container(),
-            pids_limit: value.pids_limit,
-            publish_port: value.publish,
-            pull: value.pull,
-            read_only: value.read_only,
-            read_only_tmpfs: value.read_only_tmpfs,
-            run_init: value.init,
-            secret: value.secret,
-            shm_size: value.shm_size,
-            sub_gid_map: value.subgidname,
-            sub_uid_map: value.subuidname,
-            sysctl: value.sysctl,
-            tmpfs: value.tmpfs,
-            timezone: value.tz,
-            uid_map: value.uidmap,
-            ulimit: value.ulimit,
+            log_driver,
+            mount,
+            network,
+            notify,
+            pids_limit,
+            publish_port,
+            pull,
+            read_only,
+            read_only_tmpfs,
+            rootfs,
+            run_init,
+            secret,
+            shm_size,
+            stop_timeout,
+            sub_gid_map,
+            sub_uid_map,
+            sysctl,
+            timezone,
+            tmpfs,
+            uid_map,
+            ulimit,
             user,
-            user_ns: value.userns,
-            volume: value.volume,
-            working_dir: value.workdir,
+            user_ns,
+            volume,
+            working_dir,
             ..Self::default()
         }
     }
@@ -523,6 +583,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
 impl TryFrom<compose::Quadlet> for QuadletOptions {
     type Error = color_eyre::Report;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(
         compose::Quadlet {
             cap_add,
@@ -532,6 +593,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             dns,
             dns_opt,
             dns_search,
+            entrypoint,
             env_file,
             environment,
             expose,
@@ -548,6 +610,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             read_only,
             secrets,
             shm_size,
+            stop_grace_period,
             sysctls,
             tmpfs,
             ulimits,
@@ -586,13 +649,24 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             cap_drop: cap_drop.into_iter().collect(),
             name: container_name.map(Into::into),
             device: devices.into_iter().map(Into::into).collect(),
-            dns: dns.into_iter().flat_map(ItemOrList::into_list).collect(),
+            dns: dns
+                .into_iter()
+                .flat_map(ItemOrList::into_list)
+                .map(Into::into)
+                .collect(),
             dns_option: dns_opt.into_iter().collect(),
             dns_search: dns_search
                 .into_iter()
                 .flat_map(ItemOrList::into_list)
                 .map(Into::into)
                 .collect(),
+            entrypoint: entrypoint
+                .map(|entrypoint| match entrypoint {
+                    Command::String(entrypoint) => Ok(entrypoint),
+                    Command::List(entrypoint) => serde_json::to_string(&entrypoint)
+                        .wrap_err("error serializing `entrypoint` command as JSON"),
+                })
+                .transpose()?,
             env_file: env_file
                 .into_iter()
                 .flat_map(EnvFile::into_list)
@@ -642,6 +716,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .collect::<Result<_, _>>()
                 .wrap_err("error converting `secrets`")?,
             shm_size: shm_size.as_ref().map(ToString::to_string),
+            stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
             sysctl: sysctls.into_list().into_iter().collect(),
             tmpfs,
             ulimit: ulimits

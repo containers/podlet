@@ -7,6 +7,7 @@ mod install;
 mod k8s;
 mod kube;
 mod network;
+mod pod;
 pub mod service;
 pub mod unit;
 pub mod volume;
@@ -24,18 +25,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{builder::TypedValueParser, Parser, Subcommand};
 use color_eyre::{
     eyre::{ensure, eyre, WrapErr},
     Help,
 };
+use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
 use crate::quadlet::{self, Downgrade, DowngradeError, Globals, HostPaths, PodmanVersion};
 
 use self::{
-    container::Container, generate::Generate, global_args::GlobalArgs, image::Image,
-    install::Install, kube::Kube, network::Network, service::Service, unit::Unit, volume::Volume,
+    compose::Compose, container::Container, generate::Generate, global_args::GlobalArgs,
+    image::Image, install::Install, kube::Kube, network::Network, pod::Pod, service::Service,
+    unit::Unit, volume::Volume,
 };
 
 #[allow(clippy::option_option)]
@@ -246,10 +249,10 @@ impl Cli {
                     Ok(path)
                 } else {
                     match &self.command {
-                        Commands::Compose {
+                        Commands::Compose(Compose {
                             compose_file: Some(path),
                             ..
-                        } if path.as_os_str() != "-" && !path.as_os_str().is_empty() => {
+                        }) if path.as_os_str() != "-" && !path.as_os_str().is_empty() => {
                             if let Some(path) = path.parent() {
                                 let current_dir = env::current_dir().wrap_err(CURRENT_DIR_ERR)?;
                                 Ok(absolute_clean_path(&current_dir, path))
@@ -337,7 +340,7 @@ enum Commands {
     /// Generate podman quadlet files from a compose file
     ///
     /// Creates a `.container` file for each service,
-    /// a `.volume` file for each volume,
+    /// a `.volume` file for each volume (if it has additional options set),
     /// and a `.network` file for each network.
     ///
     /// The `--file` option must be a directory if used.
@@ -346,28 +349,9 @@ enum Commands {
     ///
     /// When podlet encounters an unsupported option, an error will be returned.
     /// Modify the compose file to resolve the error.
-    Compose {
-        /// Create a Kubernetes YAML file for a pod instead of separate containers
-        ///
-        /// A `.kube` file using the generated Kubernetes YAML file is also created.
-        ///
-        /// The top-level `name` field in the compose file is required when using this option.
-        /// It is used for the name of the pod and in the filenames of the created files.
-        #[arg(long)]
-        kube: bool,
+    Compose(#[command(flatten)] Compose),
 
-        /// The compose file to convert
-        ///
-        /// If `-` or not provided and stdin is not a terminal,
-        /// the compose file will be read from stdin.
-        ///
-        /// If not provided, and stdin is a terminal, podlet will look for (in order)
-        /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
-        /// in the current working directory.
-        compose_file: Option<PathBuf>,
-    },
-
-    /// Generate a podman quadlet file from an existing container, network, volume, or image.
+    /// Generate a podman quadlet file from an existing object.
     ///
     /// Note: these commands require that podman is installed and is searchable
     /// from the `PATH` environment variable.
@@ -376,16 +360,11 @@ enum Commands {
 }
 
 impl Commands {
-    /// Convert into [`File`]s
+    /// Attempt to convert the input into [`File`]s
     ///
     /// # Errors
     ///
-    /// Returns an error if there was an error:
-    ///
-    /// - Reading/deserializing the compose file.
-    /// - Converting the compose file to Kubernetes YAML.
-    /// - Converting the compose file to quadlet files.
-    /// - Creating a quadlet file from an existing object.
+    /// Returns an error if there was an error converting from the compose file or existing object.
     fn try_into_files(
         self,
         name: Option<String>,
@@ -399,42 +378,20 @@ impl Commands {
             } => Ok(vec![command
                 .into_quadlet(name, unit, (*global_args).into(), install)
                 .into()]),
-            Self::Compose { kube, compose_file } => {
-                let compose = compose::from_file_or_stdin(compose_file.as_deref())
-                    .wrap_err("error reading compose file")?;
-
-                if kube {
-                    let mut k8s_file = k8s::File::try_from(compose)
-                        .wrap_err("error converting compose file into Kubernetes YAML")?;
-
-                    let kube = quadlet::Kube::new(
-                        PathBuf::from(format!("{}-kube.yaml", k8s_file.name)).into(),
-                    );
-                    let quadlet_file = quadlet::File {
-                        name: k8s_file.name.clone(),
-                        unit,
-                        resource: kube.into(),
-                        globals: Globals::default(),
-                        service: None,
-                        install,
-                    };
-
-                    k8s_file.name.push_str("-kube");
-                    Ok(vec![quadlet_file.into(), k8s_file.into()])
-                } else {
-                    compose::try_into_quadlet_files(compose, unit.as_ref(), install.as_ref())
-                        .and_then(|files| files.map(|file| file.map(Into::into)).collect())
-                        .wrap_err("error converting compose file into quadlet files")
-                }
-            }
-            Self::Generate(command) => Ok(vec![command
-                .try_into_quadlet(name, unit, install)
-                .wrap_err("error creating quadlet file from an existing object")?
-                .into()]),
+            Self::Compose(compose) => compose
+                .try_into_files(unit, install)
+                .wrap_err("error converting compose file"),
+            Self::Generate(command) => Ok(command
+                .try_into_quadlet_files(name, unit, install)
+                .wrap_err("error creating quadlet file(s) from an existing object")?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
         }
     }
 }
 
+#[allow(clippy::doc_markdown)]
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 enum PodmanCommands {
     /// Generate a podman quadlet `.container` file
@@ -449,6 +406,16 @@ enum PodmanCommands {
         /// The \[Service\] section
         #[command(flatten)]
         service: Service,
+    },
+
+    /// Generate a podman quadlet `.pod` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html
+    Pod {
+        /// The \[Pod\] section
+        #[command(subcommand)]
+        pod: Box<Pod>,
     },
 
     /// Generate a podman quadlet `.kube` file
@@ -496,6 +463,7 @@ impl From<PodmanCommands> for quadlet::Resource {
     fn from(value: PodmanCommands) -> Self {
         match value {
             PodmanCommands::Run { container, .. } => (*container).into(),
+            PodmanCommands::Pod { pod } => (*pod).into(),
             PodmanCommands::Kube { kube } => (*kube).into(),
             PodmanCommands::Network { network } => (*network).into(),
             PodmanCommands::Volume { volume } => volume.into(),
@@ -535,6 +503,7 @@ impl PodmanCommands {
     fn name(&self) -> &str {
         match self {
             Self::Run { container, .. } => container.name(),
+            Self::Pod { pod } => pod.name(),
             Self::Kube { kube } => kube.name(),
             Self::Network { network } => network.name(),
             Self::Volume { volume } => volume.name(),
@@ -719,6 +688,13 @@ fn check_existing<'a>(
     }
 
     Ok(())
+}
+
+/// Create a [`TypedValueParser`] for parsing a `blkio_weight` field.
+fn blkio_weight_parser() -> impl TypedValueParser<Value = Weight> {
+    clap::value_parser!(u16)
+        .range(10..=1000)
+        .try_map(TryInto::try_into)
 }
 
 #[cfg(test)]

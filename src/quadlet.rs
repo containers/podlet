@@ -4,6 +4,7 @@ pub mod image;
 mod install;
 pub mod kube;
 mod network;
+mod pod;
 mod volume;
 
 use std::{
@@ -24,6 +25,7 @@ pub use self::{
     install::Install,
     kube::Kube,
     network::{IpRange, Network},
+    pod::Pod,
     volume::Volume,
 };
 use crate::cli::{service::Service, unit::Unit};
@@ -81,6 +83,7 @@ impl Downgrade for File {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Resource {
     Container(Box<Container>),
+    Pod(Pod),
     Kube(Kube),
     Network(Network),
     Volume(Volume),
@@ -91,6 +94,7 @@ impl Display for Resource {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Container(container) => container.fmt(f),
+            Self::Pod(pod) => pod.fmt(f),
             Self::Kube(kube) => kube.fmt(f),
             Self::Network(network) => network.fmt(f),
             Self::Volume(volume) => volume.fmt(f),
@@ -108,6 +112,12 @@ impl From<Container> for Resource {
 impl From<Box<Container>> for Resource {
     fn from(value: Box<Container>) -> Self {
         Self::Container(value)
+    }
+}
+
+impl From<Pod> for Resource {
+    fn from(value: Pod) -> Self {
+        Self::Pod(value)
     }
 }
 
@@ -146,6 +156,7 @@ impl Resource {
     pub fn name_to_service(&self, name: &str) -> String {
         let mut service = match self {
             Self::Container(_) | Self::Kube(_) => String::from(name),
+            Self::Pod(_) => format!("{name}-pod"),
             Self::Network(_) => format!("{name}-network"),
             Self::Volume(_) => format!("{name}-volume"),
             Self::Image(_) => format!("{name}-image"),
@@ -159,6 +170,7 @@ impl HostPaths for Resource {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         match self {
             Self::Container(container) => ResourceIter::Container(container.host_paths()),
+            Self::Pod(pod) => ResourceIter::Pod(pod.host_paths()),
             Self::Kube(kube) => ResourceIter::Kube(kube.host_paths()),
             Self::Network(_) => ResourceIter::Network(iter::empty()),
             Self::Volume(volume) => ResourceIter::Volume(volume.host_paths()),
@@ -168,17 +180,19 @@ impl HostPaths for Resource {
 }
 
 /// [`Iterator`] for all [`Resource`] types.
-enum ResourceIter<C, K, N, V, I> {
+enum ResourceIter<C, P, K, N, V, I> {
     Container(C),
+    Pod(P),
     Kube(K),
     Network(N),
     Volume(V),
     Image(I),
 }
 
-impl<C, K, N, V, I, Item> Iterator for ResourceIter<C, K, N, V, I>
+impl<C, P, K, N, V, I, Item> Iterator for ResourceIter<C, P, K, N, V, I>
 where
     C: Iterator<Item = Item>,
+    P: Iterator<Item = Item>,
     K: Iterator<Item = Item>,
     N: Iterator<Item = Item>,
     V: Iterator<Item = Item>,
@@ -189,6 +203,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::Container(iter) => iter.next(),
+            Self::Pod(iter) => iter.next(),
             Self::Kube(iter) => iter.next(),
             Self::Network(iter) => iter.next(),
             Self::Volume(iter) => iter.next(),
@@ -201,6 +216,7 @@ impl Downgrade for Resource {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         match self {
             Self::Container(container) => container.downgrade(version),
+            Self::Pod(pod) => pod.downgrade(version),
             Self::Kube(kube) => kube.downgrade(version),
             Self::Network(network) => network.downgrade(version),
             Self::Volume(volume) => volume.downgrade(version),
@@ -213,6 +229,7 @@ impl Downgrade for Resource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResourceKind {
     Container,
+    Pod,
     Kube,
     Network,
     Volume,
@@ -224,6 +241,7 @@ impl ResourceKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Container => "container",
+            Self::Pod => "pod",
             Self::Kube => "kube",
             Self::Network => "network",
             Self::Volume => "volume",
@@ -242,6 +260,7 @@ impl From<&Resource> for ResourceKind {
     fn from(value: &Resource) -> Self {
         match value {
             Resource::Container(_) => Self::Container,
+            Resource::Pod(_) => Self::Pod,
             Resource::Kube(_) => Self::Kube,
             Resource::Network(_) => Self::Network,
             Resource::Volume(_) => Self::Volume,
@@ -270,22 +289,39 @@ pub trait Downgrade {
 #[non_exhaustive]
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PodmanVersion {
+    /// Podman v4.4
     #[value(name = "4.4", aliases = ["4.4.0", "4.4.1", "4.4.2", "4.4.3", "4.4.4"])]
     V4_4,
+
+    /// Podman v4.5
     #[value(name = "4.5", aliases = ["4.5.0", "4.5.1"])]
     V4_5,
+
+    /// Podman v4.6
     #[value(name = "4.6", aliases = ["4.6.0", "4.6.1", "4.6.2"])]
     V4_6,
+
+    /// Podman v4.7
     #[value(name = "4.7", aliases = ["4.7.0", "4.7.1", "4.7.2"])]
     V4_7,
-    #[value(name = "4.8", aliases = ["latest", "4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0"])]
+
+    /// Podman v4.8 and v4.9
+    #[value(
+        name = "4.8",
+        aliases = ["4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0", "4.9.1", "4.9.2", "4.9.3", "4.9.4"]
+    )]
     V4_8,
+
+    /// Podman v5.0
+    #[value(name = "5.0", aliases = ["latest", "5.0.0", "5.0.1", "5.0.2"])]
+    V5_0,
 }
 
 impl PodmanVersion {
     /// Latest supported version of podman with regards to quadlet.
-    pub const LATEST: Self = Self::V4_8;
+    pub const LATEST: Self = Self::V5_0;
 
+    /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::V4_4 => "4.4",
@@ -293,6 +329,7 @@ impl PodmanVersion {
             Self::V4_6 => "4.6",
             Self::V4_7 => "4.7",
             Self::V4_8 => "4.8",
+            Self::V5_0 => "5.0",
         }
     }
 }

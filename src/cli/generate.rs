@@ -19,17 +19,11 @@ use indexmap::IndexMap;
 use ipnet::IpNet;
 use serde::{de::DeserializeOwned, Deserialize};
 
-use crate::quadlet::{self, Globals, IpRange, ResourceKind};
+use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind};
 
 use super::{
-    container::Container,
-    global_args::GlobalArgs,
-    image::{self, Image},
-    network::{self, Network},
-    service::Service,
-    unit::Unit,
-    volume::{self, Volume},
-    PodmanCommands,
+    global_args::GlobalArgs, image, network, service::Service, unit::Unit, volume, Container,
+    Image, Network, Pod, Volume,
 };
 
 /// [`Subcommand`] for `podlet generate`
@@ -43,6 +37,19 @@ pub enum Generate {
         ///
         /// Passed to `podman container inspect`.
         container: String,
+    },
+
+    /// Generate quadlet files from an existing pod and its containers
+    ///
+    /// Creates a `.pod` quadlet file and a `.container` quadlet file for each container in the pod.
+    ///
+    /// Only supports pods created with `podman pod create`.
+    /// The command used to create the pod is parsed to generate the quadlet file.
+    Pod {
+        /// Name or ID of the pod
+        ///
+        /// Passed to `podman pod inspect`.
+        pod: String,
     },
 
     /// Generate a quadlet file from an existing network
@@ -78,27 +85,35 @@ pub enum Generate {
 }
 
 impl Generate {
-    /// Inspect the given resource by running a podman command, deserialize the output,
-    /// and transform it into a [`quadlet::File`].
+    /// Inspect the given resource by running a podman command, deserializing the output,
+    /// and transforming it into one or more [`quadlet::File`]s.
     ///
     /// # Errors
     ///
     /// Returns an error if there is a problem running the podman command
-    /// or its output cannot be deserialized.
-    pub fn try_into_quadlet(
+    /// or its output could not be deserialized.
+    pub fn try_into_quadlet_files(
         self,
         name: Option<String>,
         unit: Option<Unit>,
-        install: Option<quadlet::Install>,
-    ) -> color_eyre::Result<quadlet::File> {
-        let (podman_command, globals) = match self {
-            Self::Container { container } => ContainerParser::from_container(&container)?.into(),
-            Self::Network { network } => NetworkInspect::from_network(&network)?.into(),
-            Self::Volume { volume } => VolumeInspect::from_volume(&volume)?.into(),
-            Self::Image { image } => ImageInspect::from_image(&image)?.into(),
-        };
-
-        Ok(podman_command.into_quadlet(name, unit, globals, install))
+        install: Option<Install>,
+    ) -> color_eyre::Result<Vec<quadlet::File>> {
+        match self {
+            Self::Container { container } => Ok(vec![ContainerParser::from_container(&container)?
+                .into_quadlet_file(None, name, unit, install)]),
+            Self::Pod { pod } => {
+                Ok(PodParser::from_pod(&pod)?.into_quadlet_files(name, unit, install))
+            }
+            Self::Network { network } => Ok(vec![
+                NetworkInspect::from_network(&network)?.into_quadlet_file(name, unit, install)
+            ]),
+            Self::Volume { volume } => Ok(vec![
+                VolumeInspect::from_volume(&volume)?.into_quadlet_file(name, unit, install)
+            ]),
+            Self::Image { image } => Ok(vec![
+                ImageInspect::from_image(&image)?.into_quadlet_file(name, unit, install)
+            ]),
+        }
     }
 }
 
@@ -129,30 +144,49 @@ impl ContainerParser {
     fn from_container(container: &str) -> color_eyre::Result<Self> {
         let create_command = ContainerInspect::from_container(container)
             .wrap_err_with(|| {
-                format!("error getting command used to create container: {container}")
+                format!("error getting command used to create container `{container}`")
             })?
             .config
             .create_command;
 
-        Self::try_parse_from(filter_container_create_command(&create_command))
-            .wrap_err_with(|| format!("error parsing podman command from: {create_command:?}",))
+        Self::try_parse_from(filter_container_create_command(&create_command)).wrap_err_with(|| {
+            format!("error parsing podman container command from `{create_command:?}`")
+        })
     }
-}
 
-impl From<ContainerParser> for (PodmanCommands, Globals) {
-    fn from(value: ContainerParser) -> Self {
-        let ContainerParser {
+    /// Convert the parsed container command into a [`quadlet::File`].
+    fn into_quadlet_file(
+        self,
+        pod: Option<&str>,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<Install>,
+    ) -> quadlet::File {
+        let Self {
             global_args,
-            container,
+            mut container,
             service,
-        } = value;
-        (
-            PodmanCommands::Run {
-                container: Box::new(container),
-                service,
-            },
-            global_args.into(),
-        )
+        } = self;
+
+        if pod.is_some() {
+            container.set_pod(None);
+        }
+
+        let name = name.unwrap_or_else(|| container.name().to_owned());
+
+        let mut container = quadlet::Container::from(container);
+        if let Some(pod) = pod {
+            container.pod = Some(format!("{pod}.pod"));
+        }
+
+        quadlet::File {
+            name,
+            unit,
+            resource: container.into(),
+            globals: global_args.into(),
+            service: (!service.is_empty()).then_some(service),
+            install,
+        }
     }
 }
 
@@ -200,6 +234,127 @@ impl ContainerInspect {
     /// or if the output cannot be properly deserialized.
     fn from_container(container: &str) -> color_eyre::Result<Self> {
         podman_inspect(ResourceKind::Container, container)
+    }
+}
+
+/// [`Parser`] for pod creation CLI options.
+#[derive(Parser, Debug)]
+#[command(no_binary_name = true)]
+struct PodParser {
+    /// Podman global options
+    #[command(flatten)]
+    global_args: GlobalArgs,
+
+    /// The \[Pod\] section
+    #[command(subcommand)]
+    pod: Pod,
+
+    /// Containers associated with the pod.
+    #[arg(skip)]
+    containers: Vec<ContainerParser>,
+}
+
+impl PodParser {
+    /// Runs `podman pod inspect` on the pod and parses the creation command and container list.
+    /// For each of the pod's containers, `podman container inspect` is run and the container's
+    /// creation command is parsed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an error getting the creation command and containers,
+    /// the creation command cannot be successfully parsed into pod CLI options,
+    /// there is an error getting one of the pod's container's creation command,
+    /// or a container creation command could not be parsed.
+    fn from_pod(pod: &str) -> color_eyre::Result<Self> {
+        let PodInspect {
+            create_command,
+            containers,
+        } = PodInspect::from_pod(pod).wrap_err_with(|| format!("error inspecting pod `{pod}`"))?;
+
+        // skip the `podman pod` prefix
+        let iter = create_command.iter().skip(2);
+
+        let mut pod = Self::try_parse_from(iter).wrap_err_with(|| {
+            format!("error parsing `podman pod create` command from `{create_command:?}`")
+        })?;
+
+        let containers = containers
+            .into_iter()
+            .filter_map(|PodContainer { name }| {
+                // skip infra containers
+                (!name.ends_with("-infra")).then(|| ContainerParser::from_container(&name))
+            })
+            .collect::<Result<_, _>>()
+            .wrap_err("error inspecting one of the pod's containers")?;
+
+        pod.containers = containers;
+        Ok(pod)
+    }
+
+    /// Convert the parsed pod and containers into [`quadlet::File`]s.
+    fn into_quadlet_files(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<Install>,
+    ) -> Vec<quadlet::File> {
+        let Self {
+            global_args,
+            pod,
+            containers,
+        } = self;
+
+        let pod_name = pod.name();
+
+        let mut files: Vec<_> = containers
+            .into_iter()
+            .map(|container| {
+                container.into_quadlet_file(Some(pod_name), None, unit.clone(), install.clone())
+            })
+            .collect();
+
+        let pod = quadlet::File {
+            name: name.unwrap_or_else(|| pod_name.to_owned()),
+            unit,
+            resource: pod.into(),
+            globals: global_args.into(),
+            service: None,
+            install,
+        };
+
+        files.push(pod);
+        files
+    }
+}
+
+/// Selected output of `podman pod inspect`.
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct PodInspect {
+    /// Full command and arguments that created the pod.
+    create_command: Vec<String>,
+    /// All containers in the pod.
+    containers: Vec<PodContainer>,
+}
+
+/// Container in output of `podman pod inspect`.
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+struct PodContainer {
+    /// The name of the container.
+    name: String,
+}
+
+impl PodInspect {
+    /// Runs `podman pod inspect` on the pod and deserializes the output into [`Self`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is problem running `podman pod inspect`,
+    /// it doesn't complete successfully,
+    /// or if the output cannot be properly deserialized.
+    fn from_pod(pod: &str) -> color_eyre::Result<Self> {
+        podman_inspect(ResourceKind::Pod, pod)
     }
 }
 
@@ -327,6 +482,24 @@ impl NetworkInspect {
     fn from_network(network: &str) -> color_eyre::Result<Self> {
         podman_inspect(ResourceKind::Network, network)
     }
+
+    /// Convert the inspected network into a [`quadlet::File`].
+    fn into_quadlet_file(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<Install>,
+    ) -> quadlet::File {
+        let network = Network::from(self);
+        quadlet::File {
+            name: name.unwrap_or_else(|| network.name().to_owned()),
+            unit,
+            resource: network.into(),
+            globals: Globals::default(),
+            service: None,
+            install,
+        }
+    }
 }
 
 impl From<NetworkInspect> for Network {
@@ -396,20 +569,6 @@ impl From<NetworkInspect> for Network {
     }
 }
 
-impl From<NetworkInspect> for PodmanCommands {
-    fn from(value: NetworkInspect) -> Self {
-        PodmanCommands::Network {
-            network: Box::new(value.into()),
-        }
-    }
-}
-
-impl From<NetworkInspect> for (PodmanCommands, Globals) {
-    fn from(value: NetworkInspect) -> Self {
-        (value.into(), Globals::default())
-    }
-}
-
 /// Output of `podman volume inspect`.
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -437,6 +596,24 @@ impl VolumeInspect {
     /// or if the output cannot be properly deserialized.
     fn from_volume(volume: &str) -> color_eyre::Result<Self> {
         podman_inspect(ResourceKind::Volume, volume)
+    }
+
+    /// Convert the inspected volume into a [`quadlet::File`].
+    fn into_quadlet_file(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<Install>,
+    ) -> quadlet::File {
+        let volume = Volume::from(self);
+        quadlet::File {
+            name: name.unwrap_or_else(|| volume.name().to_owned()),
+            unit,
+            resource: volume.into(),
+            globals: Globals::default(),
+            service: None,
+            install,
+        }
     }
 }
 
@@ -468,20 +645,6 @@ impl From<VolumeInspect> for Volume {
     }
 }
 
-impl From<VolumeInspect> for PodmanCommands {
-    fn from(value: VolumeInspect) -> Self {
-        Self::Volume {
-            volume: value.into(),
-        }
-    }
-}
-
-impl From<VolumeInspect> for (PodmanCommands, Globals) {
-    fn from(value: VolumeInspect) -> Self {
-        (value.into(), Globals::default())
-    }
-}
-
 /// Selected output of `podman image inspect`.
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -504,6 +667,24 @@ impl ImageInspect {
     fn from_image(image: &str) -> color_eyre::Result<Self> {
         podman_inspect(ResourceKind::Image, image)
     }
+
+    /// Convert the inspected image into a [`quadlet::File`].
+    fn into_quadlet_file(
+        self,
+        name: Option<String>,
+        unit: Option<Unit>,
+        install: Option<Install>,
+    ) -> quadlet::File {
+        let image = Image::from(self);
+        quadlet::File {
+            name: name.unwrap_or_else(|| image.name().to_owned()),
+            unit,
+            resource: image.into(),
+            globals: Globals::default(),
+            service: None,
+            install,
+        }
+    }
 }
 
 impl From<ImageInspect> for Image {
@@ -525,20 +706,6 @@ impl From<ImageInspect> for Image {
                 ..Default::default()
             },
         }
-    }
-}
-
-impl From<ImageInspect> for PodmanCommands {
-    fn from(value: ImageInspect) -> Self {
-        Self::Image {
-            image: Box::new(value.into()),
-        }
-    }
-}
-
-impl From<ImageInspect> for (PodmanCommands, Globals) {
-    fn from(value: ImageInspect) -> Self {
-        (value.into(), Globals::default())
     }
 }
 

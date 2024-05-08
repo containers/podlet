@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Args};
+use clap::{ArgAction, Args};
 use color_eyre::{
     eyre::{eyre, Context},
     owo_colors::OwoColorize,
@@ -13,12 +13,12 @@ use color_eyre::{
 };
 use compose_spec::service::{
     blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
-    BlkioConfig, Command, Ipc,
+    BlkioConfig, Ipc,
 };
 use serde::Serialize;
 use smart_default::SmartDefault;
 
-use crate::serde::skip_true;
+use crate::{cli::blkio_weight_parser, serde::skip_true};
 
 use super::compose;
 
@@ -170,15 +170,17 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     disable_content_trust: bool,
 
-    /// Override the default entrypoint of the image
-    #[arg(long, value_name = "\"COMMAND\" | '[\"COMMAND\", \"ARG1\", ...]'")]
-    entrypoint: Option<String>,
-
     /// Preprocess default environment variables for the container
     ///
     /// Can be specified multiple times
     #[arg(long, value_name = "ENV")]
     env_merge: Vec<String>,
+
+    /// GPU devices to add to the container (`all` to pass all GPUs)
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "ENTRY")]
+    gpus: Vec<String>,
 
     /// Assign additional groups to the primary user running within the container process
     ///
@@ -311,6 +313,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "FILE")]
     pod_id_file: Option<PathBuf>,
 
+    /// Pass down to the process additional file descriptors
+    #[arg(long, value_name = "FD1[,FD2,…]")]
+    preserve_fd: Option<String>,
+
     /// Pass a number of additional file descriptors into the container
     #[arg(long, value_name = "N")]
     preserve_fds: Option<u16>,
@@ -341,6 +347,18 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "CONTAINER[,...]")]
     requires: Option<String>,
 
+    /// Number of times to retry pulling or pushing images between the registry and local storage
+    ///
+    /// Default is 3
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
+    /// Duration of delay between retry attempts when pulling or pushing images
+    ///
+    /// Default is to start at two seconds and then exponentially back off
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
+
     /// Remove container (and pod if created) after exit
     ///
     /// Automatically set by quadlet
@@ -370,12 +388,6 @@ pub struct PodmanArgs {
     /// Signal to stop a container
     #[arg(long, value_name = "SIGNAL")]
     stop_signal: Option<String>,
-
-    /// Timeout to stop a container
-    ///
-    /// Default is 10
-    #[arg(long, value_name = "SECONDS")]
-    stop_timeout: Option<u64>,
 
     /// Run container in systemd mode
     ///
@@ -415,11 +427,11 @@ pub struct PodmanArgs {
     volumes_from: Vec<String>,
 }
 
-/// Create a [`TypedValueParser`] for parsing the `blkio_weight` field of [`PodmanArgs`].
-fn blkio_weight_parser() -> impl TypedValueParser<Value = Weight> {
-    clap::value_parser!(u16)
-        .range(10..=1000)
-        .try_map(TryInto::try_into)
+impl PodmanArgs {
+    /// Set the `--pod` option.
+    pub(super) fn set_pod(&mut self, pod: Option<String>) {
+        self.pod = pod;
+    }
 }
 
 impl Display for PodmanArgs {
@@ -445,7 +457,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             cgroup,
             cgroup_parent,
             device_cgroup_rules,
-            entrypoint,
             extra_hosts,
             group_add,
             ipc,
@@ -461,7 +472,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             platform,
             privileged,
             stdin_open,
-            stop_grace_period,
             stop_signal,
             tty,
         }: compose::PodmanArgs,
@@ -512,13 +522,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            entrypoint: entrypoint
-                .map(|entrypoint| match entrypoint {
-                    Command::String(entrypoint) => Ok(entrypoint),
-                    Command::List(entrypoint) => serde_json::to_string(&entrypoint)
-                        .wrap_err("error serializing `entrypoint` command as JSON"),
-                })
-                .transpose()?,
             add_host: extra_hosts
                 .into_iter()
                 .map(|(host, ip)| format!("{host}:{ip}"))
@@ -552,7 +555,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             attach: stdin_open
                 .then(|| vec!["stdin".to_owned()])
                 .unwrap_or_default(),
-            stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
             stop_signal,
             tty,
             ..Self::default()

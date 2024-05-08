@@ -12,6 +12,7 @@ use crate::serde::quadlet::quote_spaces_join_space;
 
 // Common systemd unit options
 // From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+#[allow(clippy::doc_markdown)]
 #[derive(Serialize, Args, Default, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Unit {

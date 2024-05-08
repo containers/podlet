@@ -18,6 +18,7 @@ pub struct Kube {
     pub auto_update: Vec<AutoUpdate>,
 
     /// Pass the Kubernetes ConfigMap YAML at path to `podman kube play`.
+    #[allow(clippy::doc_markdown)]
     pub config_map: Vec<PathBuf>,
 
     /// Set the log-driver Podman uses when running the container.

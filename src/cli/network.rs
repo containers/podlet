@@ -16,6 +16,7 @@ pub enum Network {
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-network-create.1.html and
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#network-units-network
+    #[allow(clippy::doc_markdown)]
     #[group(skip)]
     Create {
         #[command(flatten)]
@@ -43,6 +44,7 @@ impl Network {
     }
 }
 
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
     /// Disable the DNS plugin for the network

@@ -12,6 +12,7 @@ use self::{podman::PodmanArgs, quadlet::QuadletOptions, security_opt::SecurityOp
 
 use super::image_to_name;
 
+#[allow(clippy::doc_markdown)]
 #[derive(Args, Default, Debug, Clone, PartialEq)]
 pub struct Container {
     #[command(flatten)]
@@ -52,6 +53,11 @@ impl Container {
             .name
             .as_deref()
             .unwrap_or_else(|| image_to_name(&self.image))
+    }
+
+    /// Set the `--pod` option.
+    pub(super) fn set_pod(&mut self, pod: Option<String>) {
+        self.podman_args.set_pod(pod);
     }
 }
 

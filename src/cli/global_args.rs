@@ -17,6 +17,10 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "MANAGER")]
     cgroup_manager: Option<CGroupManager>,
 
+    /// Location of the authentication config file
+    #[arg(long, global = true, value_name = "PATH")]
+    config: Option<PathBuf>,
+
     /// Path of the conmon binary
     #[arg(long, global = true, value_name = "PATH")]
     conmon: Option<PathBuf>,
@@ -65,7 +69,7 @@ pub struct GlobalArgs {
     /// Path to the `slirp4netns(1)` command binary
     ///
     /// Note: This option is deprecated and will be removed with Podman 5.0.
-    /// Use the helper_binaries_dir option in containers.conf instead.
+    /// Use the `helper_binaries_dir` option in `containers.conf` instead.
     #[arg(long, global = true, value_name = "PATH")]
     network_cmd_path: Option<PathBuf>,
 

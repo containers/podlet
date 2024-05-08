@@ -6,9 +6,10 @@ pub mod volume;
 use std::{
     fmt::{self, Display, Formatter},
     iter,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr},
     ops::Not,
     path::PathBuf,
+    str::FromStr,
 };
 
 use clap::ValueEnum;
@@ -56,7 +57,7 @@ pub struct Container {
 
     /// Set network-scoped DNS resolver/nameserver for containers in this network.
     #[serde(rename = "DNS")]
-    pub dns: Vec<IpAddr>,
+    pub dns: Dns,
 
     /// Set custom DNS options.
     #[serde(rename = "DNSOption")]
@@ -72,6 +73,9 @@ pub struct Container {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub drop_capability: Vec<String>,
+
+    /// Override the default `ENTRYPOINT` from the image.
+    pub entrypoint: Option<String>,
 
     /// Set an environment variable in the container.
     #[serde(
@@ -177,15 +181,15 @@ pub struct Container {
     #[serde(skip_serializing_if = "Not::not")]
     pub no_new_privileges: bool,
 
-    /// The rootfs to use for the container.
-    pub rootfs: Option<Rootfs>,
-
-    /// Enable container handling of `sd_notify`.
-    #[serde(skip_serializing_if = "Not::not")]
-    pub notify: bool,
+    /// How `sd_notify` support should be handled.
+    #[serde(skip_serializing_if = "Notify::is_conmon")]
+    pub notify: Notify,
 
     /// Tune the container’s pids limit.
     pub pids_limit: Option<Limit<u32>>,
+
+    /// Specify a Quadlet .pod unit to link the container to.
+    pub pod: Option<String>,
 
     /// A list of arguments passed directly to the end of the `podman run` command
     /// in the generated file, right before the image name in the command line.
@@ -207,6 +211,9 @@ pub struct Container {
     #[default = true]
     pub read_only_tmpfs: bool,
 
+    /// The rootfs to use for the container.
+    pub rootfs: Option<Rootfs>,
+
     /// If enabled, the container has a minimal init process inside the container
     /// that forwards signals and reaps processes.
     #[serde(skip_serializing_if = "Not::not")]
@@ -214,6 +221,9 @@ pub struct Container {
 
     /// Set the seccomp profile to use in the container.
     pub seccomp_profile: Option<PathBuf>,
+
+    /// Use a Podman secret in the container either as a file or an environment variable.
+    pub secret: Vec<String>,
 
     /// Turn off label separation for the container.
     #[serde(skip_serializing_if = "Not::not")]
@@ -225,18 +235,21 @@ pub struct Container {
     /// Set the label process level for the container processes.
     pub security_label_level: Option<String>,
 
-    /// Allow SecurityLabels to function within the container.
+    /// Allow security labels to function within the container.
     #[serde(skip_serializing_if = "Not::not")]
     pub security_label_nested: bool,
 
     /// Set the label process type for the container processes.
     pub security_label_type: Option<String>,
 
-    /// Use a Podman secret in the container either as a file or an environment variable.
-    pub secret: Vec<String>,
-
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
+
+    /// Seconds to wait before forcibly stopping the container.
+    ///
+    /// Note, this value should be lower than the actual systemd unit timeout to make sure the
+    /// `podman rm` command is not killed by systemd.
+    pub stop_timeout: Option<u64>,
 
     /// Run the container in a new user namespace using the map with name in the /etc/subgid file.
     #[serde(rename = "SubGIDMap")]
@@ -253,11 +266,11 @@ pub struct Container {
     )]
     pub sysctl: Vec<String>,
 
-    /// Mount a tmpfs in the container.
-    pub tmpfs: Vec<String>,
-
     /// The timezone to run the container in.
     pub timezone: Option<String>,
+
+    /// Mount a tmpfs in the container.
+    pub tmpfs: Vec<String>,
 
     /// Run the container in a new user namespace using the supplied UID mapping.
     #[serde(rename = "UIDMap")]
@@ -292,6 +305,30 @@ impl Display for Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_0 {
+            if self.notify.is_healthy() {
+                if version < PodmanVersion::V4_7 {
+                    return Err(DowngradeError::Option {
+                        quadlet_option: "Notify",
+                        value: "healthy".to_owned(),
+                        supported_version: PodmanVersion::V4_7,
+                    });
+                }
+                self.notify = Notify::default();
+                self.push_arg("sdnotify", "healthy");
+            }
+
+            if let Some(pod) = self.pod.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "Pod",
+                    value: pod.clone(),
+                    supported_version: PodmanVersion::V5_0,
+                });
+            }
+
+            self.remove_v5_0_options();
+        }
+
         if version < PodmanVersion::V4_8 {
             self.remove_v4_8_options();
         }
@@ -322,6 +359,20 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove quadlet options added in podman v5.0.0
+    fn remove_v5_0_options(&mut self) {
+        let options = extract!(
+            self,
+            OptionsV5_0 {
+                entrypoint,
+                stop_timeout,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV5_0 serializable as args");
+    }
+
     /// Remove quadlet options added in podman v4.8.0
     fn remove_v4_8_options(&mut self) {
         if !self.read_only_tmpfs {
@@ -376,11 +427,11 @@ impl Container {
         if !self.mask.is_empty() {
             // `Unmask::Paths` has the same format as `Mask`
             let mask = Unmask::Paths(std::mem::take(&mut self.mask));
-            self.push_arg("security-opt", format!("mask={mask}"));
+            self.push_arg("security-opt", format_args!("mask={mask}"));
         }
 
         if let Some(unmask) = self.unmask.take() {
-            self.push_arg("security-opt", format!("unmask={unmask}"));
+            self.push_arg("security-opt", format_args!("unmask={unmask}"));
         }
 
         let options = extract!(
@@ -430,7 +481,9 @@ impl Container {
     /// Serialize args and add them to `PodmanArgs=`.
     fn push_args(&mut self, args: impl Serialize) -> Result<(), crate::serde::args::Error> {
         let args = crate::serde::args::to_string(args)?;
-        self.podman_args_push_str(&args);
+        if !args.is_empty() {
+            self.podman_args_push_str(&args);
+        }
         Ok(())
     }
 
@@ -447,6 +500,14 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container quadlet options added in podman v5.0.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_0 {
+    entrypoint: Option<String>,
+    stop_timeout: Option<u64>,
 }
 
 /// Container quadlet options added in podman v4.8.0
@@ -467,7 +528,7 @@ struct OptionsV4_8 {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_7 {
-    dns: Vec<IpAddr>,
+    dns: Dns,
     dns_option: Vec<String>,
     dns_search: Vec<String>,
     pids_limit: Option<Limit<u32>>,
@@ -523,6 +584,118 @@ impl HostPaths for Container {
             .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
             .chain(&mut self.seccomp_profile)
             .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+    }
+}
+
+/// Options for the `dns` field of [`Container`].
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Dns {
+    /// Disable creation of `/etc/resolv.conf` in the container.
+    None,
+    /// Set custom DNS servers.
+    Custom(Vec<IpAddr>),
+}
+
+impl Default for Dns {
+    fn default() -> Self {
+        Self::Custom(Vec::default())
+    }
+}
+
+impl From<Vec<DnsEntry>> for Dns {
+    fn from(value: Vec<DnsEntry>) -> Self {
+        Self::from_iter(value)
+    }
+}
+
+impl FromIterator<DnsEntry> for Dns {
+    fn from_iter<T: IntoIterator<Item = DnsEntry>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let (min, _) = iter.size_hint();
+        let mut ip_addrs = Vec::with_capacity(min);
+
+        for entry in iter {
+            match entry {
+                DnsEntry::None => return Self::None,
+                DnsEntry::IpAddr(ip_addr) => ip_addrs.push(ip_addr),
+            }
+        }
+
+        Self::Custom(ip_addrs)
+    }
+}
+
+/// A single [`Dns`] value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DnsEntry {
+    /// Disable creation of `/etc/resolv.conf` in the container.
+    None,
+    /// A custom DNS server.
+    IpAddr(IpAddr),
+}
+
+impl From<IpAddr> for DnsEntry {
+    fn from(value: IpAddr) -> Self {
+        Self::IpAddr(value)
+    }
+}
+
+impl FromStr for DnsEntry {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "none" {
+            Ok(Self::None)
+        } else {
+            s.parse().map(Self::IpAddr)
+        }
+    }
+}
+
+/// Accepted values for `podman run --sdnotify`.
+///
+/// Determines how to use the `NOTIFY_SOCKET`, as passed with systemd and `Type=notify`.
+#[derive(ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Notify {
+    /// Sends `READY` when the container has started.
+    #[default]
+    Conmon,
+
+    /// Allow the OCI runtime to proxy the socket into the container to receive ready notification.
+    Container,
+
+    /// Sends `READY` when the container has turned healthy.
+    Healthy,
+}
+
+impl Notify {
+    /// Returns `true` if notify is [`Conmon`].
+    ///
+    /// [`Conmon`]: Notify::Conmon
+    #[must_use]
+    // Reference required for `#[serde(skip_serializing_if = "Notify::is_conmon")]`.
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    fn is_conmon(&self) -> bool {
+        matches!(self, Self::Conmon)
+    }
+
+    /// Returns `true` if notify is [`Healthy`].
+    ///
+    /// [`Healthy`]: Notify::Healthy
+    #[must_use]
+    fn is_healthy(self) -> bool {
+        matches!(self, Self::Healthy)
+    }
+}
+
+impl Serialize for Notify {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Conmon => serializer.serialize_bool(false),
+            Self::Container => serializer.serialize_bool(true),
+            Self::Healthy => serializer.serialize_str("healthy"),
+        }
     }
 }
 
