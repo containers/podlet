@@ -58,7 +58,7 @@ pub struct Cli {
     #[arg(short, long, group = "file_out")]
     file: Option<Option<PathBuf>>,
 
-    /// Generate a file in the podman unit directory instead of printing to stdout
+    /// Generate a file in the Podman unit directory instead of printing to stdout
     ///
     /// Conflicts with the --file option
     ///
@@ -87,34 +87,34 @@ pub struct Cli {
 
     /// Overwrite existing files when generating a file
     ///
-    /// By default, podlet will return an error if a file already exists at the given location.
+    /// By default, Podlet will return an error if a file already exists at the given location.
     #[arg(long, alias = "override", requires = "file_out")]
     overwrite: bool,
 
     /// Skip the check for existing services of the same name
     ///
-    /// By default, podlet will check for existing services with the same name as
-    /// the service quadlet will generate from the generated quadlet file
+    /// By default, Podlet will check for existing services with the same name as
+    /// the service Quadlet will generate from the generated Quadlet file
     /// and return an error if a conflict is found.
-    /// This option will cause podlet to skip that check.
+    /// This option will cause Podlet to skip that check.
     #[arg(long, requires = "file_out")]
     skip_services_check: bool,
 
-    /// Podman version generated quadlet files should conform to
+    /// Podman version generated Quadlet files should conform to
     ///
-    /// An error will occur if the quadlet file cannot be downgraded to the given version.
+    /// An error will occur if the Quadlet file cannot be downgraded to the given version.
     ///
-    /// Always defaults to the latest supported podman version which added quadlet features.
-    /// If an earlier version is specified, the quadlet file may not be the most optimal.
+    /// Always defaults to the latest supported Podman version which added Quadlet features.
+    /// If an earlier version is specified, the Quadlet file may not be the most optimal.
     ///
-    /// This feature is only supported in a limited way. You should always check quadlet files
-    /// generated with podlet before running them.
+    /// This feature is only supported in a limited way. You should always check Quadlet files
+    /// generated with Podlet before running them.
     #[arg(short, long, visible_aliases = ["compatibility", "compat"], default_value_t)]
     podman_version: PodmanVersion,
 
     /// Convert relative host paths to absolute paths.
     ///
-    /// Relative host paths in generated quadlet files are resolved using the given directory or the
+    /// Relative host paths in generated Quadlet files are resolved using the given directory or the
     /// current working directory. For `podlet compose`, the parent directory of the compose
     /// file is used as the default if the compose file is not read from stdin.
     ///
@@ -123,7 +123,7 @@ pub struct Cli {
     /// When using `podlet compose --pod`, modifying paths in generated Kubernetes YAML files is not
     /// supported.
     ///
-    /// Note that only host paths not in the `PodmanArgs=` quadlet option will be modified.
+    /// Note that only host paths not in the `PodmanArgs=` Quadlet option will be modified.
     ///
     /// Podlet will return an error if the current working directory cannot be read, or if the given
     /// directory path is not absolute.
@@ -211,7 +211,7 @@ impl Cli {
             }
 
             #[cfg(not(unix))]
-            eyre::bail!("Cannot get podman unit directory on non-unix system");
+            eyre::bail!("Cannot get Podman unit directory on non-unix system");
         } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()
@@ -289,7 +289,7 @@ impl Cli {
                 if downgrade {
                     file.downgrade(self.podman_version).wrap_err_with(|| {
                         format!(
-                            "error downgrading quadlet to podman v{}",
+                            "error downgrading Quadlet file to Podman v{}",
                             self.podman_version
                         )
                     })?;
@@ -328,7 +328,7 @@ impl FilePath {
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 enum Commands {
-    /// Generate a podman quadlet file from a podman command
+    /// Generate a Podman Quadlet file from a Podman command
     Podman {
         #[command(flatten)]
         global_args: Box<GlobalArgs>,
@@ -337,7 +337,7 @@ enum Commands {
         command: PodmanCommands,
     },
 
-    /// Generate podman quadlet files from a compose file
+    /// Generate Podman Quadlet files from a compose file
     ///
     /// Creates a `.container` file for each service,
     /// a `.volume` file for each volume (if it has additional options set),
@@ -347,13 +347,13 @@ enum Commands {
     ///
     /// Some compose options are not supported, such as `build`.
     ///
-    /// When podlet encounters an unsupported option, an error will be returned.
+    /// When Podlet encounters an unsupported option, an error will be returned.
     /// Modify the compose file to resolve the error.
     Compose(#[command(flatten)] Compose),
 
-    /// Generate a podman quadlet file from an existing object.
+    /// Generate a Podman Quadlet file from an existing object.
     ///
-    /// Note: these commands require that podman is installed and is searchable
+    /// Note: these commands require that Podman is installed and is searchable
     /// from the `PATH` environment variable.
     #[command(subcommand)]
     Generate(Generate),
@@ -383,7 +383,7 @@ impl Commands {
                 .wrap_err("error converting compose file"),
             Self::Generate(command) => Ok(command
                 .try_into_quadlet_files(name, unit, install)
-                .wrap_err("error creating quadlet file(s) from an existing object")?
+                .wrap_err("error creating Quadlet file(s) from an existing object")?
                 .into_iter()
                 .map(Into::into)
                 .collect()),
@@ -394,7 +394,7 @@ impl Commands {
 #[allow(clippy::doc_markdown)]
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 enum PodmanCommands {
-    /// Generate a podman quadlet `.container` file
+    /// Generate a Podman Quadlet `.container` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html
@@ -408,7 +408,7 @@ enum PodmanCommands {
         service: Service,
     },
 
-    /// Generate a podman quadlet `.pod` file
+    /// Generate a Podman Quadlet `.pod` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html
@@ -418,7 +418,7 @@ enum PodmanCommands {
         pod: Box<Pod>,
     },
 
-    /// Generate a podman quadlet `.kube` file
+    /// Generate a Podman Quadlet `.kube` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-kube-play.1.html
@@ -428,7 +428,7 @@ enum PodmanCommands {
         kube: Box<Kube>,
     },
 
-    /// Generate a podman quadlet `.network` file
+    /// Generate a Podman Quadlet `.network` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-network-create.1.html
@@ -438,7 +438,7 @@ enum PodmanCommands {
         network: Box<Network>,
     },
 
-    /// Generate a podman quadlet `.volume` file
+    /// Generate a Podman Quadlet `.volume` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-volume-create.1.html
@@ -448,7 +448,7 @@ enum PodmanCommands {
         volume: Volume,
     },
 
-    /// Generate a podman quadlet `.image` file
+    /// Generate a Podman Quadlet `.image` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pull.1.html
@@ -473,7 +473,7 @@ impl From<PodmanCommands> for quadlet::Resource {
 }
 
 impl PodmanCommands {
-    /// Convert the podman command into a [`quadlet::File`].
+    /// Convert the Podman command into a [`quadlet::File`].
     fn into_quadlet(
         self,
         name: Option<String>,
@@ -571,7 +571,7 @@ impl File {
         }
     }
 
-    /// If a quadlet file, make all host paths absolute and clean.
+    /// If a Quadlet file, make all host paths absolute and clean.
     ///
     /// Relative paths are resolved using `resolve_dir` as the base.
     fn absolutize_host_paths(&mut self, resolve_dir: &Path) {

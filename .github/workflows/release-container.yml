@@ -1,10 +1,10 @@
-# Builds and pushes container images upon realease
+# Builds and pushes container images upon release
 name: Release Container
 
 on:
   push:
     tags:
-      - 'v[0-9]+*'
+      - "v[0-9]+*"
 
 env:
   MANIFEST: podlet-multiarch
@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v3
 
       # From https://podman.io/docs/installation#ubuntu
-      # There is a bug in earlier versions of buildah/podman where the TARGETPLATFORM arg is not set correctly
+      # There is a bug in earlier versions of Buildah/Podman where the TARGETPLATFORM arg is not set correctly
       - name: Upgrade podman
         run: |
           sudo mkdir -p /etc/apt/keyrings && \
@@ -40,10 +40,10 @@ jobs:
         run: |
           podman manifest create \
             --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
-            --annotation "org.opencontainers.image.description=Generate podman quadlet files from a podman command, compose file, or existing object" \
+            --annotation "org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object" \
             --annotation "org.opencontainers.image.licenses=MPL-2.0" \
             "${MANIFEST}"
-      
+
       - name: Build image
         run: |
           podman build --manifest "${MANIFEST}" \

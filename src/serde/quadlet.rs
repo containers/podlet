@@ -72,7 +72,7 @@ fn quote_spaces_push(output: &mut String, item: &str) {
 }
 
 /// Serializes `value` to a string using a serializer designed
-/// for structs that represent a section of a quadlet file.
+/// for structs that represent a section of a Quadlet file.
 ///
 /// # Errors
 ///
@@ -150,7 +150,7 @@ impl ser::Error for Error {
     }
 }
 
-/// A serializer for converting structs to quadlet file sections.
+/// A serializer for converting structs to Quadlet file sections.
 #[derive(Default)]
 struct Serializer {
     output: String,

@@ -137,14 +137,14 @@ below is a list of all the jobs with explanations and the commands that they run
   - All tests should pass.
   - `cargo test`
 - build-container:
-  - Ensures that the [podlet container](./Containerfile) can build for both x86 and ARM platforms.
+  - Ensures that the [Podlet container](./Containerfile) can build for both x86 and ARM platforms.
   - First, [install podman](https://podman.io/docs/installation).
   - `podman build --platform linux/amd64 -t podlet .`
   - `podman build --platform linux/arm64/v8 -t podlet .`
 
 ## Communication
 
-The podlet project shares communication channels with other projects in the [containers organization](https://github.com/containers#-community).
+The Podlet project shares communication channels with other projects in the [Containers organization](https://github.com/containers#-community).
 
 For discussions about issues, bugs, or features, feel free to create an [issue], [discussion], or [pull request] on GitHub.
 

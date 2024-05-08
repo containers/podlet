@@ -1,4 +1,4 @@
-//! Provides [`Device`] for `AddDevice=` quadlet option of [`Container`](super::Container).
+//! Provides [`Device`] for `AddDevice=` Quadlet option of [`Container`](super::Container).
 
 use std::{
     borrow::Cow,

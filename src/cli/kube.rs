@@ -12,9 +12,9 @@ use crate::quadlet::kube::{AutoUpdate, YamlFile};
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Kube {
-    /// Generate a podman quadlet `.kube` file
+    /// Generate a Podman Quadlet `.kube` file,
     ///
-    /// Only options supported by quadlet are present
+    /// Only options supported by Quadlet are present,
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-kube-play.1.html and

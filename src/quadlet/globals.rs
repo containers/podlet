@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
-/// Global quadlet options that apply to all resource types.
+/// Global Quadlet options that apply to all resource types.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Globals {

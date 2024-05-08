@@ -10,7 +10,7 @@ use super::image_to_name;
 /// [`Subcommand`]s for `podlet podman image`
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Image {
-    /// Generate a podman quadlet `.image` file
+    /// Generate a Podman Quadlet `.image` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pull.1.html and
@@ -24,7 +24,7 @@ pub enum Image {
 }
 
 impl Image {
-    /// Name suitable for use as the filename of the generated quadlet file.
+    /// Name suitable for use as the filename of the generated Quadlet file.
     pub fn name(&self) -> &str {
         let Self::Pull {
             pull: Pull { source, .. },

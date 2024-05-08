@@ -126,7 +126,7 @@ pub struct PodmanArgs {
 
     /// Detached mode: run the container in the background
     ///
-    /// Automatically set by quadlet
+    /// Automatically set by Quadlet
     #[arg(short, long)]
     #[serde(skip_serializing)]
     detach: bool,
@@ -338,7 +338,7 @@ pub struct PodmanArgs {
 
     /// If a container with the same name exists, replace it
     ///
-    /// Automatically set by quadlet
+    /// Automatically set by Quadlet
     #[arg(long)]
     #[serde(skip_serializing)]
     replace: bool,
@@ -361,7 +361,7 @@ pub struct PodmanArgs {
 
     /// Remove container (and pod if created) after exit
     ///
-    /// Automatically set by quadlet
+    /// Automatically set by Quadlet
     #[arg(long)]
     #[serde(skip_serializing)]
     rm: bool,
@@ -596,7 +596,7 @@ fn validate_ipc(ipc: Ipc) -> color_eyre::Result<String> {
                 Ok(ipc)
             } else {
                 Err(eyre!(
-                    "`{ipc}` IPC namespace mode is not supported by podman"
+                    "`{ipc}` IPC namespace mode is not supported by Podman"
                 ))
             }
         }

@@ -32,7 +32,7 @@ RUN cp target/$(cat /rust_target.txt)/dist/podlet .
 
 FROM scratch
 LABEL org.opencontainers.image.source="https://github.com/containers/podlet"
-LABEL org.opencontainers.image.description="Generate podman quadlet files from a podman command, compose file, or existing object"
+LABEL org.opencontainers.image.description="Generate Podman Quadlet files from a Podman command, compose file, or existing object"
 LABEL org.opencontainers.image.licenses="MPL-2.0"
 COPY --from=builder /app/podlet /usr/local/bin/
 ENTRYPOINT [ "/usr/local/bin/podlet" ]

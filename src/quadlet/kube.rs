@@ -115,7 +115,7 @@ impl Display for Kube {
     }
 }
 
-/// Valid values for the `AutoUpdate=` kube quadlet option.
+/// Valid values for the `AutoUpdate=` Quadlet [`Kube`] option.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AutoUpdate {
     All(super::AutoUpdate),

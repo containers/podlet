@@ -23,7 +23,7 @@ use super::blkio_weight_parser;
 /// [`Subcommand`]s for `podlet podman pod`.
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Pod {
-    /// Generate a podman quadlet `.pod` file.
+    /// Generate a Podman Quadlet `.pod` file.
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html and
@@ -37,7 +37,7 @@ pub enum Pod {
 }
 
 impl Pod {
-    /// The name (without extension) of the generated quadlet file.
+    /// The name (without extension) of the generated Quadlet file.
     pub fn name(&self) -> &str {
         let Self::Create { create } = self;
         &create.name
@@ -211,7 +211,7 @@ struct PodmanArgs {
 
     /// Set the exit policy of the pod when the last container exits.
     ///
-    /// Only `stop` is supported as it is automatically set by quadlet.
+    /// Only `stop` is supported as it is automatically set by Quadlet.
     #[arg(long, value_enum, default_value_t)]
     #[serde(skip)]
     exit_policy: ExitPolicy,
@@ -238,7 +238,7 @@ struct PodmanArgs {
 
     /// Create an infra container and associate it with the pod.
     ///
-    /// Set by default and cannot be disabled as it is required by quadlet.
+    /// Set by default and cannot be disabled as it is required by Quadlet.
     #[arg(long, action = ArgAction::SetTrue)]
     #[serde(skip)]
     infra: (),
@@ -304,7 +304,7 @@ struct PodmanArgs {
 
     /// If another pod with the same name already exists, replace and remove it.
     ///
-    /// Automatically set by quadlet.
+    /// Automatically set by Quadlet.
     #[arg(long)]
     #[serde(skip)]
     replace: bool,
@@ -390,7 +390,7 @@ impl Display for PodmanArgs {
 
 /// Supported values of `podman pod create --exit-policy` for [`PodmanArgs`].
 ///
-/// Only [`Stop`](Self::Stop) is supported because it automatically set by quadlet for `.pod` files.
+/// Only [`Stop`](Self::Stop) is supported because it automatically set by Quadlet for `.pod` files.
 #[derive(ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum ExitPolicy {
     /// The pod (including its infra container) is stopped when the last container exits.

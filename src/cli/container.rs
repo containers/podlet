@@ -24,8 +24,8 @@ pub struct Container {
 
     /// Security options
     ///
-    /// Converts to a number of different quadlet options or,
-    /// if a quadlet option for the specified security option doesn't exist,
+    /// Converts to a number of different Quadlet options or,
+    /// if a Quadlet option for the specified security option doesn't exist,
     /// is placed in "PodmanArgs="
     ///
     /// Can be specified multiple times

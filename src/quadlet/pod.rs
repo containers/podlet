@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use super::{container::Volume, Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind};
 
-/// Options for the \[Pod\] section of a `.pod` quadlet file.
+/// Options for the \[Pod\] section of a `.pod` Quadlet file.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Pod {

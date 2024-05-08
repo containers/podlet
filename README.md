@@ -4,22 +4,22 @@
 ![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/containers/podlet/ci.yaml?event=push&label=ci&logo=github&style=flat-square)
 ![Crates.io License](https://img.shields.io/crates/l/podlet?style=flat-square)
 
-Podlet generates [podman](https://podman.io/) [quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a podman command, compose file, or existing object.
+Podlet generates [Podman](https://podman.io/) [Quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a Podman command, compose file, or existing object.
 
 [![demo.gif](./demo.gif)](https://asciinema.org/a/633918)
 Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/633918).
 
 ## Features
 
-- Supports the following podman commands:
+- Supports the following Podman commands:
     - `podman run`
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
     - `podman image pull`
 - Convert a (docker) compose file to:
-    - Multiple quadlet files.
-    - A pod with a quadlet kube file and Kubernetes YAML.
+    - Multiple Quadlet files.
+    - A pod with a Quadlet `.kube` file and Kubernetes YAML.
 - Generate from existing:
     - Containers
     - Networks
@@ -29,7 +29,7 @@ Demo created with [autocast](https://github.com/k9withabone/autocast). You can a
 - Options for including common systemd unit options.
 - Checks for existing systemd services to avoid conflict.
     - Opt-out with `--skip-services-check`.
-- Set podman version compatibility with `--podman-version`.
+- Set Podman version compatibility with `--podman-version`.
 - Resolve relative host paths with `--absolute-host-paths`.
 
 ## Install
@@ -126,7 +126,7 @@ Podman Global Options:
       --volumepath <VALUE>                   Volume directory where builtin volume information is stored
 ```
 
-To generate a quadlet file, just put `podlet` in front of your podman command!
+To generate a Quadlet file, just put `podlet` in front of your Podman command!
 
 ```
 $ podlet podman run quay.io/podman/hello
@@ -136,7 +136,7 @@ $ podlet podman run quay.io/podman/hello
 Image=quay.io/podman/hello
 ```
 
-This is useful for more complicated commands you are copying. For example, let's create a quadlet file for running caddy. We'll also use a few options for additional sections in the file.
+This is useful for more complicated commands you are copying. For example, let's create a Quadlet file for running Caddy. We'll also use a few options for additional sections in the file.
 
 ```
 $ podlet --file . --install --description Caddy \
@@ -171,7 +171,7 @@ WantedBy=default.target
 
 The name for the file was automatically pulled from the image name, but can be overridden with the `--name` option.
 
-Podlet also supports creating kube, network, volume, and image quadlet files.
+Podlet also supports creating kube, network, volume, and image Quadlet files.
 
 ```
 $ podlet podman kube play --network pasta --userns auto caddy.yaml
@@ -183,7 +183,7 @@ Network=pasta
 UserNS=auto
 ```
 
-Global podman options are added to the `GlobalArgs=` quadlet option.
+Global Podman options are added to the `GlobalArgs=` Quadlet option.
 
 ### Compose
 
@@ -202,7 +202,7 @@ Options:
   -h, --help       Print help (see more with '--help')
 ```
 
-Let's return to the caddy example, say you have a compose file at `compose-example.yaml`:
+Let's return to the Caddy example, say you have a compose file at `compose-example.yaml`:
 
 ```yaml
 services:
@@ -230,7 +230,7 @@ Volume=./Caddyfile:/etc/caddy/Caddyfile:Z
 Volume=caddy-data:/data
 ```
 
-If a compose file is not given, podlet will search for the following files in the current working directory, in order:
+If a compose file is not given, Podlet will search for the following files in the current working directory, in order:
 
 - `compose.yaml`
 - `compose.yml`
@@ -276,9 +276,9 @@ spec:
       claimName: caddy-data
 ```
 
-When converting compose files, not all options are supported by podman/quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
+When converting compose files, not all options are supported by Podman/Quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If Podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
-Also note that podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
+Also note that Podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
 
 See `podlet compose --help` for more information.
 
@@ -302,7 +302,7 @@ Options:
   -h, --help  Print help (see more with '--help')
 ```
 
-If you have an existing container, network, volume, or image, you can use `podlet generate` to create a quadlet file from it.
+If you have an existing container, network, volume, or image, you can use `podlet generate` to create a Quadlet file from it.
 
 ```
 $ podman container create --name hello quay.io/podman/hello:latest
@@ -321,23 +321,23 @@ See `podlet generate --help` for more information.
 
 ### In a Container
 
-While podlet can be used as-is in a container, passing the command to it; if you want to utilize some of the write-to-file functionality, or create quadlet files from compose files, additional volumes may need to be attached.
+While Podlet can be used as-is in a container, passing the command to it; if you want to utilize some of the write-to-file functionality, or create Quadlet files from compose files, additional volumes may need to be attached.
 
-An example of a generic podman command that runs the most up-to-date version of podlet with the current directory and user's quadlet directory attached to the container would be:
+An example of a generic Podman command that runs the most up-to-date version of Podlet with the current directory and user's Quadlet directory attached to the container would be:
 
 `podman run --rm --userns keep-id -e HOME -e XDG_CONFIG_HOME --user $(id -u) -v "$PWD":"$PWD" -v "$HOME/.config/containers/systemd/":"$HOME/.config/containers/systemd/" -w "$PWD" --security-opt label=disable --pull=newer ghcr.io/containers/podlet`
 
 Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux, the option is not needed. Podman recommends disabling SELinux separation when mounting system files and directories to containers. See the note at the end of the "Labeling Volume Mounts" section in the `podman run --volume` [documentation](https://docs.podman.io/en/stable/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
 
-Alternatively, if you just want podlet to read a specific compose file you can use:
+Alternatively, if you just want Podlet to read a specific compose file you can use:
 
 `podman run --rm -v ./compose.yaml:/compose.yaml:Z ghcr.io/containers/podlet compose /compose.yaml`
 
 ## Cautions
 
-Podlet is primarily a tool for helping to get started with podman systemd units, aka quadlet files. It is not meant to be an end-all solution for creating and maintaining quadlet files. Files created with podlet should always be reviewed before starting the unit.
+Podlet is primarily a tool for helping to get started with Podman systemd units, aka Quadlet files. It is not meant to be an end-all solution for creating and maintaining Quadlet files. Files created with Podlet should always be reviewed before starting the unit.
 
-Podlet is not (yet) a validator for podman commands. Some podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the quadlet file.
+Podlet is not (yet) a validator for Podman commands. Some Podman options are incompatible with each other and most options require specific formatting and/or only accept certain values. However, a few options are fully parsed and validated in order to facilitate creating the Quadlet file.
 
 ## Contribution
 
@@ -346,4 +346,4 @@ See the [contribution guide](./CONTRIBUTING.md) for more information.
 
 ## License
 
-All source code for podlet is licensed under the [Mozilla Public License v2.0](https://www.mozilla.org/en-US/MPL/). View the [LICENSE](./LICENSE) file for more information.
+All source code for Podlet is licensed under the [Mozilla Public License v2.0](https://www.mozilla.org/en-US/MPL/). View the [LICENSE](./LICENSE) file for more information.

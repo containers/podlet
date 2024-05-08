@@ -99,7 +99,7 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "DOMAIN")]
     dns_search: Vec<String>,
 
-    /// Drop Linux capability from the default podman capability set
+    /// Drop Linux capability from the default Podman capability set
     ///
     /// If unspecified, the default is `all`
     ///
@@ -933,7 +933,7 @@ fn validate_network_mode(network_mode: NetworkMode) -> color_eyre::Result<String
             {
                 Ok(s)
             } else {
-                Err(eyre!("network_mode `{s}` is not supported by podman"))
+                Err(eyre!("network_mode `{s}` is not supported by Podman"))
             }
         }
     }
