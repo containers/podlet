@@ -35,6 +35,14 @@ jobs:
           sudo apt install -y podman
 
       - run: podman version
+
+      - name: Create manifest
+        run: |
+          podman manifest create \
+            --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
+            --annotation "org.opencontainers.image.description=Generate podman quadlet files from a podman command, compose file, or existing object" \
+            --annotation "org.opencontainers.image.licenses=MPL-2.0" \
+            "${MANIFEST}"
       
       - name: Build image
         run: |
