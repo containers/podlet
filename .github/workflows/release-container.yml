@@ -12,6 +12,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -38,26 +41,14 @@ jobs:
           podman build --manifest "${MANIFEST}" \
             --platform linux/amd64,linux/arm64/v8 -t podlet .
 
-      - name: Push to quay.io
+      - name: Push to ghcr.io
         env:
-          USERNAME: ${{ secrets.QUAY_USERNAME }}
-          PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          USERNAME: ${{ github.actor }}
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           podman manifest push "${MANIFEST}:latest" \
             --creds "${USERNAME}:${PASSWORD}" \
-            "docker://quay.io/k9withabone/podlet:${GITHUB_REF_NAME}" && \
+            "docker://ghcr.io/containers/podlet:${GITHUB_REF_NAME}" && \
           podman manifest push "${MANIFEST}:latest" \
             --creds "${USERNAME}:${PASSWORD}" \
-            "docker://quay.io/k9withabone/podlet:latest"
-
-      - name: Push to docker.io
-        env:
-          USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          podman manifest push "${MANIFEST}:latest" \
-            --creds "${USERNAME}:${PASSWORD}" \
-            "docker://docker.io/k9withabone/podlet:${GITHUB_REF_NAME}" && \
-          podman manifest push "${MANIFEST}:latest" \
-            --creds "${USERNAME}:${PASSWORD}" \
-            "docker://docker.io/k9withabone/podlet:latest"
+            "docker://ghcr.io/containers/podlet:latest"
