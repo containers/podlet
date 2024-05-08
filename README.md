@@ -37,8 +37,7 @@ Demo created with [autocast](https://github.com/k9withabone/autocast). You can a
 Podlet can be acquired in several ways:
 
 - Download a prebuilt binary from [releases](https://github.com/containers/podlet/releases).
-- As a container: `podman run quay.io/k9withabone/podlet`.
-    - Container images are available on [quay.io](https://quay.io/repository/k9withabone/podlet) and [docker hub](https://hub.docker.com/r/k9withabone/podlet).
+- As a container: `podman run ghcr.io/containers/podlet`.
 - Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`.
 - Build and install with `cargo install podlet`.
 
@@ -326,13 +325,13 @@ While podlet can be used as-is in a container, passing the command to it; if you
 
 An example of a generic podman command that runs the most up-to-date version of podlet with the current directory and user's quadlet directory attached to the container would be:
 
-`podman run --rm --userns keep-id -e HOME -e XDG_CONFIG_HOME --user $(id -u) -v "$PWD":"$PWD" -v "$HOME/.config/containers/systemd/":"$HOME/.config/containers/systemd/" -w "$PWD" --security-opt label=disable --pull=newer quay.io/k9withabone/podlet`
+`podman run --rm --userns keep-id -e HOME -e XDG_CONFIG_HOME --user $(id -u) -v "$PWD":"$PWD" -v "$HOME/.config/containers/systemd/":"$HOME/.config/containers/systemd/" -w "$PWD" --security-opt label=disable --pull=newer ghcr.io/containers/podlet`
 
 Please note that `--security-opt label=disable` may be required for systems with SELinux. If your system does not use SELinux, the option is not needed. Podman recommends disabling SELinux separation when mounting system files and directories to containers. See the note at the end of the "Labeling Volume Mounts" section in the `podman run --volume` [documentation](https://docs.podman.io/en/stable/markdown/podman-run.1.html#volume-v-source-volume-host-dir-container-dir-options).
 
 Alternatively, if you just want podlet to read a specific compose file you can use:
 
-`podman run --rm -v ./compose.yaml:/compose.yaml:Z quay.io/k9withabone/podlet compose /compose.yaml`
+`podman run --rm -v ./compose.yaml:/compose.yaml:Z ghcr.io/containers/podlet compose /compose.yaml`
 
 ## Cautions
 
