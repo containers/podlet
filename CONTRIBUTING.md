@@ -138,9 +138,9 @@ below is a list of all the jobs with explanations and the commands that they run
   - `cargo test`
 - build-container:
   - Ensures that the [Podlet container](./Containerfile) can build for both x86 and ARM platforms.
-  - First, [install podman](https://podman.io/docs/installation).
-  - `podman build --platform linux/amd64 -t podlet .`
-  - `podman build --platform linux/arm64/v8 -t podlet .`
+  - First, [install Buildah](https://github.com/containers/buildah/blob/main/install.md).
+  - `buildah build --platform linux/amd64 -t podlet .`
+  - `buildah build --platform linux/arm64/v8 -t podlet .`
 
 ## Communication
 
