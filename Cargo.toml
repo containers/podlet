@@ -63,7 +63,7 @@ color-eyre = "0.6"
 compose_spec = "0.2"
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2.7", features = ["serde"] }
-k8s-openapi = { version = "0.21", features = ["latest"] }
+k8s-openapi = { version = "0.22.0", features = ["latest"] }
 path-clean = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -75,8 +75,8 @@ umask = "2.1.0"
 url = "2.3"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.26", features = ["user"], default-features = false }
-zbus = "3.12"
+nix = { version = "0.28.0", features = ["user"] }
+zbus = "4.0.0"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

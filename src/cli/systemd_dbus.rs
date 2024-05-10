@@ -1,5 +1,7 @@
+#![allow(clippy::same_name_method)] // triggered by `proxy` macro
+
 use nix::unistd::Uid;
-use zbus::{blocking::Connection, dbus_proxy};
+use zbus::{blocking::Connection, proxy};
 
 pub fn unit_files() -> zbus::Result<impl Iterator<Item = UnitFile>> {
     let connection = Connection::system()?;
@@ -15,7 +17,7 @@ pub fn unit_files() -> zbus::Result<impl Iterator<Item = UnitFile>> {
     Ok(unit_files.into_iter().map(Into::into))
 }
 
-#[dbus_proxy(
+#[proxy(
     interface = "org.freedesktop.systemd1.Manager",
     default_service = "org.freedesktop.systemd1",
     default_path = "/org/freedesktop/systemd1"
