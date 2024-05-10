@@ -67,7 +67,7 @@ pub struct Container {
     #[serde(rename = "DNSSearch")]
     pub dns_search: Vec<String>,
 
-    /// Drop these capabilities from the default podman capability set, or `all` to drop all capabilities.
+    /// Drop these capabilities from the default Podman capability set, or `all` to drop all capabilities.
     #[serde(
         serialize_with = "quote_spaces_join_space",
         skip_serializing_if = "Vec::is_empty"
@@ -359,7 +359,7 @@ macro_rules! extract {
 }
 
 impl Container {
-    /// Remove quadlet options added in podman v5.0.0
+    /// Remove Quadlet options added in Podman v5.0.0
     fn remove_v5_0_options(&mut self) {
         let options = extract!(
             self,
@@ -373,7 +373,7 @@ impl Container {
             .expect("OptionsV5_0 serializable as args");
     }
 
-    /// Remove quadlet options added in podman v4.8.0
+    /// Remove Quadlet options added in Podman v4.8.0
     fn remove_v4_8_options(&mut self) {
         if !self.read_only_tmpfs {
             self.read_only_tmpfs = true;
@@ -394,7 +394,7 @@ impl Container {
             .expect("OptionsV4_8 serializable as args");
     }
 
-    /// Remove quadlet options added in podman v4.7.0
+    /// Remove Quadlet options added in Podman v4.7.0
     fn remove_v4_7_options(&mut self) {
         let options = extract!(
             self,
@@ -412,7 +412,7 @@ impl Container {
             .expect("OptionsV4_7 serializable as args");
     }
 
-    /// Remove quadlet options added in podman v4.6.0
+    /// Remove Quadlet options added in Podman v4.6.0
     fn remove_v4_6_options(&mut self) {
         if let Some(auto_update) = self.auto_update.take() {
             self.label
@@ -448,7 +448,7 @@ impl Container {
             .expect("OptionsV4_6 serializable as args");
     }
 
-    /// Remove quadlet options added in podman v4.5.0
+    /// Remove Quadlet options added in Podman v4.5.0
     fn remove_v4_5_options(&mut self) {
         let options = extract!(
             self,
@@ -502,7 +502,7 @@ impl Container {
     }
 }
 
-/// Container quadlet options added in podman v5.0.0
+/// Container Quadlet options added in Podman v5.0.0
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV5_0 {
@@ -510,7 +510,7 @@ struct OptionsV5_0 {
     stop_timeout: Option<u64>,
 }
 
-/// Container quadlet options added in podman v4.8.0
+/// Container Quadlet options added in Podman v4.8.0
 #[allow(clippy::struct_field_names)]
 #[derive(Serialize, Debug)]
 struct OptionsV4_8 {
@@ -524,7 +524,7 @@ struct OptionsV4_8 {
     uid_map: Vec<String>,
 }
 
-/// Container quadlet options added in podman v4.7.0
+/// Container Quadlet options added in Podman v4.7.0
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_7 {
@@ -536,7 +536,7 @@ struct OptionsV4_7 {
     ulimit: Vec<String>,
 }
 
-/// Container quadlet options added in podman v4.6.0 with directly equivalent args.
+/// Container Quadlet options added in Podman v4.6.0 with directly equivalent args.
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_6 {
@@ -548,7 +548,7 @@ struct OptionsV4_6 {
     working_dir: Option<PathBuf>,
 }
 
-/// Container quadlet options added in podman v4.5.0
+/// Container Quadlet options added in Podman v4.5.0
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 struct OptionsV4_5 {
@@ -751,7 +751,7 @@ impl TryFrom<service::PullPolicy> for PullPolicy {
     }
 }
 
-/// Options for the `Unmask=` quadlet option.
+/// Options for the `Unmask=` Quadlet [`Container`] option.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Unmask {
     All,

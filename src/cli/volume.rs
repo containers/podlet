@@ -6,7 +6,7 @@ pub use self::opt::Opt;
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Volume {
-    /// Generate a podman quadlet `.volume` file
+    /// Generate a Podman Quadlet `.volume` file
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-volume-create.1.html and

@@ -1,63 +1,50 @@
-# Builds and pushes container images upon realease
+# Builds and pushes container images upon release
 name: Release Container
 
 on:
   push:
     tags:
-      - 'v[0-9]+*'
+      - "v[0-9]+*"
 
 env:
   MANIFEST: podlet-multiarch
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/containers/buildah:latest
+      options: --security-opt seccomp=unconfined --security-opt apparmor=unconfined --device /dev/fuse:rw
+    permissions:
+      packages: write
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # From https://podman.io/docs/installation#ubuntu
-      # There is a bug in earlier versions of buildah/podman where the TARGETPLATFORM arg is not set correctly
-      - name: Upgrade podman
+      - run: buildah version
+
+      - name: Create manifest
         run: |
-          sudo mkdir -p /etc/apt/keyrings && \
-          curl -fsSL \
-            "https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/Release.key" \
-            | gpg --dearmor \
-            | sudo tee /etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg > /dev/null && \
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/devel_kubic_libcontainers_unstable.gpg] https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04/ /" \
-            | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:unstable.list > /dev/null && \
-          sudo apt update && \
-          sudo apt install -y podman
+          buildah manifest create \
+            --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
+            --annotation "org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object" \
+            --annotation "org.opencontainers.image.licenses=MPL-2.0" \
+            "${MANIFEST}"
 
-      - run: podman version
-      
       - name: Build image
         run: |
-          podman build --manifest "${MANIFEST}" \
+          buildah build --manifest "${MANIFEST}" \
             --platform linux/amd64,linux/arm64/v8 -t podlet .
 
-      - name: Push to quay.io
+      - name: Push to ghcr.io
         env:
-          USERNAME: ${{ secrets.QUAY_USERNAME }}
-          PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          USERNAME: ${{ github.actor }}
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          podman manifest push "${MANIFEST}:latest" \
+          buildah manifest push "${MANIFEST}:latest" \
             --creds "${USERNAME}:${PASSWORD}" \
-            "docker://quay.io/k9withabone/podlet:${GITHUB_REF_NAME}" && \
-          podman manifest push "${MANIFEST}:latest" \
+            "docker://ghcr.io/containers/podlet:${GITHUB_REF_NAME}" && \
+          buildah manifest push "${MANIFEST}:latest" \
             --creds "${USERNAME}:${PASSWORD}" \
-            "docker://quay.io/k9withabone/podlet:latest"
-
-      - name: Push to docker.io
-        env:
-          USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          podman manifest push "${MANIFEST}:latest" \
-            --creds "${USERNAME}:${PASSWORD}" \
-            "docker://docker.io/k9withabone/podlet:${GITHUB_REF_NAME}" && \
-          podman manifest push "${MANIFEST}:latest" \
-            --creds "${USERNAME}:${PASSWORD}" \
-            "docker://docker.io/k9withabone/podlet:latest"
+            "docker://ghcr.io/containers/podlet:latest"

@@ -1,6 +1,6 @@
 //! Provides the `podlet generate` subcommand, see [`Generate`].
 //!
-//! `podlet generate` uses the podman `inspect` commands to get information on the selected
+//! `podlet generate` uses the `podman inspect` commands to get information on the selected
 //! resource. The information is converted into a [`PodmanCommands`] which, in turn, is turned into
 //! a [`crate::quadlet::File`].
 
@@ -29,9 +29,9 @@ use super::{
 /// [`Subcommand`] for `podlet generate`
 #[derive(Subcommand, Debug, Clone, PartialEq)]
 pub enum Generate {
-    /// Generate a quadlet file from an existing container
+    /// Generate a Quadlet file from an existing container
     ///
-    /// The command used to create the container is parsed to generate the quadlet file.
+    /// The command used to create the container is parsed to generate the Quadlet file.
     Container {
         /// Name or ID of the container
         ///
@@ -39,12 +39,12 @@ pub enum Generate {
         container: String,
     },
 
-    /// Generate quadlet files from an existing pod and its containers
+    /// Generate Quadlet files from an existing pod and its containers
     ///
-    /// Creates a `.pod` quadlet file and a `.container` quadlet file for each container in the pod.
+    /// Creates a `.pod` Quadlet file and a `.container` Quadlet file for each container in the pod.
     ///
     /// Only supports pods created with `podman pod create`.
-    /// The command used to create the pod is parsed to generate the quadlet file.
+    /// The command used to create the pod is parsed to generate the Quadlet file.
     Pod {
         /// Name or ID of the pod
         ///
@@ -52,13 +52,13 @@ pub enum Generate {
         pod: String,
     },
 
-    /// Generate a quadlet file from an existing network
+    /// Generate a Quadlet file from an existing network
     ///
-    /// The generated quadlet file will be larger than strictly necessary.
+    /// The generated Quadlet file will be larger than strictly necessary.
     /// It is impossible to determine which CLI options were explicitly set when the network was
     /// created from the output of `podman network inspect`.
     ///
-    /// You may wish to remove some of the generated quadlet options for which you do not need a
+    /// You may wish to remove some of the generated Quadlet options for which you do not need a
     /// precise value.
     Network {
         /// Name of the network
@@ -67,7 +67,7 @@ pub enum Generate {
         network: String,
     },
 
-    /// Generate a quadlet file from an existing volume
+    /// Generate a Quadlet file from an existing volume
     Volume {
         /// Name of the volume
         ///
@@ -75,7 +75,7 @@ pub enum Generate {
         volume: String,
     },
 
-    /// Generate a quadlet file from an image in local storage
+    /// Generate a Quadlet file from an image in local storage
     Image {
         /// Name of the image
         ///
@@ -85,12 +85,12 @@ pub enum Generate {
 }
 
 impl Generate {
-    /// Inspect the given resource by running a podman command, deserializing the output,
+    /// Inspect the given resource by running a Podman command, deserializing the output,
     /// and transforming it into one or more [`quadlet::File`]s.
     ///
     /// # Errors
     ///
-    /// Returns an error if there is a problem running the podman command
+    /// Returns an error if there is a problem running the Podman command
     /// or its output could not be deserialized.
     pub fn try_into_quadlet_files(
         self,
@@ -150,7 +150,7 @@ impl ContainerParser {
             .create_command;
 
         Self::try_parse_from(filter_container_create_command(&create_command)).wrap_err_with(|| {
-            format!("error parsing podman container command from `{create_command:?}`")
+            format!("error parsing Podman container command from `{create_command:?}`")
         })
     }
 
@@ -724,7 +724,7 @@ fn podman_inspect<T: DeserializeOwned>(
         .args([resource_kind.as_str(), "inspect", resource])
         .output()
         .wrap_err_with(|| format!("error running `podman {resource_kind} inspect {resource}`"))
-        .note("ensure podman is installed and available on $PATH")
+        .note("ensure Podman is installed and available on $PATH")
         .with_section(|| env::var("PATH").unwrap_or_default().header("PATH:"))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);

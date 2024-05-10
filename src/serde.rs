@@ -1,4 +1,4 @@
-//! Provides [`serde::Serializer`]s for serializing command line args and quadlet files,
+//! Provides [`serde::Serializer`]s for serializing command line args and Quadlet files,
 //! accessible through [`args::to_string()`] and [`quadlet::to_string()`].
 //!
 //! Also provides a [`serde::Serializer`] and [`serde::Deserializer`] for (de)serializing mount

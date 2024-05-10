@@ -77,7 +77,7 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "DIRECTORY")]
     network_config_dir: Option<PathBuf>,
 
-    /// Redirect the output of podman to a file without affecting the container output or its logs
+    /// Redirect the output of Podman to a file without affecting the container output or its logs
     #[arg(long, global = true, value_name = "PATH")]
     out: Option<PathBuf>,
 
@@ -153,7 +153,7 @@ pub struct GlobalArgs {
 }
 
 impl GlobalArgs {
-    /// Consruct [`GlobalArgs`] by taking fields from a [`compose_spec::Service`].
+    /// Construct [`GlobalArgs`] by taking fields from a [`compose_spec::Service`].
     ///
     /// Takes the `runtime` and `storage_opt` fields.
     pub fn from_compose(service: &mut compose_spec::Service) -> Self {

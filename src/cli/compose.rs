@@ -65,7 +65,7 @@ pub struct Compose {
     /// If `-` or not provided and stdin is not a terminal,
     /// the compose file will be read from stdin.
     ///
-    /// If not provided, and stdin is a terminal, podlet will look for (in order)
+    /// If not provided, and stdin is a terminal, Podlet will look for (in order)
     /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
     /// in the current working directory.
     #[allow(clippy::struct_field_names)]
@@ -81,7 +81,7 @@ impl Compose {
     ///
     /// - Reading/deserializing the compose file.
     /// - Converting the compose file to Kubernetes YAML.
-    /// - Converting the compose file to quadlet files.
+    /// - Converting the compose file to Quadlet files.
     pub fn try_into_files(
         self,
         unit: Option<Unit>,
@@ -143,7 +143,7 @@ impl Compose {
             );
 
             parts_try_into_files(services, networks, volumes, pod_name, unit, install)
-                .wrap_err("error converting compose file into quadlet files")
+                .wrap_err("error converting compose file into Quadlet files")
         }
     }
 }
@@ -232,8 +232,8 @@ fn parts_try_into_files(
     install: Option<quadlet::Install>,
 ) -> color_eyre::Result<Vec<File>> {
     // Get a map of volumes to whether the volume has options associated with it for use in
-    // converting a service into a quadlet file. Extra volume options must be specified in a
-    // separate quadlet file which is referenced from the container quadlet file.
+    // converting a service into a Quadlet file. Extra volume options must be specified in a
+    // separate Quadlet file which is referenced from the container Quadlet file.
     let volume_has_options = volumes
         .iter()
         .map(|(name, volume)| {
@@ -321,7 +321,7 @@ fn service_try_into_quadlet_file(
     install: Option<quadlet::Install>,
     volume_has_options: &HashMap<Identifier, bool>,
 ) -> color_eyre::Result<quadlet::File> {
-    // Add any service dependencies to the [Unit] section of the quadlet file.
+    // Add any service dependencies to the [Unit] section of the Quadlet file.
     let dependencies = mem::take(&mut service.depends_on).into_long();
     if !dependencies.is_empty() {
         let unit = unit.get_or_insert_with(Unit::default);
@@ -338,7 +338,7 @@ fn service_try_into_quadlet_file(
 
     let mut container = Container::try_from(service)
         .map(quadlet::Container::from)
-        .wrap_err_with(|| format!("error converting service `{name}` into a quadlet container"))?;
+        .wrap_err_with(|| format!("error converting service `{name}` into a Quadlet container"))?;
 
     // For each named volume, check to see if it has any options set.
     // If it does, add `.volume` to the source to link this `.container` file to the generated
@@ -385,7 +385,7 @@ fn networks_try_into_quadlet_files<'a>(
             }
         };
         let network = quadlet::Network::try_from(network).wrap_err_with(|| {
-            format!("error converting network `{name}` into a quadlet network")
+            format!("error converting network `{name}` into a Quadlet network")
         })?;
 
         Ok(quadlet::File {
@@ -402,7 +402,7 @@ fn networks_try_into_quadlet_files<'a>(
 /// Attempt to convert compose [`Volumes`] into an [`Iterator`] of [`quadlet::File`]s.
 ///
 /// [`Volume`](compose_spec::Volume)s which are [empty](compose_spec::Volume::is_empty()) are
-/// filtered out as they do not need a `.volume` quadlet file to define extra options.
+/// filtered out as they do not need a `.volume` Quadlet file to define extra options.
 ///
 /// # Errors
 ///
@@ -418,7 +418,7 @@ fn volumes_try_into_quadlet_files<'a>(
             Resource::Compose(volume) => (!volume.is_empty()).then(|| {
                 quadlet::Volume::try_from(volume)
                     .wrap_err_with(|| {
-                        format!("error converting volume `{name}` into a quadlet volume")
+                        format!("error converting volume `{name}` into a Quadlet volume")
                     })
                     .map(|volume| quadlet::File {
                         name: name.into(),

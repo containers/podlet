@@ -187,7 +187,7 @@ impl Display for Network {
     }
 }
 
-/// Valid forms for `IPRange=` network quadlet option values.
+/// Valid forms for `IPRange=` Quadlet [`Network`] option values.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IpRange {
     Cidr(IpNet),

@@ -1,6 +1,6 @@
-//! Podlet generates [podman](https://podman.io/)
-//! [quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html)
-//! (systemd-like) files from a podman command.
+//! Podlet generates [Podman](https://podman.io/)
+//! [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html)
+//! (systemd-like) files from a Podman command, compose file, or existing object.
 //!
 //! # Usage
 //!

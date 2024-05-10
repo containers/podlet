@@ -32,7 +32,7 @@ pub use self::{idmap::Idmap, tmpfs::Tmpfs};
 
 /// Filesystem mount types to attach to a [`Container`](super::Container).
 ///
-/// See the `Mount=` quadlet option in the `[Container]` sections of
+/// See the `Mount=` Quadlet option in the `[Container]` sections of
 /// [**podman-systemd.unit(5)**](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html#mount)
 /// and `podman run --mount` in
 /// [**podman-run(1)**](https://docs.podman.io/en/stable/markdown/podman-run.1.html#mount-type-type-type-specific-option).
