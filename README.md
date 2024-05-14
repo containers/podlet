@@ -6,22 +6,25 @@
 
 Podlet generates [Podman](https://podman.io/) [Quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a Podman command, compose file, or existing object.
 
-[![demo.gif](./demo.gif)](https://asciinema.org/a/633918)
-Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/633918).
+[![demo.gif](./demo.gif)](https://asciinema.org/a/659410)
+Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/659410).
 
 ## Features
 
 - Supports the following Podman commands:
     - `podman run`
+    - `podman pod create`
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
     - `podman image pull`
 - Convert a (docker) compose file to:
-    - Multiple Quadlet files.
-    - A pod with a Quadlet `.kube` file and Kubernetes YAML.
+    - Multiple Quadlet `.container` files.
+    - A Quadlet `.pod` file and `.container` files.
+    - A Quadlet `.kube` file and Kubernetes Pod YAML.
 - Generate from existing:
     - Containers
+    - Pods
     - Networks
     - Volumes
     - Images
@@ -46,27 +49,28 @@ Podlet can be acquired in several ways:
 ```
 $ podlet -h
 
-Generate podman quadlet files from a podman command or a compose file
+Generate Podman Quadlet files from a Podman command, compose file, or existing object
 
 Usage: podlet [OPTIONS] <COMMAND>
 
 Commands:
-  podman    Generate a podman quadlet file from a podman command
-  compose   Generate podman quadlet files from a compose file
-  generate  Generate a podman quadlet file from an existing container, network, or volume
+  podman    Generate a Podman Quadlet file from a Podman command
+  compose   Generate Podman Quadlet files from a compose file
+  generate  Generate a Podman Quadlet file from an existing object
   help      Print this message or the help of the given subcommand(s)
 
 Options:
   -f, --file [<FILE>]                        Generate a file instead of printing to stdout
-  -u, --unit-directory                       Generate a file in the podman unit directory instead of printing to stdout [aliases: unit-dir]
+  -u, --unit-directory                       Generate a file in the Podman unit directory instead of printing to stdout [aliases: unit-dir]
   -n, --name <NAME>                          Override the name of the generated file (without the extension)
       --overwrite                            Overwrite existing files when generating a file
       --skip-services-check                  Skip the check for existing services of the same name
-  -p, --podman-version <PODMAN_VERSION>      Podman version generated quadlet files should conform to [default: 4.8] [aliases: compatibility, compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8]
+  -p, --podman-version <PODMAN_VERSION>      Podman version generated Quadlet files should conform to [default: 5.0] [aliases: compatibility, compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8, 5.0]
   -a, --absolute-host-paths [<RESOLVE_DIR>]  Convert relative host paths to absolute paths
   -d, --description <DESCRIPTION>            Add a description to the unit
       --wants <WANTS>                        Add (weak) requirement dependencies to the unit
       --requires <REQUIRES>                  Similar to --wants, but adds stronger requirement dependencies
+      --binds-to <BINDS_TO>                  Similar to --requires, but when the dependency stops, this unit also stops
       --before <BEFORE>                      Configure ordering dependency between units
       --after <AFTER>                        Configure ordering dependency between units
   -i, --install                              Add an [Install] section to the unit
@@ -83,16 +87,17 @@ See `podlet --help` for more information.
 ```
 $ podlet podman -h
 
-Generate a podman quadlet file from a podman command
+Generate a Podman Quadlet file from a Podman command
 
 Usage: podlet podman [OPTIONS] <COMMAND>
 
 Commands:
-  run      Generate a podman quadlet `.container` file
-  kube     Generate a podman quadlet `.kube` file
-  network  Generate a podman quadlet `.network` file
-  volume   Generate a podman quadlet `.volume` file
-  image    Generate a podman quadlet `.image` file
+  run      Generate a Podman Quadlet `.container` file
+  pod      Generate a Podman Quadlet `.pod` file
+  kube     Generate a Podman Quadlet `.kube` file
+  network  Generate a Podman Quadlet `.network` file
+  volume   Generate a Podman Quadlet `.volume` file
+  image    Generate a Podman Quadlet `.image` file
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -100,6 +105,7 @@ Options:
 
 Podman Global Options:
       --cgroup-manager <MANAGER>             Cgroup manager to use [possible values: cgroupfs, systemd]
+      --config <PATH>                        Location of the authentication config file
       --conmon <PATH>                        Path of the conmon binary
       --connection <CONNECTION_URI>          Connection to use for remote Podman service
       --events-backend <TYPE>                Backend to use for storing events [possible values: file, journald, none]
@@ -110,7 +116,7 @@ Podman Global Options:
       --module <PATH>                        Load the specified `containers.conf(5)` module
       --network-cmd-path <PATH>              Path to the `slirp4netns(1)` command binary
       --network-config-dir <DIRECTORY>       Path of the configuration directory for networks
-      --out <PATH>                           Redirect the output of podman to a file without affecting the container output or its logs
+      --out <PATH>                           Redirect the output of Podman to a file without affecting the container output or its logs
   -r, --remote[=<REMOTE>]                    Access remote Podman service [possible values: true, false]
       --root <VALUE>                         Path to the graph root directory where images, containers, etc. are stored
       --runroot <VALUE>                      Storage state directory where all state information is stored
@@ -171,7 +177,7 @@ WantedBy=default.target
 
 The name for the file was automatically pulled from the image name, but can be overridden with the `--name` option.
 
-Podlet also supports creating kube, network, volume, and image Quadlet files.
+Podlet also supports creating `.pod`, `.kube`, `.network`, `.volume`, and `.image` Quadlet files.
 
 ```
 $ podlet podman kube play --network pasta --userns auto caddy.yaml
@@ -190,7 +196,7 @@ Global Podman options are added to the `GlobalArgs=` Quadlet option.
 ```
 $ podlet compose -h
 
-Generate podman quadlet files from a compose file
+Generate Podman Quadlet files from a compose file
 
 Usage: podlet compose [OPTIONS] [COMPOSE_FILE]
 
@@ -198,13 +204,15 @@ Arguments:
   [COMPOSE_FILE]  The compose file to convert
 
 Options:
-      --pod <POD>  Create a Kubernetes YAML file for a pod instead of separate containers
-  -h, --help       Print help (see more with '--help')
+      --pod   Create a `.pod` file and link it with each `.container` file
+      --kube  Create a Kubernetes YAML file for a pod instead of separate containers
+  -h, --help  Print help (see more with '--help')
 ```
 
-Let's return to the Caddy example, say you have a compose file at `compose-example.yaml`:
+Let's return to the Caddy example, say you have a compose file at [`compose-example.yaml`](./compose-example.yaml):
 
 ```yaml
+name: caddy
 services:
   caddy:
     image: docker.io/library/caddy:latest
@@ -237,10 +245,35 @@ If a compose file is not given, Podlet will search for the following files in th
 - `docker-compose.yaml`
 - `docker-compose.yml`
 
-In addition, the `--pod` option will generate Kubernetes YAML which groups all compose services in a pod.
+
+#### Pod
+
+The `--pod` option will create a `.pod` Quadlet file and link each `.container` file to it.
 
 ```
-$ podlet compose --pod caddy compose-example.yaml
+$ podlet compose --pod compose-example.yaml
+
+# caddy-caddy.container
+[Container]
+Image=docker.io/library/caddy:latest
+Pod=caddy.pod
+Volume=./Caddyfile:/etc/caddy/Caddyfile:Z
+Volume=caddy-data:/data
+
+---
+
+# caddy.pod
+[Pod]
+PublishPort=8000:80
+PublishPort=8443:443
+```
+
+#### Kubernetes YAML
+
+The `--kube` option will generate Kubernetes YAML which groups all compose services in a pod.
+
+```
+$ podlet compose --kube compose-example.yaml
 
 # caddy.kube
 [Kube]
@@ -276,9 +309,11 @@ spec:
       claimName: caddy-data
 ```
 
-When converting compose files, not all options are supported by Podman/Quadlet. This is especially true when converting to a pod as some options must be applied to the pod as a whole. If Podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
+#### Notes
 
-Also note that Podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
+When converting compose files, not all options are supported by Podman/Quadlet. This is especially true when converting to Kubernetes YAML as some options must be applied to the pod as a whole. If Podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
+
+Podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
 
 See `podlet compose --help` for more information.
 
@@ -287,22 +322,23 @@ See `podlet compose --help` for more information.
 ```
 $ podlet generate -h
 
-Generate a podman quadlet file from an existing container, network, or volume
+Generate a Podman Quadlet file from an existing object
 
 Usage: podlet generate <COMMAND>
 
 Commands:
-  container  Generate a quadlet file from an existing container
-  network    Generate a quadlet file from an existing network
-  volume     Generate a quadlet file from an existing volume
-  image      Generate a quadlet file from an image in local storage
+  container  Generate a Quadlet file from an existing container
+  pod        Generate Quadlet files from an existing pod and its containers
+  network    Generate a Quadlet file from an existing network
+  volume     Generate a Quadlet file from an existing volume
+  image      Generate a Quadlet file from an image in local storage
   help       Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help (see more with '--help')
 ```
 
-If you have an existing container, network, volume, or image, you can use `podlet generate` to create a Quadlet file from it.
+If you have an existing container, pod, network, volume, or image, you can use `podlet generate` to create a Quadlet file from it.
 
 ```
 $ podman container create --name hello quay.io/podman/hello:latest

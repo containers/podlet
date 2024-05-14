@@ -8,8 +8,8 @@
 
 settings:
   width: 123
-  height: 45
-  title: podlet v0.2.4 demo
+  height: 47
+  title: Podlet v0.3.0 Demo
   timeout: 90s
   type_speed: 90ms
 
@@ -75,7 +75,11 @@ instructions:
     command: podlet compose compose-example.yaml
   - !Wait 5s
   - !Command
-    command: podlet compose --pod caddy-example compose-example.yaml
+    command: podlet compose --pod compose-example.yaml
+    type_speed: 80ms
+  - !Wait 7s
+  - !Command
+    command: podlet compose --kube compose-example.yaml
     type_speed: 80ms
   - !Wait 7s
   - !Clear
