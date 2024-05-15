@@ -1,5 +1,107 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.0] - 2024-05-17
+
+Big release for Podlet!
+
+In case you didn't already notice, Podlet is now officially a part of the [Containers](https://github.com/containers/) community! As a part of the transition, a new code of conduct, security policy, and contribution guidelines were added ([#76](https://github.com/containers/podlet/pull/76)). Additionally, the Podlet container image is now available at ghcr.io/containers/podlet. The existing images at quay.io/k9withabone/podlet and docker.io/k9withabone/podlet are deprecated and will not be receiving updates.
+
+Under the hood, the library used to deserialize Compose files was changed ([#73](https://github.com/containers/podlet/pull/73)). As a result, only Compose files which follow the [Compose specification](https://github.com/compose-spec/compose-spec) are supported. The top-level `version` field is completely ignored. Most Compose files should still work as before. This was a large change so look out for bugs.
+
+Added support for Quadlet options introduced in Podman v5.0.0 ([#75](https://github.com/containers/podlet/pull/75)). The headline feature is support for generating Quadlet `.pod` files. They can be generated from:
+
+- A Podman command with `podlet podman pod create`.
+- A Compose file with `podlet compose --pod`.
+- An existing pod with `podlet generate pod`.
+  - This creates a `.pod` file and a `.container` file for each container in the pod.
+
+Note that the existing option for generating Kubernetes Pod YAML from a Compose file was renamed to `podlet compose --kube`. Both the `--pod` and `--kube` options of `podlet compose` do not take an argument and instead require the top-level `name` field in the Compose file. The `name` is used as the name of the pod and in the filename of the created files.
+
+### Features
+- Add `podlet --binds-to` option.
+- **BREAKING** *(compose)* Rename `podlet compose --pod` to `podlet compose --kube`.
+- *(container)* Add `Entrypoint=` Quadlet option.
+- *(container)* Add `StopTimeout=` Quadlet option.
+- *(container)* Support `Notify=healthy` Quadlet option.
+- *(container)* Support `no-dereference` option for `Mount=`.
+- *(container)* Add `podman run --preserve-fd` option.
+- *(container)* Add `podman run --gpus` option.
+- *(container)* Add `podman run --retry` option.
+- *(container)* Add `podman run --retry-delay` option.
+- Add `podman --config` global option.
+- *(pod)* Generate `.pod` Quadlet file from command.
+  - Adds the `podlet podman pod create` subcommand.
+  - The `--infra-conmon-pidfile` and `--pod-id-file` options were deliberately not implemented as they are set by Quadlet in the generated `{name}-pod.service` file and can't be set multiple times.
+- **BREAKING** *(compose)* Re-add `podlet compose --pod` option.
+  - The `--pod` option causes podlet to create a `.pod` Quadlet file in addition to the `.container`, `.volume`, and `.network` files. The containers are linked to the pod and their published ports are moved.
+- *(generate)* Quadlet files from an existing pod and its containers.
+  - Adds the `podlet generate pod` subcommand.
+    - Runs `podman pod inspect` on the given pod.
+    - Deserializes the output.
+    - Parses the pod creation command.
+    - Does the same for each of the pod's containers.
+
+### Bug Fixes
+- Use Quadlet serializer for `Unit` `Display` implementation ([#64](https://github.com/containers/podlet/issues/64)).
+  - Brings `Unit` inline with the other sections of the generated Quadlet file.
+- *(container)* Add `podman run --uts` option.
+- *(container)* `--pids-limit` range is `-1..=u32::MAX`.
+- *(container)* Enforce `--blkio-weight` range `10..=1000`.
+- *(container)* `--blkio-weight-device` can be specified multiple times.
+- *(container)* Don't add empty `PodmanArgs=` when downgrading Podman version.
+
+### Documentation
+- *(clippy)* Fix Clippy lint warning for `Idmap`.
+- *(compose)* `--kube` help add `name` requirement.
+- Add code of conduct.
+- Add security policy.
+- Update links to the repository.
+  - The repository is now at https://github.com/containers/podlet.
+- *(contributing)* Add contribution guidelines.
+  - Adapted from the Buildah/Podman contribution guidelines.
+  - Suggests the use of conventional commits and clarifies that the `Signed-off-by` footer is required for a PR to be merged.
+  - Moved and expanded upon the building and continuous integration sections from the `README.md` file to the new `CONTRIBUTING.md` file.
+- *(readme)* Update container image location.
+  - The Podlet container image is now located at ghcr.io/containers/podlet.
+- Fix Podman and Quadlet capitalization.
+- *(readme)* Update demo, features, and usage.
+
+### Refactor
+- **BREAKING** *(deps)* Remove `docker_compose_types`.
+- **BREAKING** *(compose)* Deserialize `compose_spec::Compose`.
+- `cli::Unit::is_empty()`
+  - Check each field instead of comparing to the default.
+- *(compose)* Conversion to `quadlet::File`s from `compose_spec::Compose`.
+- *(compose)* `quadlet::Globals` from `compose_spec::Service`.
+- *(compose)* Container Quadlet options from `compose_spec::Service`.
+- *(compose)* Container Podman args from `compose_spec::Service`.
+- *(compose)* `quadlet::Network` from `compose_spec::Network`.
+- *(compose)* `quadlet::Volume` from `compose_spec::Volume`.
+- *(compose)* Kubernetes YAML from `compose_spec::Compose`.
+- *(container)* Destructure in Quadlet option conversion.
+- *(compose)* Move `podlet compose` args into their own struct.
+
+### Miscellaneous
+- *(deps)* Remove `duration-str` dependency.
+  - All usages were replaced with `compose_spec::duration`.
+- Add Podman v5.0.0 to Podman versions.
+  - Also added v4.9.X aliases to 4.8 and v5.0.X aliases to 5.0.
+- *(container)* Reorder fields to match Quadlet docs.
+- *(lints)* Fix new rust 1.78 clippy lints.
+- **BREAKING** *(release-container)* Push to ghcr.io/containers/podlet.
+  - The docker.io/k9withabone/podlet and quay.io/k9withabone/podlet container images will no longer be updated.
+- *(release-container)* Add annotations/labels to manifest/image.
+  - Adds labels to the Podlet container image and annotations to the multi-arch manifest as suggested by the GitHub packages documentation: <https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#labelling-container-images>.
+- *(ci)* Bump actions/checkout to v4.
+- *(ci)* Use Buildah container to build Podlet container.
+- *(deps)* Update dependencies.
+- *(release)* Update cargo-dist.
+
 ## [0.2.4] - 2024-01-30
 
 ### Features
@@ -218,3 +320,12 @@ The initial release of Podlet! Designed for Podman v4.5.0 and newer.
     - [Install]
         - WantedBy=
         - RequiredBy=
+
+[0.3.0]: https://github.com/containers/podlet/compare/v0.2.4...v0.3.0
+[0.2.4]: https://github.com/containers/podlet/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/containers/podlet/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/containers/podlet/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/containers/podlet/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/containers/podlet/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/containers/podlet/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/containers/podlet/compare/f9a7aadf5fca4966c3e8c7e6e495749d93029c80...v0.1.0
