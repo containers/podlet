@@ -1,3 +1,4 @@
+name: caddy
 services:
   caddy:
     image: docker.io/library/caddy:latest
