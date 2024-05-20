@@ -49,6 +49,8 @@ jobs:
 
   build-container:
     runs-on: ubuntu-latest
+    env:
+      MANIFEST: podlet-multiarch
     container:
       image: quay.io/containers/buildah:latest
       options: --security-opt seccomp=unconfined --security-opt apparmor=unconfined --device /dev/fuse:rw
@@ -58,8 +60,16 @@ jobs:
 
       - run: buildah version
 
+      - name: Create manifest
+        run: |
+          buildah manifest create \
+            --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
+            --annotation '"org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object"' \
+            --annotation "org.opencontainers.image.licenses=MPL-2.0" \
+            "${MANIFEST}"
+
       - name: Build ARM image
-        run: buildah build --platform linux/arm64/v8 -t podlet .
+        run: buildah build --manifest "${MANIFEST}" --platform linux/arm64/v8 -t podlet .
 
       - name: Build x86 image
-        run: buildah build --platform linux/amd64 -t podlet .
+        run: buildah build --manifest "${MANIFEST}" --platform linux/amd64 -t podlet .
