@@ -13,29 +13,38 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
       - run: cargo fmt --verbose --check
 
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+
       - run: cargo clippy -- -Dwarnings
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - run: cargo test --verbose
 
   build-container:
