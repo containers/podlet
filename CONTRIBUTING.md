@@ -136,6 +136,9 @@ below is a list of all the jobs with explanations and the commands that they run
   - Unit tests are defined in the source.
   - All tests should pass.
   - `cargo test`
+- build:
+  - Ensures Podlet can build on all target platforms.
+  - `cargo build`
 - build-container:
   - Ensures that the [Podlet container](./Containerfile) can build for both x86 and ARM platforms.
   - First, [install Buildah](https://github.com/containers/buildah/blob/main/install.md).

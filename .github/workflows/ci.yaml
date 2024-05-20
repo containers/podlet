@@ -47,7 +47,23 @@ jobs:
 
       - run: cargo test --verbose
 
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - run: cargo build --verbose
+      
   build-container:
+    needs: build
     runs-on: ubuntu-latest
     env:
       MANIFEST: podlet-multiarch
