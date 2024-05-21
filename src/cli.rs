@@ -211,7 +211,7 @@ impl Cli {
             }
 
             #[cfg(not(unix))]
-            eyre::bail!("Cannot get Podman unit directory on non-unix system");
+            color_eyre::eyre::bail!("Cannot get Podman unit directory on non-Unix system");
         } else if let Some(Some(path)) = &self.file {
             if path.is_dir() {
                 path.clone()

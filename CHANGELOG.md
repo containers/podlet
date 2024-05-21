@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2024-05-20
+## [0.3.0] - 2024-05-21
 
 Big release for Podlet!
 
@@ -54,6 +54,7 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
 - *(container)* Enforce `--blkio-weight` range `10..=1000`.
 - *(container)* `--blkio-weight-device` can be specified multiple times.
 - *(container)* Don't add empty `PodmanArgs=` when downgrading Podman version.
+- Correct use of `eyre::bail!()` on non-Unix platforms.
 
 ### Documentation
 - *(clippy)* Fix Clippy lint warning for `Idmap`.
@@ -101,6 +102,10 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
 - *(ci)* Use Buildah container to build Podlet container.
 - *(deps)* Update dependencies.
 - *(release)* Update cargo-dist.
+- *(release-container)* Fix manifest annotation quoting.
+- *(ci)* Use consistent formatting.
+- *(ci)* Add image to manifest when building container.
+- *(ci)* Add `build` job.
 
 ## [0.2.4] - 2024-01-30
 

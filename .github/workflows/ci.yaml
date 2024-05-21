@@ -13,33 +13,60 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+
       - run: cargo fmt --verbose --check
 
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+
       - run: cargo clippy -- -Dwarnings
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - run: cargo test --verbose
 
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - run: cargo build --verbose
+      
   build-container:
+    needs: build
     runs-on: ubuntu-latest
+    env:
+      MANIFEST: podlet-multiarch
     container:
       image: quay.io/containers/buildah:latest
       options: --security-opt seccomp=unconfined --security-opt apparmor=unconfined --device /dev/fuse:rw
@@ -49,8 +76,16 @@ jobs:
 
       - run: buildah version
 
+      - name: Create manifest
+        run: |
+          buildah manifest create \
+            --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
+            --annotation '"org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object"' \
+            --annotation "org.opencontainers.image.licenses=MPL-2.0" \
+            "${MANIFEST}"
+
       - name: Build ARM image
-        run: buildah build --platform linux/arm64/v8 -t podlet .
+        run: buildah build --manifest "${MANIFEST}" --platform linux/arm64/v8 -t podlet .
 
       - name: Build x86 image
-        run: buildah build --platform linux/amd64 -t podlet .
+        run: buildah build --manifest "${MANIFEST}" --platform linux/amd64 -t podlet .

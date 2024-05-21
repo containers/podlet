@@ -28,7 +28,7 @@ jobs:
         run: |
           buildah manifest create \
             --annotation "org.opencontainers.image.source=https://github.com/containers/podlet" \
-            --annotation "org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object" \
+            --annotation '"org.opencontainers.image.description=Generate Podman Quadlet files from a Podman command, compose file, or existing object"' \
             --annotation "org.opencontainers.image.licenses=MPL-2.0" \
             "${MANIFEST}"
 
