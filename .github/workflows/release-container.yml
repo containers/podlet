@@ -42,9 +42,9 @@ jobs:
           USERNAME: ${{ github.actor }}
           PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          buildah manifest push "${MANIFEST}:latest" \
+          buildah manifest push "${MANIFEST}:latest" --all \
             --creds "${USERNAME}:${PASSWORD}" \
             "docker://ghcr.io/containers/podlet:${GITHUB_REF_NAME}" && \
-          buildah manifest push "${MANIFEST}:latest" \
+          buildah manifest push "${MANIFEST}:latest" --all \
             --creds "${USERNAME}:${PASSWORD}" \
             "docker://ghcr.io/containers/podlet:latest"
