@@ -43,6 +43,8 @@ Podlet can be acquired in several ways:
 - As a container: `podman run ghcr.io/containers/podlet`.
 - Use [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) to get a prebuilt binary: `cargo binstall podlet`.
 - Build and install with `cargo install podlet`.
+- From your package manager
+  - [homebrew](https://formulae.brew.sh/formula/podlet): `brew install podlet`
 
 ## Usage
 
