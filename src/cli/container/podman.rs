@@ -182,12 +182,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENTRY")]
     gpus: Vec<String>,
 
-    /// Assign additional groups to the primary user running within the container process
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "GROUP")]
-    group_add: Vec<String>,
-
     /// Customize the entry that is written to the /etc/group file within the container
     #[arg(long, value_name = "ENTRY")]
     group_entry: Option<String>,
@@ -458,7 +452,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             cgroup_parent,
             device_cgroup_rules,
             extra_hosts,
-            group_add,
             ipc,
             uts,
             log_options,
@@ -526,7 +519,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .into_iter()
                 .map(|(host, ip)| format!("{host}:{ip}"))
                 .collect(),
-            group_add: group_add.into_iter().map(Into::into).collect(),
             ipc: ipc
                 .map(validate_ipc)
                 .transpose()

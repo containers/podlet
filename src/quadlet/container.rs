@@ -104,6 +104,9 @@ pub struct Container {
     /// The (numeric) GID to run as inside the container.
     pub group: Option<String>,
 
+    /// Assign additional groups to the primary user running within the container process.
+    pub group_add: Vec<String>,
+
     /// Set or alter a healthcheck command for a container.
     pub health_cmd: Option<String>,
 
@@ -305,6 +308,10 @@ impl Display for Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_1 {
+            self.remove_v5_1_options();
+        }
+
         if version < PodmanVersion::V5_0 {
             if self.notify.is_healthy() {
                 if version < PodmanVersion::V4_7 {
@@ -359,6 +366,14 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.1.0
+    fn remove_v5_1_options(&mut self) {
+        let options = extract!(self, OptionsV5_1 { group_add });
+
+        self.push_args(options)
+            .expect("OptionsV5_1 serializable as args");
+    }
+
     /// Remove Quadlet options added in Podman v5.0.0
     fn remove_v5_0_options(&mut self) {
         let options = extract!(
@@ -500,6 +515,13 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.1.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_1 {
+    group_add: Vec<String>,
 }
 
 /// Container Quadlet options added in Podman v5.0.0
