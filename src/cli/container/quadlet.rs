@@ -153,6 +153,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "[FLAGS]CONTAINER_GID:FROM_GID[:AMOUNT]")]
     gidmap: Vec<String>,
 
+    /// Assign additional groups to the primary user running within the container process
+    ///
+    /// Converts to "GroupAdd=GROUP"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "GROUP")]
+    group_add: Vec<String>,
+
     /// Set or alter a healthcheck command for the container
     ///
     /// Converts to "HealthCmd=COMMAND"
@@ -465,6 +473,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             env_host: environment_host,
             expose: expose_host_port,
             gidmap: gid_map,
+            group_add,
             health_cmd,
             health_interval,
             health_on_failure,
@@ -535,6 +544,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             expose_host_port,
             gid_map,
             group,
+            group_add,
             health_cmd,
             health_interval,
             health_on_failure,
@@ -598,6 +608,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             environment,
             expose,
             annotations,
+            group_add,
             healthcheck,
             hostname,
             init,
@@ -681,6 +692,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             env: environment.into_list().into_iter().collect(),
             expose: expose.iter().map(ToString::to_string).collect(),
             annotation: annotations.into_list().into_iter().collect(),
+            group_add: group_add.into_iter().map(Into::into).collect(),
             health_cmd,
             health_interval,
             health_timeout,

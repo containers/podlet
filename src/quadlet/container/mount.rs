@@ -387,6 +387,10 @@ pub struct Image {
         skip_serializing_if = "Not::not"
     )]
     pub read_write: bool,
+
+    /// Mount only a specific path within the image, instead of the whole image.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subpath: Option<PathBuf>,
 }
 
 /// Volume type [`Mount`].
@@ -512,14 +516,16 @@ mod tests {
 
     #[test]
     fn image() {
-        let string = "type=image,source=fedora,destination=/fedora-image,readwrite=true";
+        let string =
+            "type=image,source=fedora,destination=/fedora-image,readwrite=true,subpath=path";
         let mount: Mount = string.parse().unwrap();
         assert_eq!(
             mount,
             Mount::Image(Image {
                 source: "fedora".into(),
                 destination: "/fedora-image".into(),
-                read_write: true
+                read_write: true,
+                subpath: Some("path".into()),
             }),
         );
         assert_eq!(mount.to_string(), string);
