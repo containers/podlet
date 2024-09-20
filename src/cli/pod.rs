@@ -40,7 +40,11 @@ impl Pod {
     /// The name (without extension) of the generated Quadlet file.
     pub fn name(&self) -> &str {
         let Self::Create { create } = self;
-        &create.name
+        create
+            .name
+            .as_ref()
+            .or(create.name_positional.as_ref())
+            .expect("`name` or `name_positional` is required")
     }
 }
 
@@ -105,11 +109,14 @@ pub struct Create {
     ///
     /// This will be used as the name of the generated file when used with
     /// the --file option without a filename.
-    #[arg(required_unless_present="name", value_name="NAME")]
-    name_pos: String,
+    #[arg(required_unless_present = "name", value_name = "NAME")]
+    name_positional: Option<String>,
 
-    #[arg(required_unless_present="name_pos", long, value_name="NAME")]
-    name: String,
+    /// The name of the pod to create.
+    ///
+    /// Must be specified if `name_positional` is not.
+    #[arg(conflicts_with = "name_positional", long, value_name = "NAME")]
+    name: Option<String>,
 }
 
 impl From<Create> for quadlet::Pod {
@@ -120,24 +127,20 @@ impl From<Create> for quadlet::Pod {
             volume,
             podman_args,
             // Name used when creating the `quadlet::File`.
-            name_pos,
+            name_positional,
             name,
         }: Create,
     ) -> Self {
         let podman_args = podman_args.to_string();
 
-
-        let pod_name: Option<String>;
-        if name_pos.is_empty() {
-            pod_name = Some(name);
-        } else {
-            pod_name = Some(name_pos);
-        }
+        let pod_name = name_positional
+            .or(name)
+            .expect("`name` or `name_positional` is required");
 
         Self {
             network,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
-            pod_name: pod_name,
+            pod_name: Some(pod_name),
             publish_port,
             volume,
         }
