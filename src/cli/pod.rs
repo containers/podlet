@@ -39,12 +39,19 @@ pub enum Pod {
 impl Pod {
     /// The name (without extension) of the generated Quadlet file.
     pub fn name(&self) -> &str {
-        let Self::Create { create } = self;
-        create
-            .name
-            .as_ref()
-            .or(create.name_positional.as_ref())
-            .expect("`name` or `name_positional` is required")
+        let Self::Create {
+            create:
+                Create {
+                    name_flag,
+                    name_positional,
+                    ..
+                },
+        } = self;
+
+        name_flag
+            .as_deref()
+            .or(name_positional.as_deref())
+            .expect("`name_flag` or `name_positional` is required")
     }
 }
 
@@ -71,6 +78,22 @@ pub struct Create {
     /// Can be specified multiple times.
     #[arg(long, visible_alias = "net", value_name = "MODE")]
     network: Vec<String>,
+
+    /// The name of the pod to create.
+    ///
+    /// Converts to "PodName=NAME".
+    ///
+    /// This will be used as the name of the generated file when used with
+    /// the --file option without a filename.
+    ///
+    /// Either this option or the name positional argument must be given.
+    #[arg(
+        conflicts_with = "name_positional",
+        short,
+        long = "name",
+        value_name = "NAME"
+    )]
+    name_flag: Option<String>,
 
     /// Publish a container's port, or a range of ports, within this pod to the host.
     ///
@@ -109,38 +132,30 @@ pub struct Create {
     ///
     /// This will be used as the name of the generated file when used with
     /// the --file option without a filename.
-    #[arg(required_unless_present = "name", value_name = "NAME")]
-    name_positional: Option<String>,
-
-    /// The name of the pod to create.
     ///
-    /// Must be specified if `name_positional` is not.
-    #[arg(conflicts_with = "name_positional", long, value_name = "NAME")]
-    name: Option<String>,
+    /// Either this positional argument or the name option must be given.
+    #[arg(required_unless_present = "name_flag", value_name = "NAME")]
+    name_positional: Option<String>,
 }
 
 impl From<Create> for quadlet::Pod {
     fn from(
         Create {
             network,
+            name_flag: pod_name,
             publish: publish_port,
             volume,
             podman_args,
-            // Name used when creating the `quadlet::File`.
-            name_positional,
-            name,
+            // Only set `PodName=` Quadlet option when `--name` is used.
+            name_positional: _,
         }: Create,
     ) -> Self {
         let podman_args = podman_args.to_string();
 
-        let pod_name = name_positional
-            .or(name)
-            .expect("`name` or `name_positional` is required");
-
         Self {
             network,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
-            pod_name: Some(pod_name),
+            pod_name,
             publish_port,
             volume,
         }
