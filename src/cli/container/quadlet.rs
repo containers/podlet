@@ -910,11 +910,12 @@ fn network_config_try_into_network_options(
         NetworkConfig::Networks(networks) => networks
             .into_long()
             .into_iter()
-            .map(|(network, options)| {
-                let mut network = String::from(network);
+            .map(|(identifier, options)| {
+                let mut network = String::from(identifier.clone());
+                network.push_str(".network");
                 if let Some(options) = options {
                     let options = network_options(options).wrap_err_with(|| {
-                        format!("error converting `{network}` network options")
+                        format!("error converting `{identifier}` network options")
                     })?;
                     network.push(':');
                     network.push_str(&options);
