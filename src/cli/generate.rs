@@ -6,6 +6,7 @@
 
 use std::{
     env,
+    marker::PhantomData,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     process::Command,
 };
@@ -17,7 +18,10 @@ use color_eyre::{
 };
 use indexmap::IndexMap;
 use ipnet::IpNet;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{
+    de::{self, value::MapAccessDeserializer, DeserializeOwned, MapAccess, SeqAccess, Visitor},
+    Deserialize, Deserializer,
+};
 
 use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind};
 
@@ -746,16 +750,56 @@ fn podman_inspect<T: DeserializeOwned>(
         .section(stderr.trim().to_owned().header("Podman Stderr:"));
     }
 
-    // `podman inspect` returns a JSON array which is also valid YAML so serde_yaml can be reused.
-    // There should only be a single object in the array, so the first one is returned.
-    serde_yaml::from_str::<Vec<T>>(&stdout)
+    serde_json::Deserializer::from_str(&stdout)
+        .deserialize_any(PodmanInspectVisitor {
+            resource_kind,
+            resource,
+            value: PhantomData,
+        })
         .wrap_err_with(|| {
             format!("error deserializing from `podman {resource_kind} inspect {resource}` output")
         })
-        .with_section(|| stdout.trim().to_owned().header("Podman Stdout:"))?
-        .into_iter()
-        .next()
-        .ok_or_else(|| eyre!("no {resource_kind}s matching `{resource}`"))
+        .with_section(|| stdout.trim().to_owned().header("Podman Stdout:"))
+}
+
+/// A [`Visitor`] for deserializing the output of `podman inspect`.
+///
+/// Podman v5.0.0 and newer always returns an array from `podman inspect`. Older versions may return
+/// a single JSON object if there is only one result, notably for `podman pod inspect`.
+///
+/// If an array is encountered, the first object is returned.
+struct PodmanInspectVisitor<'a, T> {
+    resource_kind: ResourceKind,
+    resource: &'a str,
+    value: PhantomData<T>,
+}
+
+impl<'a, 'de, T: Deserialize<'de>> Visitor<'de> for PodmanInspectVisitor<'a, T> {
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            formatter,
+            "the output of `podman {} inspect`, an object or array",
+            self.resource_kind
+        )
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+        T::deserialize(MapAccessDeserializer::new(map))
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let Self {
+            resource_kind,
+            resource,
+            ..
+        } = self;
+
+        seq.next_element()?.ok_or_else(|| {
+            de::Error::custom(format_args!("no {resource_kind}s matching `{resource}`"))
+        })
+    }
 }
 
 #[cfg(test)]
