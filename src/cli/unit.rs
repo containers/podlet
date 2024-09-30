@@ -113,7 +113,7 @@ impl Unit {
     /// or the [`Dependency`] is set to `restart` but is not `required`.
     pub fn add_dependency(
         &mut self,
-        name: impl Display,
+        mut name: String,
         Dependency {
             condition,
             restart,
@@ -141,7 +141,7 @@ impl Unit {
             (false, false) => &mut self.wants,
         };
 
-        let name = format!("{name}.service");
+        name.push_str(".service");
         list.push(name.clone());
         self.after.push(name);
 
