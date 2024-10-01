@@ -249,27 +249,15 @@ fn parts_try_into_files(
     let mut files = services
         .into_iter()
         .map(|(name, service)| {
-            let mut file = service_try_into_quadlet_file(
+            service_try_into_quadlet_file(
                 service,
                 name,
                 unit.clone(),
                 install.clone(),
                 &volume_has_options,
-            )?;
-            if let (
-                Some(pod_name),
-                quadlet::File {
-                    name,
-                    resource: quadlet::Resource::Container(container),
-                    ..
-                },
-            ) = (&pod_name, &mut file)
-            {
-                *name = format!("{pod_name}-{name}");
-                pod_ports.extend(mem::take(&mut container.publish_port));
-                container.pod = Some(format!("{pod_name}.pod"));
-            }
-            Ok(file)
+                pod_name.as_deref(),
+                &mut pod_ports,
+            )
         })
         .chain(networks_try_into_quadlet_files(
             networks,
@@ -309,6 +297,9 @@ fn parts_try_into_files(
 /// options set. It is used to determine whether to link to a [`quadlet::Volume`] in the created
 /// [`quadlet::Container`].
 ///
+/// If `pod_name` is [`Some`] and the `service` has any published ports, they are taken from the
+/// created [`quadlet::Container`] and added to `pod_ports`.
+///
 /// # Errors
 ///
 /// Returns an error if there was an error [adding](Unit::add_dependency()) a service
@@ -320,13 +311,22 @@ fn service_try_into_quadlet_file(
     mut unit: Option<Unit>,
     install: Option<quadlet::Install>,
     volume_has_options: &HashMap<Identifier, bool>,
+    pod_name: Option<&str>,
+    pod_ports: &mut Vec<String>,
 ) -> color_eyre::Result<quadlet::File> {
     // Add any service dependencies to the [Unit] section of the Quadlet file.
     let dependencies = mem::take(&mut service.depends_on).into_long();
     if !dependencies.is_empty() {
         let unit = unit.get_or_insert_with(Unit::default);
         for (ident, dependency) in dependencies {
-            unit.add_dependency(&ident, dependency).wrap_err_with(|| {
+            unit.add_dependency(
+                pod_name.map_or_else(
+                    || ident.to_string(),
+                    |pod_name| format!("{pod_name}-{ident}"),
+                ),
+                dependency,
+            )
+            .wrap_err_with(|| {
                 format!("error adding dependency on `{ident}` to service `{name}`")
             })?;
         }
@@ -355,8 +355,16 @@ fn service_try_into_quadlet_file(
         }
     }
 
+    let name = if let Some(pod_name) = pod_name {
+        container.pod = Some(format!("{pod_name}.pod"));
+        pod_ports.extend(mem::take(&mut container.publish_port));
+        format!("{pod_name}-{name}")
+    } else {
+        name.into()
+    };
+
     Ok(quadlet::File {
-        name: name.into(),
+        name,
         unit,
         resource: container.into(),
         globals: global_args.into(),
