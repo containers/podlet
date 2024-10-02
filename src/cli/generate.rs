@@ -8,6 +8,7 @@ use std::{
     env,
     marker::PhantomData,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    path::PathBuf,
     process::Command,
 };
 
@@ -50,6 +51,22 @@ pub enum Generate {
     /// Only supports pods created with `podman pod create`.
     /// The command used to create the pod is parsed to generate the Quadlet file.
     Pod {
+        /// Ignore the `podman pod create --infra-conmon-pidfile` option if it is set.
+        ///
+        /// Quadlet sets the `--infra-conmon-pidfile` option when generating the systemd service
+        /// unit file for the pod, and it cannot be set multiple times. Podlet will, by default,
+        /// return an error if the option is used.
+        #[arg(long)]
+        ignore_infra_conmon_pidfile: bool,
+
+        /// Ignore the `podman pod create --pod-id-file` option if it is set.
+        ///
+        /// Quadlet sets the `--pod-id-file` option when generating the systemd service unit file
+        /// for the pod, and it cannot be set multiple times. Podlet will, by default, return an
+        /// error if the option is used.
+        #[arg(long)]
+        ignore_pod_id_file: bool,
+
         /// Name or ID of the pod
         ///
         /// Passed to `podman pod inspect`.
@@ -105,8 +122,32 @@ impl Generate {
         match self {
             Self::Container { container } => Ok(vec![ContainerParser::from_container(&container)?
                 .into_quadlet_file(None, name, unit, install)]),
-            Self::Pod { pod } => {
-                Ok(PodParser::from_pod(&pod)?.into_quadlet_files(name, unit, install))
+            Self::Pod {
+                ignore_infra_conmon_pidfile,
+                ignore_pod_id_file,
+                pod,
+            } => {
+                let pod = PodParser::from_pod(&pod)?;
+
+                if pod.infra_conmon_pidfile.is_some() && !ignore_infra_conmon_pidfile {
+                    Err(eyre!(
+                        "the `--infra-conmon-pidfile` option is not \
+                        supported as it is set by Quadlet"
+                    )
+                    .suggestion(
+                        "use `podlet generate pod --ignore-infra-conmon-pidfile` \
+                        to remove the option",
+                    ))
+                } else if pod.pod_id_file.is_some() && !ignore_pod_id_file {
+                    Err(eyre!(
+                        "the `--pod-id-file` option is not supported as it is set by Quadlet"
+                    )
+                    .suggestion(
+                        "use `podlet generate pod --ignore-pod-id-file` to remove the option",
+                    ))
+                } else {
+                    Ok(pod.into_quadlet_files(name, unit, install))
+                }
             }
             Self::Network { network } => Ok(vec![
                 NetworkInspect::from_network(&network)?.into_quadlet_file(name, unit, install)
@@ -253,6 +294,24 @@ struct PodParser {
     #[command(subcommand)]
     pod: Pod,
 
+    /// File to write the PID of the infra container's conmon process to.
+    ///
+    /// Not supported as Quadlet sets this when generating the pod's `.service` unit file.
+    ///
+    /// Ignored with the `podlet generate pod --ignore-infra-conmon-pidfile` option. Otherwise
+    /// results in error if set.
+    #[arg(long, global = true)]
+    infra_conmon_pidfile: Option<PathBuf>,
+
+    /// File to write the pod's ID to.
+    ///
+    /// Not supported as Quadlet sets this when generating the pod's `.service` unit file.
+    ///
+    /// Ignored with the `podlet generate pod --ignore-pod-id-file` option. Otherwise results in
+    /// error if set.
+    #[arg(long, global = true)]
+    pod_id_file: Option<PathBuf>,
+
     /// Containers associated with the pod.
     #[arg(skip)]
     containers: Vec<ContainerParser>,
@@ -306,6 +365,9 @@ impl PodParser {
             global_args,
             pod,
             containers,
+            // Handled by Generate::try_into_quadlet_files()
+            infra_conmon_pidfile: _,
+            pod_id_file: _,
         } = self;
 
         let pod_name = pod.name();
