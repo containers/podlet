@@ -173,6 +173,7 @@ impl From<compose_spec::Service> for Service {
                 read_only,
                 secrets,
                 shm_size,
+                stop_signal,
                 stop_grace_period,
                 sysctls,
                 tmpfs,
@@ -207,7 +208,6 @@ impl From<compose_spec::Service> for Service {
                 platform,
                 privileged,
                 stdin_open,
-                stop_signal,
                 tty,
             },
             container: Container {
@@ -333,6 +333,7 @@ pub struct Quadlet {
     pub read_only: bool,
     pub secrets: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
     pub shm_size: Option<ByteValue>,
+    pub stop_signal: Option<String>,
     pub stop_grace_period: Option<Duration>,
     pub sysctls: ListOrMap,
     pub tmpfs: Option<ItemOrList<AbsolutePath>>,
@@ -370,7 +371,6 @@ pub struct PodmanArgs {
     pub platform: Option<Platform>,
     pub privileged: bool,
     pub stdin_open: bool,
-    pub stop_signal: Option<String>,
     pub tty: bool,
 }
 
