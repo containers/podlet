@@ -221,12 +221,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "IP")]
     link_local_ip: Option<String>,
 
-    /// Logging driver specific options
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "NAME=VALUE")]
-    log_opt: Vec<String>,
-
     /// Container network interface MAC address
     #[arg(long, value_name = "ADDRESS")]
     mac_address: Option<String>,
@@ -454,7 +448,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             extra_hosts,
             ipc,
             uts,
-            log_options,
             mac_address,
             mem_limit,
             mem_reservation,
@@ -524,17 +517,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .transpose()
                 .wrap_err("`ipc` invalid")?,
             uts: uts.as_ref().map(ToString::to_string),
-            log_opt: log_options
-                .into_iter()
-                .map(|(key, value)| {
-                    let mut option = String::from(key);
-                    if let Some(value) = value {
-                        option.push('=');
-                        option.push_str(&String::from(value));
-                    }
-                    option
-                })
-                .collect(),
             mac_address: mac_address.as_ref().map(ToString::to_string),
             memory: mem_limit.as_ref().map(ToString::to_string),
             memory_reservation: mem_reservation.as_ref().map(ToString::to_string),

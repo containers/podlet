@@ -259,6 +259,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "DRIVER")]
     log_driver: Option<String>,
 
+    /// Logging driver specific options
+    ///
+    /// Converts to "LogOpt=NAME=VALUE"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "NAME=VALUE")]
+    log_opt: Vec<String>,
+
     /// Attach a filesystem mount to the container
     ///
     /// Converts to "Mount=MOUNT"
@@ -490,6 +498,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             ip6,
             mut label,
             log_driver,
+            log_opt,
             mount,
             network,
             sdnotify: notify,
@@ -561,6 +570,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             ip6,
             label,
             log_driver,
+            log_opt,
             mount,
             network,
             notify,
@@ -614,6 +624,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             init,
             labels,
             log_driver,
+            log_options,
             network_config,
             pids_limit,
             ports,
@@ -703,6 +714,17 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             init,
             label: labels.into_list().into_iter().collect(),
             log_driver,
+            log_opt: log_options
+                .into_iter()
+                .map(|(key, value)| {
+                    let mut option = String::from(key);
+                    if let Some(value) = value {
+                        option.push('=');
+                        option.push_str(&String::from(value));
+                    }
+                    option
+                })
+                .collect(),
             network: network_config
                 .map(network_config_try_into_network_options)
                 .transpose()
