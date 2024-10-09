@@ -182,6 +182,9 @@ pub struct Container {
     /// Specify a custom network for the container.
     pub network: Vec<String>,
 
+    /// Add a network-scoped alias for the container.
+    pub network_alias: Vec<String>,
+
     /// If enabled, this disables the container processes from gaining additional
     /// privileges via things like setuid and file capabilities.
     #[serde(skip_serializing_if = "Not::not")]
@@ -383,6 +386,7 @@ impl Container {
             OptionsV5_2 {
                 log_opt,
                 stop_signal,
+                network_alias,
             }
         );
 
@@ -547,6 +551,7 @@ impl Container {
 struct OptionsV5_2 {
     log_opt: Vec<String>,
     stop_signal: Option<String>,
+    network_alias: Vec<String>,
 }
 
 /// Container Quadlet options added in Podman v5.1.0

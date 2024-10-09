@@ -241,10 +241,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "NUMBER")]
     memory_swappiness: Option<u8>,
 
-    /// Add a network-scoped alias for the container
-    #[arg(long, value_name = "ALIAS")]
-    network_alias: Option<String>,
-
     /// Disable healthchecks on the container
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
