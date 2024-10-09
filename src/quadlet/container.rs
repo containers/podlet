@@ -251,6 +251,9 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Signal to stop a container.
+    pub stop_signal: Option<String>,
+
     /// Seconds to wait before forcibly stopping the container.
     ///
     /// Note, this value should be lower than the actual systemd unit timeout to make sure the
@@ -375,7 +378,13 @@ macro_rules! extract {
 impl Container {
     /// Remove Quadlet options added in Podman v5.2.0
     fn remove_v5_2_options(&mut self) {
-        let options = extract!(self, OptionsV5_2 { log_opt });
+        let options = extract!(
+            self,
+            OptionsV5_2 {
+                log_opt,
+                stop_signal,
+            }
+        );
 
         self.push_args(options)
             .expect("OptionsV5_2 serializable as args");
@@ -537,6 +546,7 @@ impl Container {
 #[serde(rename_all = "kebab-case")]
 struct OptionsV5_2 {
     log_opt: Vec<String>,
+    stop_signal: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.1.0
