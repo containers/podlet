@@ -283,6 +283,14 @@ pub struct QuadletOptions {
     #[arg(long, visible_alias = "net", value_name = "MODE")]
     network: Vec<String>,
 
+    /// Add a network-scoped alias for the container
+    ///
+    /// Converts to "NetworkAlias=ALIAS"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "ALIAS")]
+    network_alias: Vec<String>,
+
     /// Control sd-notify behavior
     ///
     /// If `container`, converts to "Notify=true"
@@ -507,6 +515,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_opt,
             mount,
             network,
+            network_alias,
             sdnotify: notify,
             pids_limit,
             publish: publish_port,
@@ -580,6 +589,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_opt,
             mount,
             network,
+            network_alias,
             notify,
             pids_limit,
             publish_port,
