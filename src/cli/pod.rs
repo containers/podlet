@@ -79,6 +79,14 @@ pub struct Create {
     #[arg(long, visible_alias = "net", value_name = "MODE")]
     network: Vec<String>,
 
+    /// Add a network-scoped alias for the pod.
+    ///
+    /// Converts to "NetworkAlias=ALIAS".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "ALIAS")]
+    network_alias: Vec<String>,
+
     /// The name of the pod to create.
     ///
     /// Converts to "PodName=NAME".
@@ -142,6 +150,7 @@ impl From<Create> for quadlet::Pod {
     fn from(
         Create {
             network,
+            network_alias,
             name_flag: pod_name,
             publish: publish_port,
             volume,
@@ -154,6 +163,7 @@ impl From<Create> for quadlet::Pod {
 
         Self {
             network,
+            network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pod_name,
             publish_port,
@@ -319,10 +329,6 @@ struct PodmanArgs {
     /// Limit value equal to memory plus swap.
     #[arg(long, value_name = "NUMBER[UNIT]")]
     memory_swap: Option<String>,
-
-    /// Add a network-scoped alias for the pod.
-    #[arg(long, value_name = "ALIAS")]
-    network_alias: Option<String>,
 
     /// Do not create /etc/hosts for the pod.
     #[arg(long, conflicts_with = "add_host")]
