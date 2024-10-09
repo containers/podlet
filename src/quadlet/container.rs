@@ -165,6 +165,9 @@ pub struct Container {
     /// Set the log-driver used by Podman when running the container.
     pub log_driver: Option<String>,
 
+    /// Set the log-opt (logging options) used by Podman when running the container.
+    pub log_opt: Vec<String>,
+
     /// The paths to mask. A masked path cannot be accessed inside the container.
     #[serde(
         serialize_with = "quote_spaces_join_colon",
@@ -308,6 +311,10 @@ impl Display for Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_2 {
+            self.remove_v5_2_options();
+        }
+
         if version < PodmanVersion::V5_1 {
             self.remove_v5_1_options();
         }
@@ -366,6 +373,14 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.2.0
+    fn remove_v5_2_options(&mut self) {
+        let options = extract!(self, OptionsV5_2 { log_opt });
+
+        self.push_args(options)
+            .expect("OptionsV5_2 serializable as args");
+    }
+
     /// Remove Quadlet options added in Podman v5.1.0
     fn remove_v5_1_options(&mut self) {
         let options = extract!(self, OptionsV5_1 { group_add });
@@ -515,6 +530,13 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.2.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_2 {
+    log_opt: Vec<String>,
 }
 
 /// Container Quadlet options added in Podman v5.1.0
