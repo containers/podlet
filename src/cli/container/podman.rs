@@ -373,10 +373,6 @@ pub struct PodmanArgs {
     #[default = true]
     sig_proxy: bool,
 
-    /// Signal to stop a container
-    #[arg(long, value_name = "SIGNAL")]
-    stop_signal: Option<String>,
-
     /// Run container in systemd mode
     ///
     /// Default is true
@@ -458,7 +454,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             platform,
             privileged,
             stdin_open,
-            stop_signal,
             tty,
         }: compose::PodmanArgs,
     ) -> Result<Self, Self::Error> {
@@ -529,7 +524,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             attach: stdin_open
                 .then(|| vec!["stdin".to_owned()])
                 .unwrap_or_default(),
-            stop_signal,
             tty,
             ..Self::default()
         })
