@@ -43,7 +43,7 @@ impl Display for Pod {
 
 impl HostPaths for Pod {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.volume.iter_mut().flat_map(Volume::host_paths)
+        self.volume.host_paths()
     }
 }
 

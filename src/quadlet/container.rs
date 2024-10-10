@@ -636,13 +636,12 @@ struct OptionsV4_5 {
 impl HostPaths for Container {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         self.add_device
-            .iter_mut()
-            .flat_map(Device::host_paths)
+            .host_paths()
             .chain(&mut self.environment_file)
-            .chain(self.mount.iter_mut().flat_map(Mount::host_paths))
-            .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
+            .chain(self.mount.host_paths())
+            .chain(self.rootfs.host_paths())
             .chain(&mut self.seccomp_profile)
-            .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+            .chain(self.volume.host_paths())
     }
 }
 

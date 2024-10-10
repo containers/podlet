@@ -458,3 +458,21 @@ pub trait HostPaths {
     /// on the host.
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf>;
 }
+
+impl<T: HostPaths> HostPaths for &mut T {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        T::host_paths(self)
+    }
+}
+
+impl<T: HostPaths> HostPaths for Vec<T> {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.iter_mut().flat_map(T::host_paths)
+    }
+}
+
+impl<T: HostPaths> HostPaths for Option<T> {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.iter_mut().flat_map(T::host_paths)
+    }
+}
