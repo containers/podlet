@@ -13,7 +13,7 @@ use color_eyre::{
 };
 use compose_spec::service::{
     blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
-    BlkioConfig, Ipc,
+    BlkioConfig, ByteValue, Ipc, Limit,
 };
 use serde::Serialize;
 use smart_default::SmartDefault;
@@ -234,8 +234,8 @@ pub struct PodmanArgs {
     memory_reservation: Option<String>,
 
     /// Limit value equal to memory plus swap
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    memory_swap: Option<String>,
+    #[arg(long, allow_negative_numbers = true, value_name = "NUMBER[UNIT]")]
+    memory_swap: Option<Limit<ByteValue>>,
 
     /// Tune the container’s memory swappiness behavior
     #[arg(long, value_name = "NUMBER")]
@@ -444,6 +444,7 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             mem_limit,
             mem_reservation,
             mem_swappiness,
+            memswap_limit,
             oom_kill_disable,
             oom_score_adj,
             pid,
@@ -511,6 +512,7 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             mac_address: mac_address.as_ref().map(ToString::to_string),
             memory: mem_limit.as_ref().map(ToString::to_string),
             memory_reservation: mem_reservation.as_ref().map(ToString::to_string),
+            memory_swap: memswap_limit,
             memory_swappiness: mem_swappiness.map(Into::into),
             oom_kill_disable,
             oom_score_adj: oom_score_adj.map(Into::into),
