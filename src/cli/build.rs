@@ -5,7 +5,15 @@ use std::{
 };
 
 use clap::{ArgAction, Args};
-use compose_spec::service::{build::Context, ByteValue, Limit};
+use color_eyre::eyre::{bail, ensure, eyre, OptionExt, WrapErr};
+use compose_spec::{
+    service::{
+        self,
+        build::{Cache, CacheType, Context, Dockerfile},
+        ByteValue, Limit, Ulimit,
+    },
+    ShortOrLong,
+};
 use serde::Serialize;
 use smart_default::SmartDefault;
 
@@ -22,7 +30,7 @@ use super::image_to_name;
 
 /// [`Args`] for `podman build`.
 #[allow(clippy::doc_markdown)]
-#[derive(Args, Debug, Clone, PartialEq, Eq)]
+#[derive(Args, Debug, SmartDefault, Clone, PartialEq, Eq)]
 #[group(skip)]
 pub struct Build {
     /// Add an image annotation (e.g. annotation=value) to the image metadata.
@@ -95,6 +103,7 @@ pub struct Build {
     ///
     /// Converts to "ForceRM=FORCE_RM".
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[default = true]
     force_rm: bool,
 
     /// Assign additional groups to the primary user running within the container process.
@@ -249,6 +258,145 @@ impl From<Build> for quadlet::Resource {
     fn from(value: Build) -> Self {
         quadlet::Build::from(value).into()
     }
+}
+
+impl TryFrom<service::Build> for Build {
+    type Error = color_eyre::Report;
+
+    fn try_from(
+        service::Build {
+            context,
+            dockerfile,
+            args,
+            ssh,
+            cache_from,
+            cache_to,
+            additional_contexts,
+            entitlements,
+            extra_hosts,
+            isolation,
+            privileged,
+            labels,
+            no_cache,
+            pull,
+            network,
+            shm_size,
+            target,
+            secrets,
+            tags,
+            ulimits,
+            platforms,
+            extensions,
+        }: service::Build,
+    ) -> Result<Self, Self::Error> {
+        ensure!(entitlements.is_empty(), "`entitlements` are not supported");
+        ensure!(!privileged, "`privileged` is not supported");
+        ensure!(secrets.is_empty(), "`secrets` are not supported");
+        ensure!(
+            extensions.is_empty(),
+            "compose extensions are not supported"
+        );
+
+        let file = dockerfile
+            .map(|dockerfile| match dockerfile {
+                Dockerfile::File(file) => Ok(file.into()),
+                Dockerfile::Inline(_) => Err(eyre!("`dockerfile_inline` is not supported")),
+            })
+            .transpose()?;
+
+        ensure!(
+            context.is_some() || file.is_some(),
+            "`context` or `dockerfile` is required"
+        );
+
+        let podman_args = PodmanArgs {
+            add_host: extra_hosts
+                .into_iter()
+                .map(|(hostname, ip)| format!("{hostname}:{ip}"))
+                .collect(),
+            build_arg: args.into_list().into_iter().collect(),
+            build_context: additional_contexts
+                .iter()
+                .map(|(id, context)| format!("{id}={context}"))
+                .collect(),
+            cache_from: cache_from
+                .into_iter()
+                .map(cache_try_into_image)
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `cache_from`")?,
+            cache_to: cache_to
+                .into_iter()
+                .map(cache_try_into_image)
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `cache_to`")?,
+            isolation,
+            no_cache,
+            platform: platforms.iter().map(ToString::to_string).collect(),
+            shm_size,
+            ssh: ssh.iter().map(ToString::to_string).collect(),
+            ulimit: ulimits
+                .into_iter()
+                .map(|(resource, ulimit)| match ulimit {
+                    ShortOrLong::Short(limit) => Ok(format!("{resource}={limit}")),
+                    ShortOrLong::Long(Ulimit {
+                        soft,
+                        hard,
+                        extensions,
+                    }) => {
+                        ensure!(
+                            extensions.is_empty(),
+                            "compose extensions are not supported"
+                        );
+                        Ok(format!("{resource}={soft}:{hard}"))
+                    }
+                })
+                .collect::<Result<_, _>>()
+                .wrap_err("error converting `ulimits`")?,
+            ..PodmanArgs::default()
+        };
+
+        let mut tags = tags.into_iter();
+        let tag = tags
+            .next()
+            .ok_or_eyre("an image tag is required")?
+            .into_inner();
+        ensure!(
+            tags.next().is_none(),
+            "Quadlet only supports setting a single tag"
+        );
+
+        Ok(Self {
+            file,
+            tag,
+            label: labels.into_list().into_iter().collect(),
+            network: network.map(Into::into).into_iter().collect(),
+            pull: pull.then_some(PullPolicy::Always),
+            target,
+            podman_args,
+            context,
+            ..Self::default()
+        })
+    }
+}
+
+/// Attempt to convert [`Cache`] into an image name.
+///
+/// # Errors
+///
+/// Returns an error if the cache type is not [`Registry`](CacheType::Registry) or any other cache
+/// options are set.
+fn cache_try_into_image(
+    Cache {
+        cache_type,
+        options,
+    }: Cache,
+) -> color_eyre::Result<String> {
+    let image = match cache_type {
+        CacheType::Registry(image) => image.into_inner(),
+        CacheType::Other(_) => bail!("only the `registry` cache type is supported"),
+    };
+    ensure!(options.is_empty(), "cache options are not supported");
+    Ok(image)
 }
 
 /// [`Args`] for `podman build` (i.e. [`Build`]) that convert into `PodmanArgs=ARGS`.
@@ -516,8 +664,10 @@ struct PodmanArgs {
     pid: Option<String>,
 
     /// Set the os/arch of the built image, instead of using the build host's.
+    ///
+    /// Can be specified multiple times.
     #[arg(long, value_name = "OS/ARCH[/VARIANT][,...]")]
-    platform: Option<String>,
+    platform: Vec<String>,
 
     /// Suppress output messages.
     #[arg(short, long)]

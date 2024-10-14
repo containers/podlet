@@ -97,7 +97,7 @@ impl TryFrom<compose_spec::Service> for Container {
             quadlet_options: quadlet.try_into()?,
             podman_args: podman_args.try_into()?,
             security_opt,
-            image: image.ok_or_eyre("`image` is required")?.into(),
+            image: image.ok_or_eyre("`image` or `build` is required")?.into(),
             command: command
                 .map(super::compose::command_try_into_vec)
                 .transpose()?
