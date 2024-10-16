@@ -5,7 +5,7 @@ mod mount;
 use std::{collections::BTreeMap, net::IpAddr, time::Duration};
 
 use color_eyre::{
-    eyre::{bail, ensure, eyre, OptionExt, WrapErr},
+    eyre::{ensure, eyre, OptionExt, WrapErr},
     Section,
 };
 use compose_spec::{
@@ -16,8 +16,8 @@ use compose_spec::{
         ports::{self, Port, Protocol},
         AbsolutePath, BlkioConfig, Build, ByteValue, Cgroup, Command, ConfigOrSecret, CpuSet, Cpus,
         CredentialSpec, DependsOn, Deploy, Develop, Device, EnvFile, Expose, Extends, Healthcheck,
-        Hostname, Image, Ipc, Limit, Link, Logging, MacAddress, NetworkConfig, OomScoreAdj,
-        Percent, Platform, Ports, PullPolicy, Restart, Ulimits, UserOrGroup, Uts, Volumes,
+        Hostname, IdOrName, Image, Ipc, Limit, Link, Logging, MacAddress, NetworkConfig,
+        OomScoreAdj, Percent, Platform, Ports, PullPolicy, Restart, Ulimits, User, Uts, Volumes,
         VolumesFrom,
     },
     Extensions, Identifier, ItemOrList, ListOrMap, Map, ShortOrLong,
@@ -535,7 +535,7 @@ struct ContainerSecurityContext {
     privileged: bool,
     read_only: bool,
     security_opt: IndexSet<String>,
-    user: Option<UserOrGroup>,
+    user: Option<User>,
 }
 
 impl ContainerSecurityContext {
@@ -594,14 +594,23 @@ impl ContainerSecurityContext {
                 .se_linux_options = Some(se_linux_options);
         }
 
-        if let Some(user) = user {
-            let user = match user {
-                UserOrGroup::Id(user) => user,
-                UserOrGroup::Name(_) => bail!("only numeric UIDs are supported for `user`"),
-            };
-            security_context
-                .get_or_insert_with(SecurityContext::default)
-                .run_as_user = Some(user.into());
+        if let Some(User { user, group }) = user {
+            let user = user
+                .as_id()
+                .ok_or_eyre("only numeric UIDs are supported for `user`")?
+                .into();
+            let group = group
+                .map(|group| {
+                    group
+                        .as_id()
+                        .ok_or_eyre("only numeric GIDs are supported for `user`")
+                })
+                .transpose()?
+                .map(Into::into);
+
+            let security_context = security_context.get_or_insert_with(SecurityContext::default);
+            security_context.run_as_user = Some(user);
+            security_context.run_as_group = group;
         }
 
         Ok(security_context)
@@ -699,7 +708,7 @@ struct Unsupported {
     annotations: ListOrMap,
     external_links: IndexSet<Link>,
     extra_hosts: IndexMap<Hostname, IpAddr>,
-    group_add: IndexSet<UserOrGroup>,
+    group_add: IndexSet<IdOrName>,
     hostname: Option<Hostname>,
     init: bool,
     ipc: Option<Ipc>,
