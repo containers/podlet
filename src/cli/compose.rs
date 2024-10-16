@@ -11,7 +11,9 @@ use color_eyre::{
     eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
 };
-use compose_spec::{service::Command, Identifier, Network, Networks, Resource, Service, Volumes};
+use compose_spec::{
+    service::Command, Identifier, Network, Networks, Options, Resource, Service, Volumes,
+};
 use indexmap::IndexMap;
 
 use crate::quadlet::{self, container::volume::Source, Globals};
@@ -93,7 +95,9 @@ impl Compose {
             compose_file,
         } = self;
 
-        let compose = read_from_file_or_stdin(compose_file.as_deref())
+        let mut options = compose_spec::Compose::options();
+        options.apply_merge(true);
+        let compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
             .wrap_err("error reading compose file")?;
 
         if kube {
@@ -163,10 +167,13 @@ impl Compose {
 /// - Stdin was selected and stdin is a terminal.
 /// - No path was given and none of the default files could be opened.
 /// - There was an error deserializing [`compose_spec::Compose`].
-fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_spec::Compose> {
+fn read_from_file_or_stdin(
+    path: Option<&Path>,
+    options: &Options,
+) -> color_eyre::Result<compose_spec::Compose> {
     let (compose_file, path) = if let Some(path) = path {
         if path.as_os_str() == "-" {
-            return read_from_stdin();
+            return read_from_stdin(options);
         }
         let compose_file = fs::File::open(path)
             .wrap_err("could not open provided compose file")
@@ -181,7 +188,7 @@ fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_sp
         ];
 
         if !io::stdin().is_terminal() {
-            return read_from_stdin();
+            return read_from_stdin(options);
         }
 
         let mut result = None;
@@ -199,7 +206,8 @@ fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_sp
         )?
     };
 
-    serde_yaml::from_reader(compose_file)
+    options
+        .from_yaml_reader(compose_file)
         .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
 }
 
@@ -208,13 +216,15 @@ fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_sp
 /// # Errors
 ///
 /// Returns an error if stdin is a terminal or there was an error deserializing.
-fn read_from_stdin() -> color_eyre::Result<compose_spec::Compose> {
+fn read_from_stdin(options: &Options) -> color_eyre::Result<compose_spec::Compose> {
     let stdin = io::stdin();
     if stdin.is_terminal() {
         bail!("cannot read compose from stdin, stdin is a terminal");
     }
 
-    serde_yaml::from_reader(stdin).wrap_err("data from stdin is not a valid compose file")
+    options
+        .from_yaml_reader(stdin)
+        .wrap_err("data from stdin is not a valid compose file")
 }
 
 /// Attempt to convert [`Service`]s, [`Networks`], and [`Volumes`] into [`File`]s.
