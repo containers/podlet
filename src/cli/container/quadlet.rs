@@ -933,12 +933,13 @@ fn network_config_try_into_network_options(
 /// Returns an error if the given `network_mode` is not supported by `podman run --network`.
 fn validate_network_mode(network_mode: NetworkMode) -> color_eyre::Result<String> {
     match network_mode {
-        NetworkMode::None | NetworkMode::Host => Ok(network_mode.to_string()),
+        NetworkMode::None | NetworkMode::Host | NetworkMode::Container(_) => {
+            Ok(network_mode.to_string())
+        }
         NetworkMode::Service(_) => Err(eyre!("network_mode `service:` is not supported")
             .suggestion("try using the `container:` network_mode instead")),
         NetworkMode::Other(s) => {
             if s.starts_with("bridge")
-                || s.starts_with("container")
                 || s.starts_with("ns:")
                 || s == "private"
                 || s.starts_with("slirp4netns")
@@ -971,6 +972,7 @@ fn network_options(
         ipv6_address,
         link_local_ips,
         mac_address,
+        driver_opts,
         priority,
         extensions,
     }: Network,
@@ -978,6 +980,10 @@ fn network_options(
     ensure!(
         link_local_ips.is_empty(),
         "network `link_local_ips` option is not supported"
+    );
+    ensure!(
+        driver_opts.is_empty(),
+        "container specific network `driver_opts` are not supported"
     );
     ensure!(
         priority.is_none(),
@@ -1046,7 +1052,7 @@ fn secret_try_into_short(
 ///
 /// Returns an error if the [`Ulimit`] has extensions.
 fn ulimit_try_into_short(
-    (resource, ulimit): (service::Resource, ShortOrLong<u64, Ulimit>),
+    (resource, ulimit): (service::Resource, ShortOrLong<Limit<u64>, Ulimit>),
 ) -> color_eyre::Result<String> {
     match ulimit {
         ShortOrLong::Short(ulimit) => Ok(format!("{resource}={ulimit}")),

@@ -60,7 +60,7 @@ verbose_file_reads = "warn"
 [dependencies]
 clap = { version = "4.2", features = ["derive", "wrap_help"] }
 color-eyre = "0.6"
-compose_spec = "0.2"
+compose_spec = "0.3.0"
 indexmap = { version = "2", features = ["serde"] }
 ipnet = { version = "2.7", features = ["serde"] }
 k8s-openapi = { version = "0.22.0", features = ["latest"] }
