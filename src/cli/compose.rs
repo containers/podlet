@@ -99,6 +99,9 @@ impl Compose {
         options.apply_merge(true);
         let compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
             .wrap_err("error reading compose file")?;
+        compose
+            .validate_all()
+            .wrap_err("error validating compose file")?;
 
         if kube {
             let mut k8s_file = k8s::File::try_from(compose)
