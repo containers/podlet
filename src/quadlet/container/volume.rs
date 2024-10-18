@@ -41,10 +41,7 @@ pub struct Volume {
 
 impl HostPaths for Volume {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.source
-            .iter_mut()
-            .flat_map(Source::host_paths)
-            .chain(self.options.host_paths())
+        self.source.host_paths().chain(self.options.host_paths())
     }
 }
 
@@ -359,7 +356,7 @@ pub struct Options {
 
 impl HostPaths for Options {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.overlay.iter_mut().flat_map(Overlay::host_paths)
+        self.overlay.host_paths()
     }
 }
 

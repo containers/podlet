@@ -14,6 +14,9 @@ pub struct Pod {
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
+    /// Add a network-scoped alias for the pod.
+    pub network_alias: Vec<String>,
+
     /// A list of arguments passed directly to the end of the `podman pod create` command in the
     /// generated file.
     pub podman_args: Option<String>,
@@ -40,12 +43,18 @@ impl Display for Pod {
 
 impl HostPaths for Pod {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.volume.iter_mut().flat_map(Volume::host_paths)
+        self.volume.host_paths()
     }
 }
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_2 {
+            for network_alias in std::mem::take(&mut self.network_alias) {
+                self.push_arg("network-alias", &network_alias);
+            }
+        }
+
         if version < PodmanVersion::V5_0 {
             return Err(DowngradeError::Kind {
                 kind: ResourceKind::Pod,
@@ -54,5 +63,19 @@ impl Downgrade for Pod {
         }
 
         Ok(())
+    }
+}
+
+impl Pod {
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: &str) {
+        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        if !podman_args.is_empty() {
+            podman_args.push(' ');
+        }
+        podman_args.push_str("--");
+        podman_args.push_str(flag);
+        podman_args.push(' ');
+        podman_args.push_str(arg);
     }
 }

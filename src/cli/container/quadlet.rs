@@ -259,6 +259,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "DRIVER")]
     log_driver: Option<String>,
 
+    /// Logging driver specific options
+    ///
+    /// Converts to "LogOpt=NAME=VALUE"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "NAME=VALUE")]
+    log_opt: Vec<String>,
+
     /// Attach a filesystem mount to the container
     ///
     /// Converts to "Mount=MOUNT"
@@ -274,6 +282,14 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, visible_alias = "net", value_name = "MODE")]
     network: Vec<String>,
+
+    /// Add a network-scoped alias for the container
+    ///
+    /// Converts to "NetworkAlias=ALIAS"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "ALIAS")]
+    network_alias: Vec<String>,
 
     /// Control sd-notify behavior
     ///
@@ -349,6 +365,12 @@ pub struct QuadletOptions {
     /// Converts to "ShmSize=NUMBER[UNIT]"
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size: Option<String>,
+
+    /// Signal to stop a container
+    ///
+    /// Converts to "StopSignal=SIGNAL"
+    #[arg(long, value_name = "SIGNAL")]
+    stop_signal: Option<String>,
 
     /// Timeout to stop a container
     ///
@@ -490,8 +512,10 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             ip6,
             mut label,
             log_driver,
+            log_opt,
             mount,
             network,
+            network_alias,
             sdnotify: notify,
             pids_limit,
             publish: publish_port,
@@ -502,6 +526,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             init: run_init,
             secret,
             shm_size,
+            stop_signal,
             stop_timeout,
             subgidname: sub_gid_map,
             subuidname: sub_uid_map,
@@ -561,8 +586,10 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             ip6,
             label,
             log_driver,
+            log_opt,
             mount,
             network,
+            network_alias,
             notify,
             pids_limit,
             publish_port,
@@ -573,6 +600,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             run_init,
             secret,
             shm_size,
+            stop_signal,
             stop_timeout,
             sub_gid_map,
             sub_uid_map,
@@ -614,6 +642,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             init,
             labels,
             log_driver,
+            log_options,
             network_config,
             pids_limit,
             ports,
@@ -621,6 +650,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             read_only,
             secrets,
             shm_size,
+            stop_signal,
             stop_grace_period,
             sysctls,
             tmpfs,
@@ -703,6 +733,17 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             init,
             label: labels.into_list().into_iter().collect(),
             log_driver,
+            log_opt: log_options
+                .into_iter()
+                .map(|(key, value)| {
+                    let mut option = String::from(key);
+                    if let Some(value) = value {
+                        option.push('=');
+                        option.push_str(&String::from(value));
+                    }
+                    option
+                })
+                .collect(),
             network: network_config
                 .map(network_config_try_into_network_options)
                 .transpose()
@@ -728,6 +769,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .collect::<Result<_, _>>()
                 .wrap_err("error converting `secrets`")?,
             shm_size: shm_size.as_ref().map(ToString::to_string),
+            stop_signal,
             stop_timeout: stop_grace_period.as_ref().map(Duration::as_secs),
             sysctl: sysctls.into_list().into_iter().collect(),
             tmpfs,

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{self, IsTerminal},
-    mem,
+    iter, mem,
     path::{Path, PathBuf},
 };
 
@@ -18,7 +18,7 @@ use indexmap::IndexMap;
 
 use crate::quadlet::{self, container::volume::Source, Globals};
 
-use super::{k8s, Container, File, GlobalArgs, Unit};
+use super::{k8s, Build, Container, File, GlobalArgs, Unit};
 
 /// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
 /// as a shell would.
@@ -259,31 +259,26 @@ fn parts_try_into_files(
         .collect();
 
     let mut pod_ports = Vec::new();
-    let mut files = services
-        .into_iter()
-        .map(|(name, service)| {
-            service_try_into_quadlet_file(
-                service,
-                name,
-                unit.clone(),
-                install.clone(),
-                &volume_has_options,
-                pod_name.as_deref(),
-                &mut pod_ports,
-            )
-        })
-        .chain(networks_try_into_quadlet_files(
-            networks,
-            unit.as_ref(),
-            install.as_ref(),
-        ))
-        .chain(volumes_try_into_quadlet_files(
-            volumes,
-            unit.as_ref(),
-            install.as_ref(),
-        ))
-        .map(|result| result.map(Into::into))
-        .collect::<Result<Vec<File>, _>>()?;
+    let mut files = services_try_into_quadlet_files(
+        services,
+        unit.as_ref(),
+        install.as_ref(),
+        &volume_has_options,
+        pod_name.as_deref(),
+        &mut pod_ports,
+    )
+    .chain(networks_try_into_quadlet_files(
+        networks,
+        unit.as_ref(),
+        install.as_ref(),
+    ))
+    .chain(volumes_try_into_quadlet_files(
+        volumes,
+        unit.as_ref(),
+        install.as_ref(),
+    ))
+    .map(|result| result.map(Into::into))
+    .collect::<Result<Vec<File>, _>>()?;
 
     if let Some(name) = pod_name {
         let pod = quadlet::Pod {
@@ -302,6 +297,69 @@ fn parts_try_into_files(
     }
 
     Ok(files)
+}
+
+/// Attempt to convert Compose [`Service`]s into [`quadlet::File`]s.
+///
+/// `volume_has_options` should be a map from volume [`Identifier`]s to whether the volume has any
+/// options set. It is used to determine whether to link to a [`quadlet::Volume`] in the created
+/// [`quadlet::Container`].
+///
+/// If `pod_name` is [`Some`] and a service has any published ports, they are taken from the
+/// created [`quadlet::Container`] and added to `pod_ports`.
+///
+/// # Errors
+///
+/// Returns an error if there was an error [adding](Unit::add_dependency()) a service
+/// [`Dependency`](compose_spec::service::Dependency) to the [`Unit`], converting the
+/// [`Build`](compose_spec::service::Build) section into a [`quadlet::Build`] file, or converting
+/// the [`Service`] into a [`quadlet::Container`] file.
+fn services_try_into_quadlet_files<'a>(
+    services: IndexMap<Identifier, Service>,
+    unit: Option<&'a Unit>,
+    install: Option<&'a quadlet::Install>,
+    volume_has_options: &'a HashMap<Identifier, bool>,
+    pod_name: Option<&'a str>,
+    pod_ports: &'a mut Vec<String>,
+) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
+    services.into_iter().flat_map(move |(name, mut service)| {
+        if service.image.is_some() && service.build.is_some() {
+            return iter::once(Err(eyre!(
+                "error converting service `{name}`: `image` and `build` cannot both be set"
+            )))
+            .chain(None);
+        }
+
+        let build = service.build.take().map(|build| {
+            let build = Build::try_from(build.into_long()).wrap_err_with(|| {
+                format!(
+                    "error converting `build` for service `{name}` into a Quadlet `.build` file"
+                )
+            })?;
+            let image = format!("{}.build", build.name()).try_into()?;
+            service.image = Some(image);
+            Ok(quadlet::File {
+                name: build.name().to_owned(),
+                unit: unit.cloned(),
+                resource: build.into(),
+                globals: Globals::default(),
+                service: None,
+                install: install.cloned(),
+            })
+        });
+
+        let container = service_try_into_quadlet_file(
+            service,
+            name,
+            unit.cloned(),
+            install.cloned(),
+            volume_has_options,
+            pod_name,
+            pod_ports,
+        );
+
+        iter::once(container).chain(build)
+    })
 }
 
 /// Attempt to convert a compose [`Service`] into a [`quadlet::File`].
