@@ -26,7 +26,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{builder::TypedValueParser, Parser, Subcommand};
+use clap::{builder::TypedValueParser, ArgAction, Parser, Subcommand};
 use color_eyre::{
     eyre::{ensure, eyre, WrapErr},
     Help,
@@ -399,6 +399,7 @@ enum PodmanCommands {
     ///
     /// For details on options see:
     /// https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html
+    #[command(disable_help_flag = true)]
     Run {
         /// The \[Container\] section
         #[command(flatten)]
@@ -407,6 +408,17 @@ enum PodmanCommands {
         /// The \[Service\] section
         #[command(flatten)]
         service: Service,
+
+        /// Print help
+        // Changed from default to support `podman run -h`, i.e. `podman run --hostname`.
+        #[arg(
+            short = '?',
+            long,
+            action = ArgAction::Help,
+            help = "Print help (see more with '--help')",
+            long_help = "Print help (see a summary with '-?')"
+        )]
+        help: (),
     },
 
     /// Generate a Podman Quadlet `.pod` file
