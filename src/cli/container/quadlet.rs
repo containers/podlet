@@ -230,7 +230,7 @@ pub struct QuadletOptions {
     /// Set the host name that is available inside the container
     ///
     /// Converts to "HostName=NAME"
-    #[arg(long, value_name = "NAME")]
+    #[arg(short, long, value_name = "NAME")]
     hostname: Option<String>,
 
     /// Specify a static IPv4 address for the container

@@ -164,7 +164,7 @@ impl Generate {
 
 /// [`Parser`] for container creation CLI options.
 #[derive(Parser, Debug)]
-#[command(no_binary_name = true)]
+#[command(no_binary_name = true, disable_help_flag = true)]
 struct ContainerParser {
     /// Podman global options
     #[command(flatten)]
@@ -284,7 +284,7 @@ impl ContainerInspect {
 
 /// [`Parser`] for pod creation CLI options.
 #[derive(Parser, Debug)]
-#[command(no_binary_name = true)]
+#[command(no_binary_name = true, disable_help_flag = true)]
 struct PodParser {
     /// Podman global options
     #[command(flatten)]
@@ -873,5 +873,10 @@ mod tests {
     #[test]
     fn verify_container_parser_cli() {
         ContainerParser::command().debug_assert();
+    }
+
+    #[test]
+    fn verify_pod_parser_cli() {
+        PodParser::command().debug_assert();
     }
 }
