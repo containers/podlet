@@ -13,7 +13,7 @@ use color_eyre::{
 };
 use compose_spec::service::{
     blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
-    BlkioConfig, Ipc,
+    BlkioConfig, ByteValue, Ipc, Limit,
 };
 use serde::Serialize;
 use smart_default::SmartDefault;
@@ -221,12 +221,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "IP")]
     link_local_ip: Option<String>,
 
-    /// Logging driver specific options
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "NAME=VALUE")]
-    log_opt: Vec<String>,
-
     /// Container network interface MAC address
     #[arg(long, value_name = "ADDRESS")]
     mac_address: Option<String>,
@@ -240,16 +234,12 @@ pub struct PodmanArgs {
     memory_reservation: Option<String>,
 
     /// Limit value equal to memory plus swap
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    memory_swap: Option<String>,
+    #[arg(long, allow_negative_numbers = true, value_name = "NUMBER[UNIT]")]
+    memory_swap: Option<Limit<ByteValue>>,
 
     /// Tune the container’s memory swappiness behavior
     #[arg(long, value_name = "NUMBER")]
     memory_swappiness: Option<u8>,
-
-    /// Add a network-scoped alias for the container
-    #[arg(long, value_name = "ALIAS")]
-    network_alias: Option<String>,
 
     /// Disable healthchecks on the container
     #[arg(long)]
@@ -379,10 +369,6 @@ pub struct PodmanArgs {
     #[default = true]
     sig_proxy: bool,
 
-    /// Signal to stop a container
-    #[arg(long, value_name = "SIGNAL")]
-    stop_signal: Option<String>,
-
     /// Run container in systemd mode
     ///
     /// Default is true
@@ -454,18 +440,17 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             extra_hosts,
             ipc,
             uts,
-            log_options,
             mac_address,
             mem_limit,
             mem_reservation,
             mem_swappiness,
+            memswap_limit,
             oom_kill_disable,
             oom_score_adj,
             pid,
             platform,
             privileged,
             stdin_open,
-            stop_signal,
             tty,
         }: compose::PodmanArgs,
     ) -> Result<Self, Self::Error> {
@@ -524,20 +509,10 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .transpose()
                 .wrap_err("`ipc` invalid")?,
             uts: uts.as_ref().map(ToString::to_string),
-            log_opt: log_options
-                .into_iter()
-                .map(|(key, value)| {
-                    let mut option = String::from(key);
-                    if let Some(value) = value {
-                        option.push('=');
-                        option.push_str(&String::from(value));
-                    }
-                    option
-                })
-                .collect(),
             mac_address: mac_address.as_ref().map(ToString::to_string),
             memory: mem_limit.as_ref().map(ToString::to_string),
             memory_reservation: mem_reservation.as_ref().map(ToString::to_string),
+            memory_swap: memswap_limit,
             memory_swappiness: mem_swappiness.map(Into::into),
             oom_kill_disable,
             oom_score_adj: oom_score_adj.map(Into::into),
@@ -547,7 +522,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             attach: stdin_open
                 .then(|| vec!["stdin".to_owned()])
                 .unwrap_or_default(),
-            stop_signal,
             tty,
             ..Self::default()
         })

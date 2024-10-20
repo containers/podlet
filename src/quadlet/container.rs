@@ -165,6 +165,9 @@ pub struct Container {
     /// Set the log-driver used by Podman when running the container.
     pub log_driver: Option<String>,
 
+    /// Set the log-opt (logging options) used by Podman when running the container.
+    pub log_opt: Vec<String>,
+
     /// The paths to mask. A masked path cannot be accessed inside the container.
     #[serde(
         serialize_with = "quote_spaces_join_colon",
@@ -178,6 +181,9 @@ pub struct Container {
 
     /// Specify a custom network for the container.
     pub network: Vec<String>,
+
+    /// Add a network-scoped alias for the container.
+    pub network_alias: Vec<String>,
 
     /// If enabled, this disables the container processes from gaining additional
     /// privileges via things like setuid and file capabilities.
@@ -248,6 +254,9 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Signal to stop a container.
+    pub stop_signal: Option<String>,
+
     /// Seconds to wait before forcibly stopping the container.
     ///
     /// Note, this value should be lower than the actual systemd unit timeout to make sure the
@@ -308,6 +317,10 @@ impl Display for Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_2 {
+            self.remove_v5_2_options();
+        }
+
         if version < PodmanVersion::V5_1 {
             self.remove_v5_1_options();
         }
@@ -366,6 +379,21 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.2.0
+    fn remove_v5_2_options(&mut self) {
+        let options = extract!(
+            self,
+            OptionsV5_2 {
+                log_opt,
+                stop_signal,
+                network_alias,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV5_2 serializable as args");
+    }
+
     /// Remove Quadlet options added in Podman v5.1.0
     fn remove_v5_1_options(&mut self) {
         let options = extract!(self, OptionsV5_1 { group_add });
@@ -517,6 +545,15 @@ impl Container {
     }
 }
 
+/// Container Quadlet options added in Podman v5.2.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_2 {
+    log_opt: Vec<String>,
+    stop_signal: Option<String>,
+    network_alias: Vec<String>,
+}
+
 /// Container Quadlet options added in Podman v5.1.0
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
@@ -599,13 +636,12 @@ struct OptionsV4_5 {
 impl HostPaths for Container {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         self.add_device
-            .iter_mut()
-            .flat_map(Device::host_paths)
+            .host_paths()
             .chain(&mut self.environment_file)
-            .chain(self.mount.iter_mut().flat_map(Mount::host_paths))
-            .chain(self.rootfs.iter_mut().flat_map(Rootfs::host_paths))
+            .chain(self.mount.host_paths())
+            .chain(self.rootfs.host_paths())
             .chain(&mut self.seccomp_profile)
-            .chain(self.volume.iter_mut().flat_map(Volume::host_paths))
+            .chain(self.volume.host_paths())
     }
 }
 

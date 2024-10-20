@@ -1,3 +1,4 @@
+pub mod build;
 pub mod container;
 mod globals;
 pub mod image;
@@ -15,10 +16,12 @@ use std::{
 };
 
 use clap::ValueEnum;
+use compose_spec::service::build::Context;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 pub use self::{
+    build::Build,
     container::Container,
     globals::Globals,
     image::Image,
@@ -87,6 +90,7 @@ pub enum Resource {
     Kube(Kube),
     Network(Network),
     Volume(Volume),
+    Build(Box<Build>),
     Image(Image),
 }
 
@@ -98,6 +102,7 @@ impl Display for Resource {
             Self::Kube(kube) => kube.fmt(f),
             Self::Network(network) => network.fmt(f),
             Self::Volume(volume) => volume.fmt(f),
+            Self::Build(build) => build.fmt(f),
             Self::Image(image) => image.fmt(f),
         }
     }
@@ -139,6 +144,18 @@ impl From<Volume> for Resource {
     }
 }
 
+impl From<Build> for Resource {
+    fn from(value: Build) -> Self {
+        Self::Build(Box::new(value))
+    }
+}
+
+impl From<Box<Build>> for Resource {
+    fn from(value: Box<Build>) -> Self {
+        Self::Build(value)
+    }
+}
+
 impl From<Image> for Resource {
     fn from(value: Image) -> Self {
         Self::Image(value)
@@ -159,6 +176,7 @@ impl Resource {
             Self::Pod(_) => format!("{name}-pod"),
             Self::Network(_) => format!("{name}-network"),
             Self::Volume(_) => format!("{name}-volume"),
+            Self::Build(_) => format!("{name}-build"),
             Self::Image(_) => format!("{name}-image"),
         };
         service.push_str(".service");
@@ -174,28 +192,31 @@ impl HostPaths for Resource {
             Self::Kube(kube) => ResourceIter::Kube(kube.host_paths()),
             Self::Network(_) => ResourceIter::Network(iter::empty()),
             Self::Volume(volume) => ResourceIter::Volume(volume.host_paths()),
+            Self::Build(build) => ResourceIter::Build(build.host_paths()),
             Self::Image(image) => ResourceIter::Image(image.host_paths()),
         }
     }
 }
 
 /// [`Iterator`] for all [`Resource`] types.
-enum ResourceIter<C, P, K, N, V, I> {
+enum ResourceIter<C, P, K, N, V, B, I> {
     Container(C),
     Pod(P),
     Kube(K),
     Network(N),
     Volume(V),
+    Build(B),
     Image(I),
 }
 
-impl<C, P, K, N, V, I, Item> Iterator for ResourceIter<C, P, K, N, V, I>
+impl<C, P, K, N, V, B, I, Item> Iterator for ResourceIter<C, P, K, N, V, B, I>
 where
     C: Iterator<Item = Item>,
     P: Iterator<Item = Item>,
     K: Iterator<Item = Item>,
     N: Iterator<Item = Item>,
     V: Iterator<Item = Item>,
+    B: Iterator<Item = Item>,
     I: Iterator<Item = Item>,
 {
     type Item = Item;
@@ -207,6 +228,7 @@ where
             Self::Kube(iter) => iter.next(),
             Self::Network(iter) => iter.next(),
             Self::Volume(iter) => iter.next(),
+            Self::Build(iter) => iter.next(),
             Self::Image(iter) => iter.next(),
         }
     }
@@ -220,6 +242,7 @@ impl Downgrade for Resource {
             Self::Kube(kube) => kube.downgrade(version),
             Self::Network(network) => network.downgrade(version),
             Self::Volume(volume) => volume.downgrade(version),
+            Self::Build(build) => build.downgrade(version),
             Self::Image(image) => image.downgrade(version),
         }
     }
@@ -233,6 +256,7 @@ pub enum ResourceKind {
     Kube,
     Network,
     Volume,
+    Build,
     Image,
 }
 
@@ -245,6 +269,7 @@ impl ResourceKind {
             Self::Kube => "kube",
             Self::Network => "network",
             Self::Volume => "volume",
+            Self::Build => "build",
             Self::Image => "image",
         }
     }
@@ -264,6 +289,7 @@ impl From<&Resource> for ResourceKind {
             Resource::Kube(_) => Self::Kube,
             Resource::Network(_) => Self::Network,
             Resource::Volume(_) => Self::Volume,
+            Resource::Build(_) => Self::Build,
             Resource::Image(_) => Self::Image,
         }
     }
@@ -308,7 +334,7 @@ pub enum PodmanVersion {
     /// Podman v4.8 and v4.9
     #[value(
         name = "4.8",
-        aliases = ["4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0", "4.9.1", "4.9.2", "4.9.3", "4.9.4"]
+        aliases = ["4.8.0", "4.8.1", "4.8.2", "4.8.3", "4.9", "4.9.0", "4.9.1", "4.9.2", "4.9.3", "4.9.4", "4.9.5"]
     )]
     V4_8,
 
@@ -317,13 +343,17 @@ pub enum PodmanVersion {
     V5_0,
 
     /// Podman v5.1
-    #[value(name = "5.1", aliases = ["latest", "5.1.0"])]
+    #[value(name = "5.1", aliases = ["5.1.0", "5.1.1", "5.1.2"])]
     V5_1,
+
+    /// Podman v5.2
+    #[value(name = "5.2", aliases = ["latest", "5.2.0", "5.2.1", "5.2.2", "5.2.3", "5.2.4"])]
+    V5_2,
 }
 
 impl PodmanVersion {
     /// Latest supported version of Podman with regards to Quadlet.
-    pub const LATEST: Self = Self::V5_1;
+    pub const LATEST: Self = Self::V5_2;
 
     /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
@@ -335,6 +365,7 @@ impl PodmanVersion {
             Self::V4_8 => "4.8",
             Self::V5_0 => "5.0",
             Self::V5_1 => "5.1",
+            Self::V5_2 => "5.2",
         }
     }
 }
@@ -452,4 +483,32 @@ pub trait HostPaths {
     /// Retrieve an [`Iterator`] over mutable references to all [`PathBuf`]s that represent paths
     /// on the host.
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf>;
+}
+
+impl<T: HostPaths> HostPaths for &mut T {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        T::host_paths(self)
+    }
+}
+
+impl<T: HostPaths> HostPaths for Vec<T> {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.iter_mut().flat_map(T::host_paths)
+    }
+}
+
+impl<T: HostPaths> HostPaths for Option<T> {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        self.iter_mut().flat_map(T::host_paths)
+    }
+}
+
+impl HostPaths for Context {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        match self {
+            Self::Path(path) => Some(path),
+            Self::Url(_) => None,
+        }
+        .into_iter()
+    }
 }
