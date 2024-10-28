@@ -347,6 +347,9 @@ fn services_try_into_quadlet_files<'a>(
                 install: install.cloned(),
             })
         });
+        if let Some(result @ Err(_)) = build {
+            return iter::once(result).chain(None);
+        }
 
         let container = service_try_into_quadlet_file(
             service,
