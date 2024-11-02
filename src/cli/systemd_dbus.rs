@@ -33,10 +33,7 @@ pub struct UnitFile {
 }
 
 impl From<(String, String)> for UnitFile {
-    fn from(value: (String, String)) -> Self {
-        Self {
-            file_name: value.0,
-            status: value.1,
-        }
+    fn from((file_name, status): (String, String)) -> Self {
+        Self { file_name, status }
     }
 }
