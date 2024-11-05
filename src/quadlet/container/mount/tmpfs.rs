@@ -182,8 +182,8 @@ impl<'de> de::Visitor<'de> for Visitor {
                 Field::Mode => {
                     check_duplicate(&mode, Field::Mode)?;
                     // serde(with = "mode")
-                    let value: SerdeMode = map.next_value()?;
-                    mode = Some(value.0);
+                    let SerdeMode(value) = map.next_value()?;
+                    mode = Some(value);
                 }
                 // tmpcopyup, notmpcopyup values (de)serialize as unit (i.e. no value)
                 Field::TmpCopyUp => tmpcopyup = true,

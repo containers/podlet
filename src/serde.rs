@@ -81,7 +81,7 @@ where
     S: Serializer,
 {
     let iter = value.into_iter();
-    let len = iter.size_hint().1;
+    let (_, len) = iter.size_hint();
 
     let mut state = serializer.serialize_seq(len)?;
 
