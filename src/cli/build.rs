@@ -358,8 +358,8 @@ impl TryFrom<service::Build> for Build {
         let mut tags = tags.into_iter();
         let tag = tags
             .next()
-            .ok_or_eyre("an image tag is required")?
-            .into_inner();
+            .map(|t| t.into_inner())
+            .unwrap_or_else(|| "latest".to_string());
         ensure!(
             tags.next().is_none(),
             "Quadlet only supports setting a single tag"
