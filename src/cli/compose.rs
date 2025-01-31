@@ -97,6 +97,10 @@ impl Compose {
             compose_file,
         } = self;
 
+        // get the parent directory of the provided compose_file (if exists)
+        let compose_parent: Option<PathBuf> = compose_file.clone().and_then(|file| {
+            Some(PathBuf::from(file.parent().unwrap()))
+        });
         let mut options = compose_spec::Compose::options();
         options.apply_merge(true);
         let compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
@@ -126,10 +130,7 @@ impl Compose {
                 unit,
                 resource: kube.into(),
                 globals: Globals::default(),
-                service: if build_required { Some(ServiceUnit {
-                    working_directory: Some(None),
-                    restart: Some(None),
-                }) } else { None },
+                service: if build_required { Some(ServiceUnit::from(compose_parent.unwrap())) } else { None },
                 install,
             };
 

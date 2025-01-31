@@ -43,6 +43,7 @@ use self::mount::tmpfs_and_volumes_try_into_volume_mounts;
 #[allow(clippy::struct_excessive_bools)]
 pub(super) struct Service {
     unsupported: Unsupported,
+    build: Option<ShortOrLong<Context, Build>>,
     name: Identifier,
     resources: ContainerResources,
     security_context: ContainerSecurityContext,
@@ -154,7 +155,6 @@ impl Service {
         Self {
             unsupported: Unsupported {
                 attach,
-                build,
                 blkio_config,
                 cpu_count,
                 cpu_percent,
@@ -230,6 +230,7 @@ impl Service {
                 security_opt,
                 user,
             },
+            build,
             command,
             entrypoint,
             environment,
@@ -268,6 +269,7 @@ impl Service {
             tty,
             volumes,
             working_dir,
+            build
         } = self;
 
         unsupported.ensure_empty()?;
@@ -276,6 +278,16 @@ impl Service {
             tmpfs_and_volumes_try_into_volume_mounts(tmpfs, volumes, &name, &mut spec.volumes)
                 // converting `tmpfs` always succeeds
                 .wrap_err("error converting `volumes`")?;
+
+        let container_image: String;
+        if build.is_some() {
+            container_image = match build.unwrap() {
+                ShortOrLong::Short(build) => Some(build),
+                ShortOrLong::Long(build) => build.context,
+            }.unwrap().into_string().unwrap();
+        } else {
+            container_image = image.ok_or_eyre("`image` is required")?.into_inner();
+        }
 
         spec.containers.push(Container {
             name: name.into(),
@@ -316,7 +328,7 @@ impl Service {
                 })
                 .transpose()
                 .wrap_err("error converting `healthcheck`")?,
-            image: Some(image.ok_or_eyre("`image` is required")?.into_inner()),
+            image: Some(container_image),
             ports: (!ports.is_empty())
                 .then(|| {
                     ports::into_long_iter(ports)
@@ -679,7 +691,6 @@ fn security_opt_try_into_selinux_options(
 /// [`Container`]s.
 struct Unsupported {
     attach: bool,
-    build: Option<ShortOrLong<Context, Build>>,
     blkio_config: Option<BlkioConfig>,
     cpu_count: Option<u64>,
     cpu_percent: Option<Percent>,
@@ -752,7 +763,6 @@ impl Unsupported {
     fn ensure_empty(&self) -> color_eyre::Result<()> {
         let Self {
             attach,
-            build,
             blkio_config,
             cpu_count,
             cpu_percent,
@@ -817,7 +827,6 @@ impl Unsupported {
 
         let unsupported_options = [
             ("attach", *attach),
-            ("build", build.is_none()),
             ("blkio_config", blkio_config.is_none()),
             ("cpu_count", cpu_count.is_none()),
             ("cpu_percent", cpu_percent.is_none()),
