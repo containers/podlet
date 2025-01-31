@@ -58,14 +58,14 @@ impl Kube {
     }
 
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
-    fn push_arg(&mut self, flag: &str, arg: &str) {
+    pub(crate) fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_with(String::new);
         if !podman_args.is_empty() {
             podman_args.push(' ');
         }
         podman_args.push_str("--");
         podman_args.push_str(flag);
-        podman_args.push(' ');
+        podman_args.push('=');
         podman_args.push_str(arg);
     }
 }
