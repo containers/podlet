@@ -16,6 +16,8 @@ use compose_spec::{
 };
 use indexmap::IndexMap;
 
+use cli::Service as ServiceUnit;
+use crate::cli;
 use crate::quadlet::{self, container::volume::Source, Globals};
 
 use super::{k8s, Build, Container, File, GlobalArgs, Unit};
@@ -103,18 +105,31 @@ impl Compose {
             .validate_all()
             .wrap_err("error validating compose file")?;
 
+        let build_required = compose.services.iter().find(|(identifier, service)| {
+            service.build.is_some()
+        }).is_some();
+
         if kube {
             let mut k8s_file = k8s::File::try_from(compose)
                 .wrap_err("error converting compose file into Kubernetes YAML")?;
 
-            let kube =
+            let mut kube =
                 quadlet::Kube::new(PathBuf::from(format!("{}-kube.yaml", k8s_file.name)).into());
+
+            // if one of the compose services has a build section let's add --build=true to the podman args.
+            if build_required {
+                kube.push_arg("build", "true");
+            }
+
             let quadlet_file = quadlet::File {
                 name: k8s_file.name.clone(),
                 unit,
                 resource: kube.into(),
                 globals: Globals::default(),
-                service: None,
+                service: if build_required { Some(ServiceUnit {
+                    working_directory: Some(None),
+                    restart: Some(None),
+                }) } else { None },
                 install,
             };
 
