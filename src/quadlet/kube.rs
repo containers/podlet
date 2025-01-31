@@ -65,7 +65,7 @@ impl Kube {
         }
         podman_args.push_str("--");
         podman_args.push_str(flag);
-        podman_args.push(' ');
+        podman_args.push('=');
         podman_args.push_str(arg);
     }
 }
