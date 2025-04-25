@@ -7,9 +7,9 @@ ARG TARGETPLATFORM
 RUN case "$TARGETPLATFORM" in \
   "linux/amd64") echo x86_64-unknown-linux-musl > /rust_target.txt ;; \
   "linux/arm64/v8") echo aarch64-unknown-linux-musl > /rust_target.txt && \
-     apt update && apt install -y gcc-aarch64-linux-gnu ;; \
+  apt update && apt install -y gcc-aarch64-linux-gnu ;; \
   *) exit 1 ;; \
-esac
+  esac
 RUN rustup target add $(cat /rust_target.txt)
 
 FROM chef AS planner
@@ -20,17 +20,17 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook \
---profile dist \
---target $(cat /rust_target.txt) \
---recipe-path recipe.json
+  --profile dist \
+  --target $(cat /rust_target.txt) \
+  --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src 
 RUN cargo build \
---profile dist \
---target $(cat /rust_target.txt)
+  --profile dist \
+  --target $(cat /rust_target.txt)
 RUN cp target/$(cat /rust_target.txt)/dist/podlet .
 
-FROM scratch
+FROM gcr.io/distroless/static-debian12:debug-nonroot
 LABEL org.opencontainers.image.source="https://github.com/containers/podlet"
 LABEL org.opencontainers.image.description="Generate Podman Quadlet files from a Podman command, compose file, or existing object"
 LABEL org.opencontainers.image.licenses="MPL-2.0"
