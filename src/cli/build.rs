@@ -260,34 +260,37 @@ impl From<Build> for quadlet::Resource {
     }
 }
 
-impl TryFrom<service::Build> for Build {
+impl TryFrom<(service::Build, Option<service::Image>)> for Build {
     type Error = color_eyre::Report;
 
     fn try_from(
-        service::Build {
-            context,
-            dockerfile,
-            args,
-            ssh,
-            cache_from,
-            cache_to,
-            additional_contexts,
-            entitlements,
-            extra_hosts,
-            isolation,
-            privileged,
-            labels,
-            no_cache,
-            pull,
-            network,
-            shm_size,
-            target,
-            secrets,
-            tags,
-            ulimits,
-            platforms,
-            extensions,
-        }: service::Build,
+        (
+            service::Build {
+                context,
+                dockerfile,
+                args,
+                ssh,
+                cache_from,
+                cache_to,
+                additional_contexts,
+                entitlements,
+                extra_hosts,
+                isolation,
+                privileged,
+                labels,
+                no_cache,
+                pull,
+                network,
+                shm_size,
+                target,
+                secrets,
+                tags,
+                ulimits,
+                platforms,
+                extensions,
+            },
+            image,
+        ): (service::Build, Option<service::Image>),
     ) -> Result<Self, Self::Error> {
         ensure!(entitlements.is_empty(), "`entitlements` are not supported");
         ensure!(!privileged, "`privileged` is not supported");
@@ -356,8 +359,8 @@ impl TryFrom<service::Build> for Build {
         };
 
         let mut tags = tags.into_iter();
-        let tag = tags
-            .next()
+        let tag = image
+            .or_else(|| tags.next())
             .ok_or_eyre("an image tag is required")?
             .into_inner();
         ensure!(
