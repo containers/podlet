@@ -134,7 +134,7 @@ below is a list of all the jobs with explanations and the commands that they run
 - clippy:
   - [Clippy](https://github.com/rust-lang/rust-clippy) is a collection of lints for Rust.
   - If [Rust is installed] via `rustup`, install Clippy with `rustup component add clippy`.
-  - Lints are configured in the [`Cargo.toml`](./Cargo.toml) file.
+  - Lints are configured in the [`Cargo.toml`] file.
   - It's ok to use `#[allow(...)]` to override a lint,
     but try to document the reasoning if it's not obvious.
   - `cargo clippy`
@@ -150,6 +150,10 @@ below is a list of all the jobs with explanations and the commands that they run
   - First, [install Buildah](https://github.com/containers/buildah/blob/main/install.md).
   - `buildah build --platform linux/amd64 -t podlet .`
   - `buildah build --platform linux/arm64/v8 -t podlet .`
+- msrv:
+  - Ensures Podlet can build with the minimum supported Rust version listed in the [`Cargo.toml`] file.
+  - Install [cargo-msrv](https://github.com/foresterre/cargo-msrv).
+  - `cargo msrv verify`
 
 ## Communication
 
@@ -163,3 +167,4 @@ For discussions about issues, bugs, or features, feel free to create an [issue],
 [issue]: https://github.com/containers/podlet/issues
 [pull request]: https://github.com/containers/podlet/pulls
 [Rust is installed]: https://www.rust-lang.org/tools/install
+[`Cargo.toml`]: ./Cargo.toml

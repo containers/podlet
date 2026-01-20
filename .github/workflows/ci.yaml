@@ -89,3 +89,17 @@ jobs:
 
       - name: Build x86 image
         run: buildah build --manifest "${MANIFEST}" --platform linux/amd64 -t podlet .
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install cargo-msrv
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-msrv
+
+      - name: Verify MSRV
+        run: cargo msrv verify
