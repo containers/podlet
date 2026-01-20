@@ -246,6 +246,8 @@ If a compose file is not given, Podlet will search for the following files in th
 - `compose.yml`
 - `docker-compose.yaml`
 - `docker-compose.yml`
+- `podman-compose.yaml`
+- `podman-compose.yml`
 
 
 #### Pod
