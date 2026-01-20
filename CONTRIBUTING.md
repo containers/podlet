@@ -116,7 +116,13 @@ Release builds are created with the `dist` profile:
 cargo build --profile dist
 ```
 
-## Continuous Integration
+## Minimum Supported Rust Version (MSRV)
+
+The minimum version of the Rust compiler Podlet can compile with is 1.85.
+The goal of the Podlet MSRV policy is to match the Rust version used by [Debian stable](https://packages.debian.org/stable/rustc). However, this is not a hard requirement and the MSRV may be increased as necessary.
+Increasing the MSRV is **not** considered to be a breaking change.
+
+## Local Continuous Integration (CI)
 
 A number of jobs are automatically run for each pull request and merge.
 If you are submitting code changes and would like to run the CI jobs locally,
