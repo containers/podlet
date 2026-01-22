@@ -838,7 +838,7 @@ struct PodmanInspectVisitor<'a, T> {
     value: PhantomData<T>,
 }
 
-impl<'a, 'de, T: Deserialize<'de>> Visitor<'de> for PodmanInspectVisitor<'a, T> {
+impl<'de, T: Deserialize<'de>> Visitor<'de> for PodmanInspectVisitor<'_, T> {
     type Value = T;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

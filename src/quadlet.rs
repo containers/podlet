@@ -429,7 +429,7 @@ impl AutoUpdate {
                 .strip_prefix(Self::LABEL_KEY)
                 .and_then(|label| label.strip_prefix('='))
                 .and_then(|value| value.parse().ok())
-                .map_or(true, |value| {
+                .is_none_or(|value| {
                     auto_update = Some(value);
                     false
                 })

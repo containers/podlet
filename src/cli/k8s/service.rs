@@ -918,7 +918,7 @@ impl Unsupported {
                 eyre!("Kubernetes pod containers do not directly support devices")
                     .suggestion("try using a bind mount instead"),
             );
-        };
+        }
 
         ensure!(
             extensions.is_empty(),

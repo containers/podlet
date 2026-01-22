@@ -519,9 +519,11 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             pid,
             platform: platform.as_ref().map(ToString::to_string),
             privileged,
-            attach: stdin_open
-                .then(|| vec!["stdin".to_owned()])
-                .unwrap_or_default(),
+            attach: if stdin_open {
+                vec!["stdin".to_owned()]
+            } else {
+                Vec::new()
+            },
             tty,
             ..Self::default()
         })

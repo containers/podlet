@@ -315,7 +315,7 @@ impl FilePath {
     /// Convert to full file path
     ///
     /// If `self` is a directory, the [`File`] is used to set the filename.
-    fn to_full(&self, file: &File) -> Cow<Path> {
+    fn to_full(&self, file: &File) -> Cow<'_, Path> {
         match self {
             Self::Full(path) => path.into(),
             Self::Dir(path) => {

@@ -156,7 +156,7 @@ impl AutoUpdate {
                         })
                         .or_else(|| container.is_empty().then_some(Self::All(auto_update)))
                 })
-                .map_or(true, |auto_update| {
+                .is_none_or(|auto_update| {
                     auto_updates.push(auto_update);
                     false
                 })

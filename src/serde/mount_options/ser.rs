@@ -161,7 +161,7 @@ pub struct SerializeStruct<'a> {
     serializer: &'a mut Serializer,
 }
 
-impl<'a> ser::SerializeStruct for SerializeStruct<'a> {
+impl ser::SerializeStruct for SerializeStruct<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -188,7 +188,7 @@ impl<'a> ser::SerializeStruct for SerializeStruct<'a> {
     }
 }
 
-impl<'a> SerializeStructVariant for SerializeStruct<'a> {
+impl SerializeStructVariant for SerializeStruct<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -212,14 +212,14 @@ struct ValueSerializer<'a> {
     serializer: &'a mut Serializer,
 }
 
-impl<'a> ValueSerializer<'a> {
+impl ValueSerializer<'_> {
     /// Writes the `value` to `serializer.output` as `key=value`.
     fn write_value(&mut self, value: impl Display) {
         write!(self.serializer.output, "={value}").expect("write to String never fails");
     }
 }
 
-impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
+impl ser::Serializer for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;

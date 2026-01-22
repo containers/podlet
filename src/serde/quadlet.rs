@@ -339,7 +339,7 @@ struct ValueSerializer<'a> {
     key: &'static str,
 }
 
-impl<'a> ValueSerializer<'a> {
+impl ValueSerializer<'_> {
     /// Writes the `value` to `serializer.output` as `key=value`.
     fn write_value(&mut self, value: impl Display) {
         writeln!(self.serializer.output, "{}={value}", self.key)
@@ -347,7 +347,7 @@ impl<'a> ValueSerializer<'a> {
     }
 }
 
-impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
+impl ser::Serializer for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -489,7 +489,7 @@ impl<'a> ser::Serializer for &mut ValueSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeSeq for &mut ValueSerializer<'a> {
+impl ser::SerializeSeq for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -503,7 +503,7 @@ impl<'a> ser::SerializeSeq for &mut ValueSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeTuple for &mut ValueSerializer<'a> {
+impl ser::SerializeTuple for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -517,7 +517,7 @@ impl<'a> ser::SerializeTuple for &mut ValueSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeTupleStruct for &mut ValueSerializer<'a> {
+impl ser::SerializeTupleStruct for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;
@@ -531,7 +531,7 @@ impl<'a> ser::SerializeTupleStruct for &mut ValueSerializer<'a> {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for &mut ValueSerializer<'a> {
+impl ser::SerializeTupleVariant for &mut ValueSerializer<'_> {
     type Ok = ();
 
     type Error = Error;

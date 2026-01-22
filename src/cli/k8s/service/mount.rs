@@ -85,7 +85,7 @@ fn volume_try_into_volume_mount(
     container_name: &Identifier,
 ) -> color_eyre::Result<(VolumeMount, Volume)> {
     ensure!(
-        volume.as_ref().map_or(true, VolumeOptions::is_empty),
+        volume.as_ref().is_none_or(VolumeOptions::is_empty),
         "additional `volume` options are not supported"
     );
 
@@ -248,7 +248,7 @@ enum Source<'a> {
     Other { container_name: &'a Identifier },
 }
 
-impl<'a> Source<'a> {
+impl Source<'_> {
     /// Convert source into a `name` for a [`Volume`].
     ///
     /// If [`Other`](Self::Other), the `container_name` is combined with the `mount_path` to create
