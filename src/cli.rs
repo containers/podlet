@@ -195,7 +195,7 @@ impl Cli {
     fn file_path(&self) -> color_eyre::Result<FilePath> {
         let path = if self.unit_directory {
             #[cfg(unix)]
-            if nix::unistd::Uid::current().is_root() {
+            if rustix::process::getuid().is_root() {
                 let path = PathBuf::from("/etc/containers/systemd/");
                 if path.is_dir() {
                     path

@@ -1,6 +1,5 @@
 #![allow(clippy::same_name_method)] // triggered by `proxy` macro
 
-use nix::unistd::Uid;
 use zbus::{blocking::Connection, proxy};
 
 pub fn unit_files() -> zbus::Result<impl Iterator<Item = UnitFile>> {
@@ -8,7 +7,7 @@ pub fn unit_files() -> zbus::Result<impl Iterator<Item = UnitFile>> {
     let manager = ManagerProxyBlocking::new(&connection)?;
     let mut unit_files = manager.list_unit_files()?;
 
-    if !Uid::current().is_root() {
+    if !rustix::process::getuid().is_root() {
         let connection = Connection::session()?;
         let manager = ManagerProxyBlocking::new(&connection)?;
         unit_files.extend(manager.list_unit_files()?);

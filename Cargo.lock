@@ -263,12 +263,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "cfg_aliases"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
-
-[[package]]
 name = "clap"
 version = "4.5.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -786,18 +780,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nix"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db9f2b173ed7678e98df5c31c60c3d49595cb37e9b58c71e85ec03e88a278fae"
-dependencies = [
- "bitflags",
- "cfg-if",
- "cfg_aliases",
- "libc",
-]
-
-[[package]]
 name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -879,8 +861,8 @@ dependencies = [
  "indexmap",
  "ipnet",
  "k8s-openapi",
- "nix",
  "path-clean",
+ "rustix",
  "serde",
  "serde_json",
  "serde_yaml",

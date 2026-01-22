@@ -76,7 +76,7 @@ umask = "2.1.0"
 url = "2.3"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.0", features = ["user"] }
+rustix = { version = "1.0.0", features = ["process"] }
 zbus = "5.0.0"
 
 # The profile that 'cargo dist' will build with
