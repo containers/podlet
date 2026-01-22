@@ -9,19 +9,18 @@ use std::{
 
 use color_eyre::eyre::ensure;
 use compose_spec::{
-    service::volumes::{
-        self,
-        mount::{self, Bind, BindOptions, Common, VolumeOptions},
-        HostPath, ShortOptions, ShortVolume,
-    },
     Identifier,
+    service::volumes::{
+        self, HostPath, ShortOptions, ShortVolume,
+        mount::{self, Bind, BindOptions, Common, VolumeOptions},
+    },
 };
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 use crate::quadlet::HostPaths;
 
-use super::mount::{idmap::ParseIdmapError, BindPropagation, Idmap, SELinuxRelabel};
+use super::mount::{BindPropagation, Idmap, SELinuxRelabel, idmap::ParseIdmapError};
 
 /// Volume to mount to a [`Container`](super::Container).
 ///
@@ -696,9 +695,8 @@ mod tests {
 
     #[test]
     fn all_options() {
-        let string =
-            "/host/path:/container/path:ro,Z,O,upperdir=/upper/dir,workdir=/work/dir,U,nocopy,dev,\
-                noexec,suid,rbind,shared,idmap";
+        let string = "/host/path:/container/path:ro,Z,O,upperdir=/upper/dir,workdir=/work/dir,U,\
+            nocopy,dev,noexec,suid,rbind,shared,idmap";
         let volume: Volume = string.parse().unwrap();
         let options = Options {
             read_only: true,

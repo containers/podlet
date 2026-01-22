@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use thiserror::Error;
 
 /// Idmap [`Bind`](super::Bind) and [`Volume`](super::Volume) [`Mount`](super::Mount) options.

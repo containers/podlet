@@ -1,6 +1,6 @@
 //! Utilities for converting a compose [`Volume`] into a Kubernetes [`PersistentVolumeClaim`].
 
-use color_eyre::eyre::{bail, ensure, Context};
+use color_eyre::eyre::{Context, bail, ensure};
 use compose_spec::{Identifier, MapKey, Number, StringOrNumber, Volume};
 use indexmap::IndexMap;
 use k8s_openapi::{

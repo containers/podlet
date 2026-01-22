@@ -5,22 +5,22 @@ mod mount;
 use std::{collections::BTreeMap, net::IpAddr, time::Duration};
 
 use color_eyre::{
-    eyre::{ensure, eyre, OptionExt, WrapErr},
     Section,
+    eyre::{OptionExt, WrapErr, ensure, eyre},
 };
 use compose_spec::{
+    Extensions, Identifier, ItemOrList, ListOrMap, Map, ShortOrLong,
     service::{
-        build::Context,
-        device::CgroupRule,
-        healthcheck::{self, Test},
-        ports::{self, Port, Protocol},
         AbsolutePath, BlkioConfig, Build, ByteValue, Cgroup, Command, ConfigOrSecret, CpuSet, Cpus,
         CredentialSpec, DependsOn, Deploy, Develop, Device, EnvFile, Expose, Extends, Healthcheck,
         Hostname, IdOrName, Image, Ipc, Limit, Link, Logging, MacAddress, NetworkConfig,
         OomScoreAdj, Percent, Platform, Ports, PullPolicy, Restart, Ulimits, User, Uts, Volumes,
         VolumesFrom,
+        build::Context,
+        device::CgroupRule,
+        healthcheck::{self, Test},
+        ports::{self, Port, Protocol},
     },
-    Extensions, Identifier, ItemOrList, ListOrMap, Map, ShortOrLong,
 };
 use indexmap::{IndexMap, IndexSet};
 use k8s_openapi::{

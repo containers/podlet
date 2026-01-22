@@ -2,7 +2,7 @@
 name = "podlet"
 version = "0.3.0"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
-edition = "2021"
+edition = "2024"
 rust-version = "1.85"
 description = "Generate Podman Quadlet files from a Podman command, compose file, or existing object"
 readme = "README.md"

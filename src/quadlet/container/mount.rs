@@ -11,14 +11,13 @@ use std::{
     str::FromStr,
 };
 
-use compose_spec::service::volumes::{mount, SELinux};
+use compose_spec::service::volumes::{SELinux, mount};
 use serde::{
-    de::{
-        self,
-        value::{MapAccessDeserializer, StrDeserializer},
-        MapAccess, Visitor,
-    },
     Deserialize, Deserializer, Serialize,
+    de::{
+        self, MapAccess, Visitor,
+        value::{MapAccessDeserializer, StrDeserializer},
+    },
 };
 use thiserror::Error;
 use umask::Mode;
@@ -456,9 +455,8 @@ mod tests {
         );
         assert_eq!(mount.to_string(), string);
 
-        let string =
-            "type=bind,source=/src,destination=/dst,readonly=true,bind-propagation=shared,\
-                bind-nonrecursive=true,relabel=shared,idmap,chown=true,no-dereference=true";
+        let string = "type=bind,source=/src,destination=/dst,readonly=true,bind-propagation=shared,\
+            bind-nonrecursive=true,relabel=shared,idmap,chown=true,no-dereference=true";
         let mount: Mount = string.parse().unwrap();
         assert_eq!(
             mount,

@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
 use serde::{
-    ser::{self, Impossible},
     Serialize,
+    ser::{self, Impossible},
 };
 use thiserror::Error;
 

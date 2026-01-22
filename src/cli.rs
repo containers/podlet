@@ -26,10 +26,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, builder::TypedValueParser};
 use color_eyre::{
-    eyre::{ensure, eyre, WrapErr},
     Help,
+    eyre::{WrapErr, ensure, eyre},
 };
 use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
@@ -376,9 +376,11 @@ impl Commands {
             Self::Podman {
                 global_args,
                 command,
-            } => Ok(vec![command
-                .into_quadlet(name, unit, (*global_args).into(), install)
-                .into()]),
+            } => Ok(vec![
+                command
+                    .into_quadlet(name, unit, (*global_args).into(), install)
+                    .into(),
+            ]),
             Self::Compose(compose) => compose
                 .try_into_files(unit, install)
                 .wrap_err("error converting compose file"),

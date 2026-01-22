@@ -3,8 +3,8 @@
 use std::fmt::{Display, Write};
 
 use serde::{
-    ser::{self, Impossible, SerializeStructVariant},
     Serialize,
+    ser::{self, Impossible, SerializeStructVariant},
 };
 
 use super::Error;

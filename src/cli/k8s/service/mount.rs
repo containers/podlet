@@ -2,17 +2,16 @@
 //! [`VolumeMount`] and [`Volume`] for a [`Container`](k8s_openapi::api::core::v1::Container) and
 //! its [`PodSpec`](k8s_openapi::api::core::v1::PodSpec).
 
-use color_eyre::eyre::{ensure, eyre, WrapErr};
+use color_eyre::eyre::{WrapErr, ensure, eyre};
 use compose_spec::{
-    service::{
-        volumes::{
-            self,
-            mount::{self, Bind, BindOptions, Common, Tmpfs, TmpfsOptions, VolumeOptions},
-            Mount,
-        },
-        AbsolutePath, Volumes,
-    },
     Identifier, ItemOrList,
+    service::{
+        AbsolutePath, Volumes,
+        volumes::{
+            self, Mount,
+            mount::{self, Bind, BindOptions, Common, Tmpfs, TmpfsOptions, VolumeOptions},
+        },
+    },
 };
 use k8s_openapi::{
     api::core::v1::{
