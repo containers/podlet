@@ -83,25 +83,6 @@ zbus = "5.0.0"
 inherits = "release"
 lto = "thin"
 
-# Config for 'cargo dist'
-[workspace.metadata.dist]
-# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.14.1"
-# CI backends to support
-ci = "github"
-# Target platforms to build apps for (Rust target-triple syntax)
-targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "x86_64-unknown-linux-gnu",
-  "x86_64-unknown-linux-musl",
-  "x86_64-pc-windows-msvc",
-]
-# The installers to generate for each app
-installers = []
-# Publish jobs to run in CI
-pr-run-mode = "plan"
-
 # Config for 'git cliff'
 # Run with `GITHUB_TOKEN=$(gh auth token) git cliff --bump -up CHANGELOG.md`
 # https://git-cliff.org/docs/configuration
