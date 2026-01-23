@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -55,7 +55,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -72,7 +72,7 @@ jobs:
       options: --security-opt seccomp=unconfined --security-opt apparmor=unconfined --device /dev/fuse:rw
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - run: buildah version
 
