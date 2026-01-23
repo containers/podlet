@@ -154,6 +154,10 @@ below is a list of all the jobs with explanations and the commands that they run
   - Ensures Podlet can build with the minimum supported Rust version listed in the [`Cargo.toml`] file.
   - Install [cargo-msrv](https://github.com/foresterre/cargo-msrv).
   - `cargo msrv verify`
+- spellcheck:
+  - Basic spellchecking to avoid typos.
+  - Install [typos](https://github.com/crate-ci/typos).
+  - `typos`
 
 ## Communication
 
