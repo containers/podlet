@@ -68,7 +68,8 @@ pub struct Compose {
     /// the compose file will be read from stdin.
     ///
     /// If not provided, and stdin is a terminal, Podlet will look for (in order)
-    /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`, `podman-compose.yaml`, and `podman-compose.yml`,
+    /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`,
+    /// `podman-compose.yaml`, and `podman-compose.yml`,
     /// in the current working directory.
     #[allow(clippy::struct_field_names)]
     pub compose_file: Option<PathBuf>,
