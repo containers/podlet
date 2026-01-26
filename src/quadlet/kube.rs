@@ -257,7 +257,7 @@ mod tests {
     fn kube_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let kube = Kube::new(PathBuf::from("yaml").into());
         assert_eq!(
-            crate::serde::quadlet::to_string(kube)?,
+            crate::serde::quadlet::to_string_join_all(kube)?,
             "[Kube]\nYaml=yaml\n"
         );
         Ok(())

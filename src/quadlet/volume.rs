@@ -3,7 +3,7 @@ use std::{ops::Not, path::PathBuf};
 use color_eyre::eyre::{Context, ensure};
 use serde::Serialize;
 
-use crate::{cli::volume::Opt, serde::quadlet::quote_spaces_join_space};
+use crate::{cli::volume::Opt, serde::quadlet::seq_quote_whitespace};
 
 use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
@@ -28,10 +28,7 @@ pub struct Volume {
     pub image: Option<String>,
 
     /// Set one or more OCI labels on the volume.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// The mount options to use for a filesystem as used by the `mount` command -o option.
@@ -141,7 +138,10 @@ mod tests {
     #[test]
     fn volume_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let volume = Volume::default();
-        assert_eq!(crate::serde::quadlet::to_string(volume)?, "[Volume]\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(volume)?,
+            "[Volume]\n"
+        );
         Ok(())
     }
 }

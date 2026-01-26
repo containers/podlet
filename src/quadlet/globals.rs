@@ -54,7 +54,10 @@ mod tests {
     #[test]
     fn default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let globals = Globals::default();
-        assert_eq!(crate::serde::quadlet::to_string(globals)?, "[Globals]\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(globals)?,
+            "[Globals]\n"
+        );
         Ok(())
     }
 }

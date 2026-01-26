@@ -18,9 +18,9 @@ mod systemd_dbus;
 
 use std::{
     borrow::Cow,
+    collections::HashSet,
     env,
     ffi::OsStr,
-    fmt::{self, Display},
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
@@ -34,7 +34,9 @@ use color_eyre::{
 use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
-use crate::quadlet::{self, Downgrade, DowngradeError, Globals, HostPaths, PodmanVersion};
+use crate::quadlet::{
+    self, Downgrade, DowngradeError, Globals, HostPaths, JoinOption, PodmanVersion,
+};
 
 use self::{
     build::Build, compose::Compose, container::Container, generate::Generate,
@@ -92,6 +94,43 @@ pub struct Cli {
     #[arg(long, alias = "override", requires = "file_out")]
     overwrite: bool,
 
+    /// Split Quadlet options instead of joining them together.
+    ///
+    /// By default, Podlet will combine all Quadlet options that can be joined into a single line.
+    ///
+    /// For example, `podlet podman run -e ONE=one -e TWO=two image` results in:
+    ///
+    /// ```ini
+    /// # image.container
+    /// [Container]
+    /// Environment=ONE=one TWO=two
+    /// Image=image
+    /// ```
+    ///
+    /// While `podlet -s Environment podman run -e ONE=one -e TWO=two image` results in:
+    ///
+    /// ```ini
+    /// # image.container
+    /// [Container]
+    /// Environment=ONE=one
+    /// Environment=TWO=two
+    /// Image=image
+    /// ```
+    ///
+    /// Quadlet options can be specified in a comma (,) separated list and/or this option can be
+    /// specified multiple times.
+    //
+    // Maintenance Note: When updating the above help text, also update `Cli::SPLIT_OPTIONS_HELP`.
+    #[arg(
+        short,
+        long,
+        value_enum,
+        value_delimiter = ',',
+        value_name = "QUADLET_OPTION,...",
+        long_help = Self::SPLIT_OPTIONS_HELP
+    )]
+    split_options: Vec<JoinOption>,
+
     /// Skip the check for existing services of the same name
     ///
     /// By default, Podlet will check for existing services with the same name as
@@ -144,7 +183,38 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Long help for `podlet --split-options`.
+    ///
+    /// Set separately from doc comment to preserve formatting of examples.
+    const SPLIT_OPTIONS_HELP: &str = "\
+Split Quadlet options instead of joining them together.
+
+By default, Podlet will combine all Quadlet options that can be joined into a single line.
+
+For example, `podlet podman run -e ONE=one -e TWO=two image` results in:
+
+# image.container
+[Container]
+Environment=ONE=one TWO=two
+Image=image
+
+While `podlet -s Environment podman run -e ONE=one -e TWO=two image` results in:
+
+# image.container
+[Container]
+Environment=ONE=one
+Environment=TWO=two
+Image=image
+
+Quadlet options can be specified in a comma (,) separated list and/or this option can be specified \
+multiple times.";
+
     pub fn print_or_write_files(self) -> color_eyre::Result<()> {
+        // Determine which Quadlet options to join together into a single line by subtracting the
+        // selected options from the set of all possible options.
+        let split_options = self.split_options.iter().copied().collect();
+        let join_options = &JoinOption::all_set() - &split_options;
+
         if self.unit_directory || self.file.is_some() {
             let path = self.file_path()?;
             if matches!(path, FilePath::Full(..))
@@ -175,7 +245,7 @@ impl Cli {
             }
 
             for file in files {
-                file.write(&path, overwrite)?;
+                file.write(&path, overwrite, &join_options)?;
             }
 
             Ok(())
@@ -183,8 +253,14 @@ impl Cli {
             let files = self
                 .try_into_files()?
                 .into_iter()
-                .map(|file| format!("# {}.{}\n{file}", file.name(), file.extension()))
-                .collect::<Vec<_>>()
+                .map(|file| {
+                    let file_name = format!("{}.{}", file.name(), file.extension());
+                    let file = file
+                        .serialize(&join_options)
+                        .wrap_err_with(|| format! {"error serializing file `{file_name}`"})?;
+                    Ok(format!("# {file_name}\n{file}"))
+                })
+                .collect::<color_eyre::Result<Vec<_>>>()?
                 .join("\n---\n\n");
             print!("{files}");
             Ok(())
@@ -558,15 +634,6 @@ impl From<k8s::File> for File {
     }
 }
 
-impl Display for File {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Quadlet(file) => file.fmt(f),
-            Self::Kubernetes(file) => file.fmt(f),
-        }
-    }
-}
-
 impl File {
     fn name(&self) -> &str {
         match self {
@@ -607,12 +674,49 @@ impl File {
         }
     }
 
-    fn write(&self, path: &FilePath, overwrite: bool) -> color_eyre::Result<()> {
+    /// Serialize this [`File`] to a [`String`] in the proper format.
+    ///
+    /// Quadlet options in `join_options` are joined together with a space.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the contained [`quadlet::File`] or [`k8s::File`] returns an error while
+    /// serializing.
+    fn serialize(&self, join_options: &HashSet<JoinOption>) -> color_eyre::Result<String> {
+        match self {
+            File::Quadlet(file) => file
+                .serialize_to_quadlet(join_options)
+                .wrap_err("error serializing Quadlet file"),
+            File::Kubernetes(file) => file
+                .serialize_to_yaml()
+                .wrap_err("error serializing Kubernetes YAML file"),
+        }
+    }
+
+    /// Serialize and write this file to `path`, optionally overwriting any already existing file.
+    ///
+    /// During serialization, Quadlet options in `join_options` are joined together with a space.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is an error while serializing or when writing the file.
+    fn write(
+        &self,
+        path: &FilePath,
+        overwrite: bool,
+        join_options: &HashSet<JoinOption>,
+    ) -> color_eyre::Result<()> {
         let path = path.to_full(self);
         let mut file = open_file(&path, overwrite)?;
-
         let path = path.display();
-        write!(file, "{self}").wrap_err_with(|| format!("Failed to write to file: {path}"))?;
+
+        let contents = self
+            .serialize(join_options)
+            .wrap_err_with(|| format!("error serializing contents for file: {path}"))?;
+
+        file.write_all(contents.as_bytes())
+            .wrap_err_with(|| format!("failed to write to file: {path}"))?;
+
         println!("Wrote to file: {path}");
 
         Ok(())

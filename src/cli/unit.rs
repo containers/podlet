@@ -6,7 +6,7 @@ use color_eyre::{
 use compose_spec::service::{Condition, Dependency};
 use serde::Serialize;
 
-use crate::serde::quadlet::quote_spaces_join_space;
+use crate::serde::quadlet::seq_quote_whitespace;
 
 // Common systemd unit options
 // From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
@@ -28,10 +28,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     wants: Vec<String>,
 
     /// Similar to --wants, but adds stronger requirement dependencies
@@ -40,10 +37,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     requires: Vec<String>,
 
     /// Similar to --requires, but when the dependency stops, this unit also stops
@@ -52,10 +46,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     binds_to: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -64,10 +55,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     before: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -76,10 +64,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     after: Vec<String>,
 }
 

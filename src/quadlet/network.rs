@@ -10,7 +10,7 @@ use ipnet::IpNet;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
-use crate::serde::quadlet::quote_spaces_join_space;
+use crate::serde::quadlet::seq_quote_whitespace;
 
 use super::{Downgrade, DowngradeError, PodmanVersion};
 
@@ -48,10 +48,7 @@ pub struct Network {
     pub ipv6: bool,
 
     /// Set one or more OCI labels on the network.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// Set driver specific options.
@@ -264,7 +261,10 @@ mod tests {
     #[test]
     fn network_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let network = Network::default();
-        assert_eq!(crate::serde::quadlet::to_string(network)?, "[Network]\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(network)?,
+            "[Network]\n"
+        );
         Ok(())
     }
 }
