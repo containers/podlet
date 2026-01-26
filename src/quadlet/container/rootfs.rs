@@ -12,7 +12,7 @@ use thiserror::Error;
 
 use crate::quadlet::HostPaths;
 
-use super::mount::{idmap::ParseIdmapError, Idmap};
+use super::mount::{Idmap, idmap::ParseIdmapError};
 
 /// An exploded container on the file system.
 ///

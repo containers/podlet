@@ -26,10 +26,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand, builder::TypedValueParser};
 use color_eyre::{
-    eyre::{ensure, eyre, WrapErr},
     Help,
+    eyre::{WrapErr, ensure, eyre},
 };
 use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
@@ -195,7 +195,7 @@ impl Cli {
     fn file_path(&self) -> color_eyre::Result<FilePath> {
         let path = if self.unit_directory {
             #[cfg(unix)]
-            if nix::unistd::Uid::current().is_root() {
+            if rustix::process::getuid().is_root() {
                 let path = PathBuf::from("/etc/containers/systemd/");
                 if path.is_dir() {
                     path
@@ -315,7 +315,7 @@ impl FilePath {
     /// Convert to full file path
     ///
     /// If `self` is a directory, the [`File`] is used to set the filename.
-    fn to_full(&self, file: &File) -> Cow<Path> {
+    fn to_full(&self, file: &File) -> Cow<'_, Path> {
         match self {
             Self::Full(path) => path.into(),
             Self::Dir(path) => {
@@ -376,9 +376,11 @@ impl Commands {
             Self::Podman {
                 global_args,
                 command,
-            } => Ok(vec![command
-                .into_quadlet(name, unit, (*global_args).into(), install)
-                .into()]),
+            } => Ok(vec![
+                command
+                    .into_quadlet(name, unit, (*global_args).into(), install)
+                    .into(),
+            ]),
             Self::Compose(compose) => compose
                 .try_into_files(unit, install)
                 .wrap_err("error converting compose file"),

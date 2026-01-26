@@ -6,7 +6,7 @@
 
 use std::fmt::Display;
 
-use serde::{ser::SerializeSeq, Serializer};
+use serde::{Serializer, ser::SerializeSeq};
 
 /// Implement [`serde::Serializer`]'s `serialize_*` functions by returning `Err($error)`.
 macro_rules! serialize_invalid_primitives {

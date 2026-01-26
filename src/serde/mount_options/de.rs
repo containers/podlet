@@ -3,7 +3,7 @@
 use std::str::{FromStr, SplitTerminator};
 
 use serde::{
-    de::{self, value::BorrowedStrDeserializer, DeserializeSeed, Visitor},
+    de::{self, DeserializeSeed, Visitor, value::BorrowedStrDeserializer},
     forward_to_deserialize_any,
 };
 

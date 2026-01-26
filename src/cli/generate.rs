@@ -14,21 +14,21 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use color_eyre::{
-    eyre::{eyre, WrapErr},
     Section, SectionExt,
+    eyre::{WrapErr, eyre},
 };
 use indexmap::IndexMap;
 use ipnet::IpNet;
 use serde::{
-    de::{self, value::MapAccessDeserializer, DeserializeOwned, MapAccess, SeqAccess, Visitor},
     Deserialize, Deserializer,
+    de::{self, DeserializeOwned, MapAccess, SeqAccess, Visitor, value::MapAccessDeserializer},
 };
 
 use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind};
 
 use super::{
-    global_args::GlobalArgs, image, network, service::Service, unit::Unit, volume, Container,
-    Image, Network, Pod, Volume,
+    Container, Image, Network, Pod, Volume, global_args::GlobalArgs, image, network,
+    service::Service, unit::Unit, volume,
 };
 
 /// [`Subcommand`] for `podlet generate`
@@ -120,8 +120,10 @@ impl Generate {
         install: Option<Install>,
     ) -> color_eyre::Result<Vec<quadlet::File>> {
         match self {
-            Self::Container { container } => Ok(vec![ContainerParser::from_container(&container)?
-                .into_quadlet_file(None, name, unit, install)]),
+            Self::Container { container } => Ok(vec![
+                ContainerParser::from_container(&container)?
+                    .into_quadlet_file(None, name, unit, install),
+            ]),
             Self::Pod {
                 ignore_infra_conmon_pidfile,
                 ignore_pod_id_file,
@@ -150,13 +152,13 @@ impl Generate {
                 }
             }
             Self::Network { network } => Ok(vec![
-                NetworkInspect::from_network(&network)?.into_quadlet_file(name, unit, install)
+                NetworkInspect::from_network(&network)?.into_quadlet_file(name, unit, install),
             ]),
             Self::Volume { volume } => Ok(vec![
-                VolumeInspect::from_volume(&volume)?.into_quadlet_file(name, unit, install)
+                VolumeInspect::from_volume(&volume)?.into_quadlet_file(name, unit, install),
             ]),
             Self::Image { image } => Ok(vec![
-                ImageInspect::from_image(&image)?.into_quadlet_file(name, unit, install)
+                ImageInspect::from_image(&image)?.into_quadlet_file(name, unit, install),
             ]),
         }
     }
@@ -836,7 +838,7 @@ struct PodmanInspectVisitor<'a, T> {
     value: PhantomData<T>,
 }
 
-impl<'a, 'de, T: Deserialize<'de>> Visitor<'de> for PodmanInspectVisitor<'a, T> {
+impl<'de, T: Deserialize<'de>> Visitor<'de> for PodmanInspectVisitor<'_, T> {
     type Value = T;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

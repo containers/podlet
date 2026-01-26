@@ -6,7 +6,7 @@ mod volume;
 
 use std::fmt::{self, Display, Formatter};
 
-use color_eyre::eyre::{ensure, OptionExt, WrapErr};
+use color_eyre::eyre::{OptionExt, WrapErr, ensure};
 use compose_spec::{Compose, Resource};
 use k8s_openapi::{
     api::core::v1::{PersistentVolumeClaim, Pod, PodSpec},

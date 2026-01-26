@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use color_eyre::eyre::{ensure, eyre, Context};
+use color_eyre::eyre::{Context, ensure, eyre};
 use compose_spec::network::{Ipam, IpamConfig};
 use ipnet::IpNet;
 use serde::{Serialize, Serializer};

@@ -5,15 +5,15 @@ use std::{
     str::FromStr,
 };
 
-use color_eyre::eyre::{bail, ensure, OptionExt};
+use color_eyre::eyre::{OptionExt, bail, ensure};
 use compose_spec::service::build::Context;
 use serde::{Serialize, Serializer};
 
 use crate::serde::{quadlet::quote_spaces_join_space, skip_true};
 
 use super::{
-    container::{Dns, PullPolicy},
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
+    container::{Dns, PullPolicy},
 };
 
 /// Options for the \[Build\] section of a `.build` Quadlet file.

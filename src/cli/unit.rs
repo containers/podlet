@@ -2,8 +2,8 @@ use std::fmt::{self, Display, Formatter};
 
 use clap::Args;
 use color_eyre::{
-    eyre::{self, bail, eyre},
     Section,
+    eyre::{self, bail, eyre},
 };
 use compose_spec::service::{Condition, Dependency};
 use serde::Serialize;

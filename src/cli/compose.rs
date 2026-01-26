@@ -8,17 +8,17 @@ use std::{
 
 use clap::Args;
 use color_eyre::{
-    eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
+    eyre::{OptionExt, WrapErr, bail, ensure, eyre},
 };
 use compose_spec::{
-    service::Command, Identifier, Network, Networks, Options, Resource, Service, Volumes,
+    Identifier, Network, Networks, Options, Resource, Service, Volumes, service::Command,
 };
 use indexmap::IndexMap;
 
-use crate::quadlet::{self, container::volume::Source, Globals};
+use crate::quadlet::{self, Globals, container::volume::Source};
 
-use super::{k8s, Build, Container, File, GlobalArgs, Unit};
+use super::{Build, Container, File, GlobalArgs, Unit, k8s};
 
 /// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
 /// as a shell would.

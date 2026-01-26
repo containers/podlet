@@ -5,7 +5,7 @@ use std::{
 
 use serde::Serialize;
 
-use super::{container::Volume, Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, container::Volume};
 
 /// Options for the \[Pod\] section of a `.pod` Quadlet file.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]

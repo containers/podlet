@@ -1,6 +1,6 @@
 //! (De)serialize [`Mode`] as a string. For use in `#[serde(with = "mode")]`.
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use umask::{Mode, READ, USER, WRITE};
 
 /// Serialize [`Mode`] as a string.

@@ -5,32 +5,29 @@ use std::{
     time::Duration,
 };
 
-use clap::{builder::TypedValueParser, ArgAction, Args};
+use clap::{ArgAction, Args, builder::TypedValueParser};
 use color_eyre::{
-    eyre::{ensure, eyre, Context, OptionExt},
-    owo_colors::OwoColorize,
     Section,
+    eyre::{Context, OptionExt, ensure, eyre},
+    owo_colors::OwoColorize,
 };
 use compose_spec::{
-    duration,
+    Identifier, ItemOrList, ShortOrLong, duration,
     service::{
-        self, env_file,
+        self, Command, ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit, env_file,
         network_config::{Network, NetworkMode},
         ports,
         volumes::{
-            self,
+            self, ShortVolume,
             mount::{Common, Tmpfs, TmpfsOptions},
-            ShortVolume,
         },
-        Command, ConfigOrSecret, EnvFile, Limit, NetworkConfig, Ulimit,
     },
-    Identifier, ItemOrList, ShortOrLong,
 };
 use smart_default::SmartDefault;
 
 use crate::quadlet::{
-    container::{Device, DnsEntry, Mount, Notify, PullPolicy, Rootfs, Volume},
     AutoUpdate,
+    container::{Device, DnsEntry, Mount, Notify, PullPolicy, Rootfs, Volume},
 };
 
 use super::compose;
