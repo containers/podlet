@@ -71,13 +71,18 @@ fn quote_spaces_push(output: &mut String, item: &str) {
     }
 }
 
-/// Serializes `value` to a string using a serializer designed
-/// for structs that represent a section of a Quadlet file.
+/// Serializes `value` to a string using a serializer designed for structs that represent a section
+/// of a Quadlet file.
+///
+/// Only structs, sequences, and tuples are allowed at the top level. Elements in a sequence are
+/// serialized as separate sections with a new line inserted between them. Tuples can be used to
+/// combine structs into a single section; the name from the first type in the tuple is used as the
+/// section name.
 ///
 /// # Errors
 ///
-/// Returns an error if the value errors while serializing, or if given
-/// an invalid type, such as a non-struct or a struct with a nested map.
+/// Returns an error if the value errors while serializing, or if given an invalid type, such as a
+/// struct with a nested map.
 ///
 /// ```
 /// #[derive(Serialize)]
@@ -104,35 +109,6 @@ pub fn to_string<T: Serialize>(value: T) -> Result<String, Error> {
     Ok(serializer.output)
 }
 
-/// The same as [`to_string()`] except the table name is not included.
-///
-/// ```
-/// #[derive(Serialize)]
-/// #[serde(rename_all = "PascalCase")]
-/// struct Example {
-///     str: &'static str,
-///     vec: Vec<u8>,
-/// }
-/// let example = Example {
-///     str: "Hello world!",
-///     vec: vec![1, 2],
-/// };
-/// assert_eq!(
-///     to_string_no_table_name(example).unwrap(),
-///     "Str=Hello world!\n\
-///     Vec=1\n\
-///     Vec=2\n"
-/// );
-/// ```
-pub fn to_string_no_table_name<T: Serialize>(value: T) -> Result<String, Error> {
-    let mut serializer = Serializer {
-        output: String::new(),
-        no_table_name: true,
-    };
-    value.serialize(&mut serializer)?;
-    Ok(serializer.output)
-}
-
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     #[error("error while serializing: {0}")]
@@ -154,7 +130,7 @@ impl ser::Error for Error {
 #[derive(Default)]
 struct Serializer {
     output: String,
-    no_table_name: bool,
+    skip_section_name: bool,
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -162,9 +138,9 @@ impl ser::Serializer for &mut Serializer {
 
     type Error = Error;
 
-    type SerializeSeq = Impossible<(), Error>;
+    type SerializeSeq = Self;
 
-    type SerializeTuple = Impossible<(), Error>;
+    type SerializeTuple = Self;
 
     type SerializeTupleStruct = Impossible<(), Error>;
 
@@ -240,11 +216,11 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        Err(Error::InvalidType)
+        Ok(self)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Err(Error::InvalidType)
+        Ok(self)
     }
 
     fn serialize_tuple_struct(
@@ -274,7 +250,7 @@ impl ser::Serializer for &mut Serializer {
         name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        if !self.no_table_name {
+        if !self.skip_section_name {
             writeln!(self.output, "[{name}]").expect("write to String never fails");
         }
         Ok(self)
@@ -287,10 +263,44 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        if !self.no_table_name {
+        if !self.skip_section_name {
             writeln!(self.output, "[{variant}]").expect("write to String never fails");
         }
         Ok(self)
+    }
+}
+
+impl ser::SerializeSeq for &mut Serializer {
+    type Ok = ();
+
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
+        if !self.output.is_empty() {
+            self.output.push('\n');
+        }
+        value.serialize(&mut (**self))
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(())
+    }
+}
+
+impl ser::SerializeTuple for &mut Serializer {
+    type Ok = ();
+
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
+        value.serialize(&mut (**self))?;
+        self.skip_section_name = true;
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        self.skip_section_name = false;
+        Ok(())
     }
 }
 
@@ -567,6 +577,49 @@ mod tests {
             "[Test]\n\
             One=1\n\
             Two=two\n"
+        );
+    }
+
+    #[test]
+    fn top_level_sequence() {
+        #[derive(Serialize, Clone, Copy)]
+        #[serde(rename_all = "PascalCase")]
+        struct Test {
+            one: u8,
+        }
+
+        let test = Test { one: 1 };
+        let vec = vec![test, test];
+        assert_eq!(
+            to_string(vec).unwrap(),
+            "[Test]\n\
+            One=1\n\
+            \n\
+            [Test]\n\
+            One=1\n"
+        );
+    }
+
+    #[test]
+    fn top_level_tuple() {
+        #[derive(Serialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct One {
+            one: u8,
+        }
+
+        #[derive(Serialize)]
+        #[serde(rename_all = "PascalCase")]
+        struct Two {
+            two: u8,
+        }
+
+        let tuple = (One { one: 1 }, Two { two: 2 });
+        assert_eq!(
+            to_string(tuple).unwrap(),
+            "[One]\n\
+            One=1\n\
+            Two=2\n"
         );
     }
 

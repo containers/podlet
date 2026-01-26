@@ -99,13 +99,6 @@ pub struct Build {
     pub volume: Vec<String>,
 }
 
-impl Display for Build {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let build = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&build)
-    }
-}
-
 impl HostPaths for Build {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         self.auth_file

@@ -1,7 +1,4 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use serde::Serialize;
 
@@ -50,21 +47,14 @@ impl HostPaths for Globals {
     }
 }
 
-impl Display for Globals {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let globals =
-            crate::serde::quadlet::to_string_no_table_name(self).map_err(|_| fmt::Error)?;
-        f.write_str(&globals)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn default_display_empty() {
+    fn default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let globals = Globals::default();
-        assert!(globals.to_string().is_empty(), "globals: {globals}");
+        assert_eq!(crate::serde::quadlet::to_string(globals)?, "[Globals]\n");
+        Ok(())
     }
 }

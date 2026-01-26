@@ -1,5 +1,3 @@
-use std::fmt::{self, Display, Formatter};
-
 use clap::Args;
 use color_eyre::{
     Section,
@@ -156,11 +154,4 @@ fn condition_eyre(condition: Condition, option: &str, section: &str) -> eyre::Re
     eyre!("dependency condition `{condition}` is not directly supported").suggestion(format!(
         "try using `{option}` in the [{section}] section of the dependency"
     ))
-}
-
-impl Display for Unit {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let unit = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&unit)
-    }
 }

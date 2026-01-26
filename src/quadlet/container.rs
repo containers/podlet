@@ -308,13 +308,6 @@ pub struct Container {
     pub working_dir: Option<PathBuf>,
 }
 
-impl Display for Container {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let container = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&container)
-    }
-}
-
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V5_2 {
@@ -901,12 +894,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn container_default_empty() {
+    fn container_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let container = Container {
             image: String::from("image"),
             ..Container::default()
         };
-        assert_eq!(container.to_string(), "[Container]\nImage=image\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string(container)?,
+            "[Container]\nImage=image\n"
+        );
+        Ok(())
     }
 
     mod unmask {

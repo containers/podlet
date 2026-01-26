@@ -17,7 +17,7 @@ use std::{
 
 use clap::ValueEnum;
 use compose_spec::service::build::Context;
-use serde::{Serialize, Serializer};
+use serde::{Serialize, Serializer, ser::SerializeSeq};
 use thiserror::Error;
 
 pub use self::{
@@ -43,23 +43,47 @@ pub struct File {
     pub install: Option<Install>,
 }
 
+impl Serialize for File {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let Self {
+            name: _,
+            unit,
+            resource,
+            globals,
+            service,
+            install,
+        } = self;
+
+        let len = usize::from(unit.is_some())
+            + 1 // resource / globals
+            + usize::from(service.is_some())
+            + usize::from(install.is_some());
+
+        let mut seq = serializer.serialize_seq(Some(len))?;
+
+        if let Some(unit) = unit {
+            seq.serialize_element(unit)?;
+        }
+
+        seq.serialize_element(&(resource, globals))?;
+
+        if let Some(service) = service {
+            seq.serialize_element(service)?;
+        }
+
+        if let Some(install) = install {
+            seq.serialize_element(install)?;
+        }
+
+        seq.end()
+    }
+}
+
 impl Display for File {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        if let Some(unit) = &self.unit {
-            writeln!(f, "{unit}")?;
-        }
-
-        write!(f, "{}{}", self.resource, self.globals)?;
-
-        if let Some(service) = &self.service {
-            write!(f, "\n{service}")?;
-        }
-
-        if let Some(install) = &self.install {
-            write!(f, "\n{install}")?;
-        }
-
-        Ok(())
+        let file = crate::serde::quadlet::to_string(self)
+            .expect("quadlet::File should serialize without fail");
+        f.write_str(&file)
     }
 }
 
@@ -83,7 +107,8 @@ impl Downgrade for File {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(untagged)]
 pub enum Resource {
     Container(Box<Container>),
     Pod(Pod),
@@ -92,20 +117,6 @@ pub enum Resource {
     Volume(Volume),
     Build(Box<Build>),
     Image(Image),
-}
-
-impl Display for Resource {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Container(container) => container.fmt(f),
-            Self::Pod(pod) => pod.fmt(f),
-            Self::Kube(kube) => kube.fmt(f),
-            Self::Network(network) => network.fmt(f),
-            Self::Volume(volume) => volume.fmt(f),
-            Self::Build(build) => build.fmt(f),
-            Self::Image(image) => image.fmt(f),
-        }
-    }
 }
 
 impl From<Container> for Resource {

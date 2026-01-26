@@ -1,5 +1,3 @@
-use std::fmt::{self, Display, Formatter};
-
 use serde::Serialize;
 
 use crate::serde::quadlet::quote_spaces_join_space;
@@ -20,11 +18,4 @@ pub struct Install {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub required_by: Vec<String>,
-}
-
-impl Display for Install {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let install = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&install)
-    }
 }

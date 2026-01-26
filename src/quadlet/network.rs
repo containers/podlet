@@ -1,5 +1,4 @@
 use std::{
-    fmt::{self, Display, Formatter},
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     ops::{Not, Range},
     str::FromStr,
@@ -180,13 +179,6 @@ impl TryFrom<compose_spec::Network> for Network {
     }
 }
 
-impl Display for Network {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let network = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&network)
-    }
-}
-
 /// Valid forms for `IPRange=` Quadlet [`Network`] option values.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IpRange {
@@ -270,8 +262,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn network_default_empty() {
+    fn network_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let network = Network::default();
-        assert_eq!(network.to_string(), "[Network]\n");
+        assert_eq!(crate::serde::quadlet::to_string(network)?, "[Network]\n");
+        Ok(())
     }
 }

@@ -108,13 +108,6 @@ impl HostPaths for Kube {
     }
 }
 
-impl Display for Kube {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let kube = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&kube)
-    }
-}
-
 /// Valid values for the `AutoUpdate=` Quadlet [`Kube`] option.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AutoUpdate {
@@ -261,9 +254,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn kube_default_empty() {
+    fn kube_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let kube = Kube::new(PathBuf::from("yaml").into());
-        assert_eq!(kube.to_string(), "[Kube]\nYaml=yaml\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string(kube)?,
+            "[Kube]\nYaml=yaml\n"
+        );
+        Ok(())
     }
 
     #[test]

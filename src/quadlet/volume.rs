@@ -1,8 +1,4 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    ops::Not,
-    path::PathBuf,
-};
+use std::{ops::Not, path::PathBuf};
 
 use color_eyre::eyre::{Context, ensure};
 use serde::Serialize;
@@ -138,20 +134,14 @@ impl TryFrom<compose_spec::Volume> for Volume {
     }
 }
 
-impl Display for Volume {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let volume = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&volume)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn volume_default_empty() {
+    fn volume_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let volume = Volume::default();
-        assert_eq!(volume.to_string(), "[Volume]\n");
+        assert_eq!(crate::serde::quadlet::to_string(volume)?, "[Volume]\n");
+        Ok(())
     }
 }

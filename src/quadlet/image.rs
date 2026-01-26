@@ -71,13 +71,6 @@ impl HostPaths for Image {
     }
 }
 
-impl Display for Image {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let image = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&image)
-    }
-}
-
 impl Downgrade for Image {
     #[allow(clippy::unused_self)]
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
