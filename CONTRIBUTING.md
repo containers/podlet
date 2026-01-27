@@ -116,7 +116,13 @@ Release builds are created with the `dist` profile:
 cargo build --profile dist
 ```
 
-## Continuous Integration
+## Minimum Supported Rust Version (MSRV)
+
+The minimum version of the Rust compiler Podlet can compile with is 1.85.
+The goal of the Podlet MSRV policy is to match the Rust version used by [Debian stable](https://packages.debian.org/stable/rustc). However, this is not a hard requirement and the MSRV may be increased as necessary.
+Increasing the MSRV is **not** considered to be a breaking change.
+
+## Local Continuous Integration (CI)
 
 A number of jobs are automatically run for each pull request and merge.
 If you are submitting code changes and would like to run the CI jobs locally,
@@ -128,7 +134,7 @@ below is a list of all the jobs with explanations and the commands that they run
 - clippy:
   - [Clippy](https://github.com/rust-lang/rust-clippy) is a collection of lints for Rust.
   - If [Rust is installed] via `rustup`, install Clippy with `rustup component add clippy`.
-  - Lints are configured in the [`Cargo.toml`](./Cargo.toml) file.
+  - Lints are configured in the [`Cargo.toml`] file.
   - It's ok to use `#[allow(...)]` to override a lint,
     but try to document the reasoning if it's not obvious.
   - `cargo clippy`
@@ -144,6 +150,14 @@ below is a list of all the jobs with explanations and the commands that they run
   - First, [install Buildah](https://github.com/containers/buildah/blob/main/install.md).
   - `buildah build --platform linux/amd64 -t podlet .`
   - `buildah build --platform linux/arm64/v8 -t podlet .`
+- msrv:
+  - Ensures Podlet can build with the minimum supported Rust version listed in the [`Cargo.toml`] file.
+  - Install [cargo-msrv](https://github.com/foresterre/cargo-msrv).
+  - `cargo msrv verify`
+- spellcheck:
+  - Basic spellchecking to avoid typos.
+  - Install [typos](https://github.com/crate-ci/typos).
+  - `typos`
 
 ## Communication
 
@@ -157,3 +171,4 @@ For discussions about issues, bugs, or features, feel free to create an [issue],
 [issue]: https://github.com/containers/podlet/issues
 [pull request]: https://github.com/containers/podlet/pulls
 [Rust is installed]: https://www.rust-lang.org/tools/install
+[`Cargo.toml`]: ./Cargo.toml

@@ -246,6 +246,8 @@ If a compose file is not given, Podlet will search for the following files in th
 - `compose.yml`
 - `docker-compose.yaml`
 - `docker-compose.yml`
+- `podman-compose.yaml`
+- `podman-compose.yml`
 
 
 #### Pod
@@ -380,7 +382,7 @@ Podlet is not (yet) a validator for Podman commands. Some Podman options are inc
 ## Contribution
 
 Contributions, suggestions, and/or comments are appreciated!
-See the [contribution guide](./CONTRIBUTING.md) for more information.
+See the [contribution guide](./CONTRIBUTING.md) for more information on reporting issues, submitting pull requests, building Podlet, the Minimum Supported Rust Version (MSRV) policy, running CI tasks locally, and communication channels.
 
 ## License
 

@@ -5,14 +5,13 @@ use std::{
 };
 
 use clap::{ArgAction, Args};
-use color_eyre::eyre::{bail, ensure, eyre, OptionExt, WrapErr};
+use color_eyre::eyre::{OptionExt, WrapErr, bail, ensure, eyre};
 use compose_spec::{
-    service::{
-        self,
-        build::{Cache, CacheType, Context, Dockerfile},
-        ByteValue, Limit, Ulimit,
-    },
     ShortOrLong,
+    service::{
+        self, ByteValue, Limit, Ulimit,
+        build::{Cache, CacheType, Context, Dockerfile},
+    },
 };
 use serde::Serialize;
 use smart_default::SmartDefault;

@@ -9,9 +9,9 @@ use std::{
 };
 
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{self, MapAccess},
     ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 use thiserror::Error;
 use umask::{Mode, STICKY};
@@ -167,7 +167,7 @@ impl<'de> de::Visitor<'de> for Visitor {
         while let Some(field) = map.next_key()? {
             match field {
                 Field::Destination => {
-                    check_duplicate(&destination, Field::Destination)?;
+                    check_duplicate(destination.as_ref(), Field::Destination)?;
                     destination = Some(map.next_value()?);
                 }
                 Field::ReadOnly => {
@@ -176,11 +176,11 @@ impl<'de> de::Visitor<'de> for Visitor {
                     read_only = value.unwrap_or(true);
                 }
                 Field::Size => {
-                    check_duplicate(&size, Field::Size)?;
+                    check_duplicate(size.as_ref(), Field::Size)?;
                     size = Some(map.next_value()?);
                 }
                 Field::Mode => {
-                    check_duplicate(&mode, Field::Mode)?;
+                    check_duplicate(mode.as_ref(), Field::Mode)?;
                     // serde(with = "mode")
                     let SerdeMode(value) = map.next_value()?;
                     mode = Some(value);
@@ -216,7 +216,7 @@ impl<'de> de::Visitor<'de> for Visitor {
 /// # Errors
 ///
 /// Returns a [duplicate field](de::Error::duplicate_field()) error if `option` is [`Some`].
-fn check_duplicate<T, E: de::Error>(option: &Option<T>, field: Field) -> Result<(), E> {
+fn check_duplicate<T, E: de::Error>(option: Option<&T>, field: Field) -> Result<(), E> {
     if option.is_some() {
         Err(de::Error::duplicate_field(field.as_str()))
     } else {

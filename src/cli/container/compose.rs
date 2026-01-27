@@ -5,14 +5,14 @@ use std::{net::IpAddr, time::Duration};
 
 use color_eyre::eyre::ensure;
 use compose_spec::{
-    service::{
-        build::Context, device::CgroupRule, AbsolutePath, BlkioConfig, Build, ByteValue, Cgroup,
-        Command, ConfigOrSecret, CpuSet, Cpus, CredentialSpec, Deploy, Develop, Device, EnvFile,
-        Expose, Extends, Healthcheck, Hostname, IdOrName, Image, Ipc, Limit, Link, Logging,
-        MacAddress, NetworkConfig, OomScoreAdj, Percent, Platform, Ports, PullPolicy, Ulimits,
-        User, Uts, Volumes, VolumesFrom,
-    },
     Extensions, Identifier, ItemOrList, ListOrMap, MapKey, ShortOrLong, StringOrNumber,
+    service::{
+        AbsolutePath, BlkioConfig, Build, ByteValue, Cgroup, Command, ConfigOrSecret, CpuSet, Cpus,
+        CredentialSpec, Deploy, Develop, Device, EnvFile, Expose, Extends, Healthcheck, Hostname,
+        IdOrName, Image, Ipc, Limit, Link, Logging, MacAddress, NetworkConfig, OomScoreAdj,
+        Percent, Platform, Ports, PullPolicy, Ulimits, User, Uts, Volumes, VolumesFrom,
+        build::Context, device::CgroupRule,
+    },
 };
 use indexmap::{IndexMap, IndexSet};
 

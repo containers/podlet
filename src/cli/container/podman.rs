@@ -7,13 +7,13 @@ use std::{
 
 use clap::{ArgAction, Args};
 use color_eyre::{
-    eyre::{eyre, Context},
-    owo_colors::OwoColorize,
     Section,
+    eyre::{Context, eyre},
+    owo_colors::OwoColorize,
 };
 use compose_spec::service::{
-    blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
     BlkioConfig, ByteValue, Ipc, Limit,
+    blkio_config::{BpsLimit, IopsLimit, Weight, WeightDevice},
 };
 use serde::Serialize;
 use smart_default::SmartDefault;
@@ -519,9 +519,11 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             pid,
             platform: platform.as_ref().map(ToString::to_string),
             privileged,
-            attach: stdin_open
-                .then(|| vec!["stdin".to_owned()])
-                .unwrap_or_default(),
+            attach: if stdin_open {
+                vec!["stdin".to_owned()]
+            } else {
+                Vec::new()
+            },
             tty,
             ..Self::default()
         })

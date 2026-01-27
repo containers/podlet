@@ -30,7 +30,7 @@ where
 /// Encode a string for use as a shell argument.
 ///
 /// ASCII control characters that are not whitespace are silently removed.
-pub(crate) fn arg_quote(arg: &str) -> Cow<str> {
+pub(crate) fn arg_quote(arg: &str) -> Cow<'_, str> {
     if arg.contains(char_is_ascii_control_not_whitespace) {
         let arg = arg.replace(char_is_ascii_control_not_whitespace, "");
         shlex::try_quote(&arg)

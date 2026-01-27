@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use color_eyre::eyre::{ensure, Context};
+use color_eyre::eyre::{Context, ensure};
 use serde::Serialize;
 
 use crate::{cli::volume::Opt, serde::quadlet::quote_spaces_join_space};

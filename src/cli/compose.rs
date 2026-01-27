@@ -8,17 +8,17 @@ use std::{
 
 use clap::Args;
 use color_eyre::{
-    eyre::{bail, ensure, eyre, OptionExt, WrapErr},
     Help,
+    eyre::{OptionExt, WrapErr, bail, ensure, eyre},
 };
 use compose_spec::{
-    service::Command, Identifier, Network, Networks, Options, Resource, Service, Volumes,
+    Identifier, Network, Networks, Options, Resource, Service, Volumes, service::Command,
 };
 use indexmap::IndexMap;
 
-use crate::quadlet::{self, container::volume::Source, Globals};
+use crate::quadlet::{self, Globals, container::volume::Source};
 
-use super::{k8s, Build, Container, File, GlobalArgs, Unit};
+use super::{Build, Container, File, GlobalArgs, Unit, k8s};
 
 /// Converts a [`Command`] into a [`Vec<String>`], splitting the [`String`](Command::String) variant
 /// as a shell would.
@@ -68,7 +68,8 @@ pub struct Compose {
     /// the compose file will be read from stdin.
     ///
     /// If not provided, and stdin is a terminal, Podlet will look for (in order)
-    /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, and `docker-compose.yml`,
+    /// `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`,
+    /// `podman-compose.yaml`, and `podman-compose.yml`,
     /// in the current working directory.
     #[allow(clippy::struct_field_names)]
     pub compose_file: Option<PathBuf>,
@@ -160,7 +161,8 @@ impl Compose {
 ///
 /// If the path is '-', or stdin is not a terminal, the compose file is deserialized from stdin.
 /// If a path is not provided, the files `compose.yaml`, `compose.yml`, `docker-compose.yaml`,
-/// and `docker-compose.yml` are, in order, looked for in the current directory.
+/// `docker-compose.yml`, `podman-compose.yaml`, and `podman-compose.yml` are, in order, looked for
+///  in the current directory.
 ///
 /// # Errors
 ///
@@ -183,11 +185,13 @@ fn read_from_file_or_stdin(
             .suggestion("make sure you have the proper permissions for the given file")?;
         (compose_file, path)
     } else {
-        const FILE_NAMES: [&str; 4] = [
+        const FILE_NAMES: [&str; 6] = [
             "compose.yaml",
             "compose.yml",
             "docker-compose.yaml",
             "docker-compose.yml",
+            "podman-compose.yaml",
+            "podman-compose.yml",
         ];
 
         if !io::stdin().is_terminal() {
@@ -204,8 +208,9 @@ fn read_from_file_or_stdin(
 
         result.ok_or_eyre(
             "a compose file was not provided and none of \
-                `compose.yaml`, `compose.yml`, `docker-compose.yaml`, or `docker-compose.yml` \
-                exist in the current directory or could not be read",
+                `compose.yaml`, `compose.yml`, `docker-compose.yaml`, `docker-compose.yml`, \
+                `podman-compose.yaml`, or `podman-compose.yml` exist in the current directory or \
+                could not be read",
         )?
     };
 

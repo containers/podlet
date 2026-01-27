@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use thiserror::Error;
 
 /// Idmap [`Bind`](super::Bind) and [`Volume`](super::Volume) [`Mount`](super::Mount) options.
@@ -166,7 +166,7 @@ impl<'de> Deserialize<'de> for Idmap {
 
 struct Visitor;
 
-impl<'de> de::Visitor<'de> for Visitor {
+impl de::Visitor<'_> for Visitor {
     type Value = Idmap;
 
     fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
