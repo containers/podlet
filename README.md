@@ -6,8 +6,8 @@
 
 Podlet generates [Podman](https://podman.io/) [Quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a Podman command, compose file, or existing object.
 
-[![demo.gif](./demo.gif)](https://asciinema.org/a/659410)
-Demo created with [autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/659410).
+[![demo.gif](./demo.gif)](https://asciinema.org/a/775285)
+Demo created with [Autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/775285).
 
 ## Features
 
@@ -17,6 +17,7 @@ Demo created with [autocast](https://github.com/k9withabone/autocast). You can a
     - `podman kube play`
     - `podman network create`
     - `podman volume create`
+    - `podman build`
     - `podman image pull`
 - Convert a (docker) compose file to:
     - Multiple Quadlet `.container` files.
@@ -63,11 +64,12 @@ Commands:
 
 Options:
   -f, --file [<FILE>]                        Generate a file instead of printing to stdout
-  -u, --unit-directory                       Generate a file in the Podman unit directory instead of printing to stdout [aliases: unit-dir]
+  -u, --unit-directory                       Generate a file in the Podman unit directory instead of printing to stdout [aliases: --unit-dir]
   -n, --name <NAME>                          Override the name of the generated file (without the extension)
       --overwrite                            Overwrite existing files when generating a file
+  -s, --split-options <QUADLET_OPTION,...>   Split Quadlet options instead of joining them together [possible values: AddCapability, After, Annotation, Before, BindsTo, DropCapability, Environment, Label, Mask, RequiredBy, Requires, Sysctl, Unmask, WantedBy, Wants]
       --skip-services-check                  Skip the check for existing services of the same name
-  -p, --podman-version <PODMAN_VERSION>      Podman version generated Quadlet files should conform to [default: 5.0] [aliases: compatibility, compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8, 5.0]
+  -p, --podman-version <PODMAN_VERSION>      Podman version generated Quadlet files should conform to [default: 5.2] [aliases: --compatibility, --compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8, 5.0, 5.1, 5.2]
   -a, --absolute-host-paths [<RESOLVE_DIR>]  Convert relative host paths to absolute paths
   -d, --description <DESCRIPTION>            Add a description to the unit
       --wants <WANTS>                        Add (weak) requirement dependencies to the unit
@@ -99,6 +101,7 @@ Commands:
   kube     Generate a Podman Quadlet `.kube` file
   network  Generate a Podman Quadlet `.network` file
   volume   Generate a Podman Quadlet `.volume` file
+  build    Generate a Podman Quadlet `.build` file
   image    Generate a Podman Quadlet `.image` file
   help     Print this message or the help of the given subcommand(s)
 
@@ -179,7 +182,7 @@ WantedBy=default.target
 
 The name for the file was automatically pulled from the image name, but can be overridden with the `--name` option.
 
-Podlet also supports creating `.pod`, `.kube`, `.network`, `.volume`, and `.image` Quadlet files.
+Podlet also supports creating `.pod`, `.kube`, `.network`, `.volume`, `.build`, and `.image` Quadlet files.
 
 ```
 $ podlet podman kube play --network pasta --userns auto caddy.yaml
@@ -249,7 +252,6 @@ If a compose file is not given, Podlet will search for the following files in th
 - `podman-compose.yaml`
 - `podman-compose.yml`
 
-
 #### Pod
 
 The `--pod` option will create a `.pod` Quadlet file and link each `.container` file to it.
@@ -315,9 +317,9 @@ spec:
 
 #### Notes
 
-When converting compose files, not all options are supported by Podman/Quadlet. This is especially true when converting to Kubernetes YAML as some options must be applied to the pod as a whole. If Podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
+When converting Compose files, not all options are supported by Podman/Quadlet. This is especially true when converting to Kubernetes YAML as some options must be applied to the pod as a whole. If Podlet encounters an unsupported option an error will be returned. You will have to remove or comment out unsupported options to proceed.
 
-Podlet does not yet support [compose interpolation](https://github.com/compose-spec/compose-spec/blob/master/spec.md#interpolation).
+Podlet does not yet support [Compose interpolation](https://github.com/compose-spec/compose-spec/blob/main/spec.md#interpolation).
 
 See `podlet compose --help` for more information.
 
