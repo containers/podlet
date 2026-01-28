@@ -9,7 +9,7 @@ use color_eyre::eyre::{OptionExt, bail, ensure};
 use compose_spec::service::build::Context;
 use serde::{Serialize, Serializer};
 
-use crate::serde::{quadlet::quote_spaces_join_space, skip_true};
+use crate::serde::{quadlet::seq_quote_whitespace, skip_true};
 
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
@@ -42,10 +42,7 @@ pub struct Build {
     pub dns_search: Vec<String>,
 
     /// Add a value (e.g. env=value) to the built image.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub environment: Vec<String>,
 
     /// Specifies a Containerfile which contains instructions for building the image.
@@ -63,10 +60,7 @@ pub struct Build {
     pub image_tag: String,
 
     /// Add an image label (e.g. label=value) to the image metadata.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// Sets the configuration for network namespaces when handling `RUN` instructions.
@@ -97,13 +91,6 @@ pub struct Build {
 
     /// Mount a volume to containers when executing `RUN` instructions during the build.
     pub volume: Vec<String>,
-}
-
-impl Display for Build {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let build = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&build)
-    }
 }
 
 impl HostPaths for Build {

@@ -1,7 +1,4 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use serde::Serialize;
 
@@ -32,13 +29,6 @@ pub struct Pod {
 
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
-}
-
-impl Display for Pod {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let pod = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&pod)
-    }
 }
 
 impl HostPaths for Pod {

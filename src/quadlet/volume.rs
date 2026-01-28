@@ -1,13 +1,9 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    ops::Not,
-    path::PathBuf,
-};
+use std::{ops::Not, path::PathBuf};
 
 use color_eyre::eyre::{Context, ensure};
 use serde::Serialize;
 
-use crate::{cli::volume::Opt, serde::quadlet::quote_spaces_join_space};
+use crate::{cli::volume::Opt, serde::quadlet::seq_quote_whitespace};
 
 use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion};
 
@@ -32,10 +28,7 @@ pub struct Volume {
     pub image: Option<String>,
 
     /// Set one or more OCI labels on the volume.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// The mount options to use for a filesystem as used by the `mount` command -o option.
@@ -138,20 +131,17 @@ impl TryFrom<compose_spec::Volume> for Volume {
     }
 }
 
-impl Display for Volume {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let volume = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&volume)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn volume_default_empty() {
+    fn volume_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let volume = Volume::default();
-        assert_eq!(volume.to_string(), "[Volume]\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(volume)?,
+            "[Volume]\n"
+        );
+        Ok(())
     }
 }

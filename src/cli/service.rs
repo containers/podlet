@@ -1,9 +1,9 @@
-use std::fmt::{self, Display, Formatter};
-
 use clap::{Args, ValueEnum};
 use compose_spec::service::Restart;
+use serde::Serialize;
 
-#[derive(Args, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Args, Serialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "PascalCase")]
 pub struct Service {
     /// Configure if and when the service should be restarted
     #[arg(long, value_name = "POLICY")]
@@ -12,17 +12,8 @@ pub struct Service {
 
 impl Service {
     pub fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
-}
-
-impl Display for Service {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        writeln!(f, "[Service]")?;
-        if let Some(restart) = self.restart.and_then(|restart| restart.to_possible_value()) {
-            writeln!(f, "Restart={}", restart.get_name())?;
-        }
-        Ok(())
+        let Self { restart } = self;
+        restart.is_none()
     }
 }
 
@@ -43,7 +34,8 @@ impl From<Restart> for Service {
 /// Possible service restart configurations
 ///
 /// From [systemd.service](https://www.freedesktop.org/software/systemd/man/systemd.service.html#Restart=)
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(ValueEnum, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
 enum RestartConfig {
     No,
     OnSuccess,

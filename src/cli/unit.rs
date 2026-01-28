@@ -1,5 +1,3 @@
-use std::fmt::{self, Display, Formatter};
-
 use clap::Args;
 use color_eyre::{
     Section,
@@ -8,7 +6,7 @@ use color_eyre::{
 use compose_spec::service::{Condition, Dependency};
 use serde::Serialize;
 
-use crate::serde::quadlet::quote_spaces_join_space;
+use crate::serde::quadlet::seq_quote_whitespace;
 
 // Common systemd unit options
 // From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
@@ -30,10 +28,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     wants: Vec<String>,
 
     /// Similar to --wants, but adds stronger requirement dependencies
@@ -42,10 +37,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     requires: Vec<String>,
 
     /// Similar to --requires, but when the dependency stops, this unit also stops
@@ -54,10 +46,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     binds_to: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -66,10 +55,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     before: Vec<String>,
 
     /// Configure ordering dependency between units
@@ -78,10 +64,7 @@ pub struct Unit {
     ///
     /// Can be specified multiple times
     #[arg(long)]
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     after: Vec<String>,
 }
 
@@ -156,11 +139,4 @@ fn condition_eyre(condition: Condition, option: &str, section: &str) -> eyre::Re
     eyre!("dependency condition `{condition}` is not directly supported").suggestion(format!(
         "try using `{option}` in the [{section}] section of the dependency"
     ))
-}
-
-impl Display for Unit {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let unit = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&unit)
-    }
 }

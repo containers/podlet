@@ -1,5 +1,4 @@
 use std::{
-    fmt::{self, Display, Formatter},
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     ops::{Not, Range},
     str::FromStr,
@@ -11,7 +10,7 @@ use ipnet::IpNet;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
-use crate::serde::quadlet::quote_spaces_join_space;
+use crate::serde::quadlet::seq_quote_whitespace;
 
 use super::{Downgrade, DowngradeError, PodmanVersion};
 
@@ -49,10 +48,7 @@ pub struct Network {
     pub ipv6: bool,
 
     /// Set one or more OCI labels on the network.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// Set driver specific options.
@@ -180,13 +176,6 @@ impl TryFrom<compose_spec::Network> for Network {
     }
 }
 
-impl Display for Network {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let network = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&network)
-    }
-}
-
 /// Valid forms for `IPRange=` Quadlet [`Network`] option values.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IpRange {
@@ -270,8 +259,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn network_default_empty() {
+    fn network_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let network = Network::default();
-        assert_eq!(network.to_string(), "[Network]\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(network)?,
+            "[Network]\n"
+        );
+        Ok(())
     }
 }

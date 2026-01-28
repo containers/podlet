@@ -18,10 +18,7 @@ use compose_spec::service::{self, Limit};
 use serde::{Serialize, Serializer};
 use smart_default::SmartDefault;
 
-use crate::serde::{
-    quadlet::{quote_spaces_join_colon, quote_spaces_join_space},
-    serialize_display_seq, skip_true,
-};
+use crate::serde::{quadlet::seq_quote_whitespace, serialize_display_seq, skip_true};
 
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
@@ -32,20 +29,14 @@ use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion};
 #[serde(rename_all = "PascalCase")]
 pub struct Container {
     /// Add these capabilities, in addition to the default Podman capability set, to the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub add_capability: Vec<String>,
 
     /// Adds a device node from the host into the container.
     pub add_device: Vec<Device>,
 
     /// Set one or more OCI annotations on the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub annotation: Vec<String>,
 
     /// Indicates whether the container will be auto-updated.
@@ -68,20 +59,14 @@ pub struct Container {
     pub dns_search: Vec<String>,
 
     /// Drop these capabilities from the default Podman capability set, or `all` to drop all capabilities.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub drop_capability: Vec<String>,
 
     /// Override the default `ENTRYPOINT` from the image.
     pub entrypoint: Option<String>,
 
     /// Set an environment variable in the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub environment: Vec<String>,
 
     /// Use a line-delimited file to set environment variables in the container.
@@ -156,10 +141,7 @@ pub struct Container {
     pub ip6: Option<Ipv6Addr>,
 
     /// Set one or more OCI labels on the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub label: Vec<String>,
 
     /// Set the log-driver used by Podman when running the container.
@@ -169,10 +151,7 @@ pub struct Container {
     pub log_opt: Vec<String>,
 
     /// The paths to mask. A masked path cannot be accessed inside the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_colon",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub mask: Vec<String>,
 
     /// Attach a filesystem mount to the container.
@@ -272,10 +251,7 @@ pub struct Container {
     pub sub_uid_map: Option<String>,
 
     /// Configures namespaced kernel parameters for the container.
-    #[serde(
-        serialize_with = "quote_spaces_join_space",
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(serialize_with = "seq_quote_whitespace")]
     pub sysctl: Vec<String>,
 
     /// The timezone to run the container in.
@@ -306,13 +282,6 @@ pub struct Container {
 
     /// Working directory inside the container.
     pub working_dir: Option<PathBuf>,
-}
-
-impl Display for Container {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let container = crate::serde::quadlet::to_string(self).map_err(|_| fmt::Error)?;
-        f.write_str(&container)
-    }
 }
 
 impl Downgrade for Container {
@@ -848,13 +817,23 @@ impl Default for Unmask {
 
 impl Serialize for Unmask {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        quote_spaces_join_colon(self, serializer)
+        seq_quote_whitespace(self, serializer)
     }
 }
 
 impl Display for Unmask {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        self.serialize(f)
+        match self {
+            Unmask::All => f.write_str("ALL"),
+            Unmask::Paths(paths) => {
+                let paths = paths.join(":");
+                if paths.contains(char::is_whitespace) {
+                    write!(f, "\"{paths}\"")
+                } else {
+                    f.write_str(&paths)
+                }
+            }
+        }
     }
 }
 
@@ -901,12 +880,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn container_default_empty() {
+    fn container_default_empty() -> Result<(), crate::serde::quadlet::Error> {
         let container = Container {
             image: String::from("image"),
             ..Container::default()
         };
-        assert_eq!(container.to_string(), "[Container]\nImage=image\n");
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(container)?,
+            "[Container]\nImage=image\n"
+        );
+        Ok(())
     }
 
     mod unmask {

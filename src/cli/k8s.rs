@@ -4,8 +4,6 @@
 mod service;
 mod volume;
 
-use std::fmt::{self, Display, Formatter};
-
 use color_eyre::eyre::{OptionExt, WrapErr, ensure};
 use compose_spec::{Compose, Resource};
 use k8s_openapi::{
@@ -30,6 +28,36 @@ pub struct File {
     ///
     /// Needed if a [`compose_spec::Volume`] has additional options set.
     pub persistent_volume_claims: Vec<PersistentVolumeClaim>,
+}
+
+impl File {
+    /// Serialize this Kubernetes [`File`] to YAML.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the contained [`Pod`] or [`PersistentVolumeClaim`]s return an error
+    /// while serializing.
+    pub fn serialize_to_yaml(&self) -> serde_yaml::Result<String> {
+        let Self {
+            name: _,
+            pod,
+            persistent_volume_claims,
+        } = self;
+
+        if persistent_volume_claims.is_empty() {
+            return serde_yaml::to_string(pod);
+        }
+
+        let mut output = String::new();
+
+        for volume in persistent_volume_claims {
+            output.push_str(&serde_yaml::to_string(volume)?);
+            output.push_str("---\n");
+        }
+
+        output.push_str(&serde_yaml::to_string(pod)?);
+        Ok(output)
+    }
 }
 
 impl TryFrom<Compose> for File {
@@ -97,22 +125,5 @@ impl TryFrom<Compose> for File {
             pod,
             persistent_volume_claims,
         })
-    }
-}
-
-impl Display for File {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let Self {
-            name: _,
-            pod,
-            persistent_volume_claims,
-        } = self;
-
-        for volume in persistent_volume_claims {
-            f.write_str(&serde_yaml::to_string(volume).map_err(|_| fmt::Error)?)?;
-            writeln!(f, "---")?;
-        }
-
-        f.write_str(&serde_yaml::to_string(pod).map_err(|_| fmt::Error)?)
     }
 }
