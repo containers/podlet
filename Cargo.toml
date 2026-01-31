@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2024"
 rust-version = "1.85"
