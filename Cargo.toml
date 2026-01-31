@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2024"
 rust-version = "1.85"
@@ -122,11 +122,11 @@ body = """
     - {% if commit.breaking %}**BREAKING** {% endif -%}
       {% if commit.scope %}*({{ commit.scope }})* {% endif -%}
       {{ commit.message | trim | upper_first }}\
-      {% if commit.github.username and commit.github.username != "k9withabone" %} by \
-        [@{{ commit.github.username }}](https://github.com/{{ commit.github.username }})\
+      {% if commit.remote.username and commit.remote.username != "k9withabone" %} by \
+        [@{{ commit.remote.username }}](https://github.com/{{ commit.remote.username }})\
       {%- endif -%}
-      {% if commit.github.pr_number %} in \
-        [#{{ commit.github.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.github.pr_number }})\
+      {% if commit.remote.pr_number %} in \
+        [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }})\
       {%- endif -%}.
       {%- set fixes = commit.footers | filter(attribute="token", value="Fixes") -%}
       {%- set closes = commit.footers | filter(attribute="token", value="Closes") -%}

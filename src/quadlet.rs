@@ -498,7 +498,7 @@ pub enum PodmanVersion {
     V5_1,
 
     /// Podman v5.2
-    #[value(name = "5.2", aliases = ["latest", "5.2.0", "5.2.1", "5.2.2", "5.2.3", "5.2.4"])]
+    #[value(name = "5.2", aliases = ["latest", "5.2.0", "5.2.1", "5.2.2", "5.2.3", "5.2.4", "5.2.5"])]
     V5_2,
 }
 

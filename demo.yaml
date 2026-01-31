@@ -1,5 +1,5 @@
 # demo.yaml
-# autocast (https://github.com/k9withabone/autocast) configuration for podlet demo
+# Autocast (https://github.com/k9withabone/autocast) configuration for Podlet demo.
 
 # Convert to a GIF and optimize:
 # agg --theme monokai --idle-time-limit 20 --font-size 20 demo.cast demo.gif
@@ -8,8 +8,8 @@
 
 settings:
   width: 123
-  height: 47
-  title: Podlet v0.3.0 Demo
+  height: 48
+  title: Podlet v0.3.1 Demo
   timeout: 90s
   type_speed: 90ms
 

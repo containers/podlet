@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-02
+
+After an extended hiatus, Podlet is back! I, [@k9withabone], apologize for my prolonged absence and silence. Life is overwhelming at times.
+The good news is [@TheRealBecks] has stepped up and joined me as a maintainer! We are also looking another maintainer to join us! If you are interested please comment on [this discussion (#171)](https://github.com/containers/podlet/discussions/171).
+
+This is a fairly large release which includes a number of bug fixes and new features. In the future, the goal is to have smaller releases more frequently. Here are some highlights of this release:
+
+- Added support for Quadlet options introduced in Podman v5.1.0 ([#85](https://github.com/containers/podlet/pull/85)) and v5.2.0 ([#123](https://github.com/containers/podlet/pull/123)). This includes support for creating `.build` Quadlet files with `podlet podman build` and from the `build` section of a service in a Compose file.
+
+- Added the `-s, --split-options` option ([#168](https://github.com/containers/podlet/pull/168)) which allows the user to specify which Quadlet options should be split onto multiple lines.
+By default, Podlet combines all Quadlet options that can be into a space separated list.
+For example, `podlet podman run -e ONE=one -e TWO=two image` results in:
+
+  ```ini
+  # image.container
+  [Container]
+  Environment=ONE=one TWO=two
+  Image=image
+  ```
+
+  While `podlet -s Environment podman run -e ONE=one -e TWO=two image` results in:
+
+  ```ini
+  # image.container
+  [Container]
+  Environment=ONE=one
+  Environment=TWO=two
+  Image=image
+  ```
+
+  See `podlet --help` for more information and all Quadlet options that can be split.
+
+- Fixed a number of bugs related to Compose file handling ([#122](https://github.com/containers/podlet/pull/122)).
+
+- Added a Minimum Supported Rust Version (MSRV) policy ([#169](https://github.com/containers/podlet/pull/169)) which can be seen in the [contribution guide](https://github.com/containers/podlet/blob/2e9898d001d965bf15376aabd31c7c0ba2b1c937/CONTRIBUTING.md#minimum-supported-rust-version-msrv).
+
+### Features
+
+- *(container)* Add `GroupAdd=` Quadlet option.
+- *(container)* Add `subpath` image mount option.
+- *(generate)* Add options to ignore unsupported pod options. ([#86](https://github.com/containers/podlet/issues/86))
+  - Added `--ignore-infra-conmon-pidfile` and `--ignore-pod-id-file` options to `podlet generate pod`.
+  - The `--infra-conmon-pidfile` and `--pod-id-file` options are deliberately unimplemented by `podlet podman pod create` as they are set by Quadlet when generating the systemd service unit file, and cannot be set multiple times. Because `podlet generate pod` uses `podlet podman pod create` internally, this caused an error when attempting to generate a `.pod` Quadlet file from a pod created using either of those options, such as those created with the deprecated `podman generate systemd` command.
+- *(compose)* Merge `<<` keys. ([#58](https://github.com/containers/podlet/issues/58))
+- *(compose)* Perform additional validation.
+  - Ensures that networks, volumes (when used across multiple services), configs, and secrets used in each service are defined in the appropriate top-level field.
+- *(container)* Add `LogOpt=` Quadlet option.
+- *(container)* Add `StopSignal=` Quadlet option.
+- *(container)* Add `NetworkAlias=` Quadlet option.
+- *(pod)* Add `NetworkAlias=` Quadlet option.
+- *(build)* Generate `.build` Quadlet file from command.
+  - Added the `podlet podman build` subcommand.
+- *(compose)* `.build` Quadlet files from Compose. ([#100](https://github.com/containers/podlet/issues/100))
+  - Added support to `podlet compose` for converting the `build` section of a Compose service to a `.build` Quadlet file.
+- *(compose)* Search for `podman-compose.yaml` when using `podlet compose` by [@TheRealBecks] in [#167](https://github.com/containers/podlet/pull/167).
+- Add `--split-options` option. ([#118](https://github.com/containers/podlet/issues/118))
+  - By default, when generating a Quadlet file, Podlet will combine all Quadlet options that can be into a space separated list (e.g., `Environment=ONE=one TWO=two`). The `--split-options` option allows the user to specify which Quadlet options they would like Podlet to write on separate lines.
+
+### Bug Fixes
+
+- Support `podman pod create --name` option by [@ananthb](https://github.com/ananthb) in [#89](https://github.com/containers/podlet/pull/89).
+- *(compose)* Append `.network` to container network name. ([#90](https://github.com/containers/podlet/issues/90))
+- *(generate)* Accept array or object from `podman inspect` output. ([#94](https://github.com/containers/podlet/issues/94))
+  - Podman v5.0.0 and newer always returns an array from `podman inspect`. Older versions of Podman may return a single JSON object if there is only one result, notably for `podman pod inspect`.
+- *(compose)* Prepend container dependencies with pod name. ([#114](https://github.com/containers/podlet/issues/114))
+  - When the `podlet compose --pod` option is used, the names of the services from the Compose file are prepended with the pod name. If a service had a dependency via the `depends_on` attribute, the name of the dependency was not similarly prepended with the pod name when added to the `[Unit]` section of the Quadlet file.
+- *(compose)* Support `services[].memswap_limit`.
+  - The `services[].memswap_limit` attribute is translated to `podman run --memory-swap`.
+- *(container)* Support short flag `-h` for `podman run --hostname`. ([#105](https://github.com/containers/podlet/issues/105))
+  - Changed short help flag to `-?` for `podlet podman run`. This could be a potentially minor breaking change for some users.
+- *(compose)* `.build` Quadlet file error reporting. ([#126](https://github.com/containers/podlet/issues/126))
+  - If there was an error converting the `build` section of a Compose service it would not be reported to the user. The rest of the service would fail to convert to a `.container` Quadlet file as the `image` would not be set (it's set after the `build` section is successfully converted). The user would receive a "`image` or `build` is required" error as the service error would be reported first.
+
+### Documentation
+
+- *(readme)* Add homebrew to the installation section by [@cprecioso](https://github.com/cprecioso) in [#80](https://github.com/containers/podlet/pull/80).
+- *(contributing)* Add MSRV policy.
+  - Set MSRV to 1.85, following the Rust version in Debian stable.
+- *(readme)* Update demo, features, and usage.
+
+### Refactor
+
+- Add generic impls of `HostPaths` trait.
+- Destruct tuples to enhance readability by [@Integral-Tech](https://github.com/Integral-Tech).
+- `impl Serialize for podlet::quadlet::File`.
+  - Changed `podlet::serde::quadlet::Serializer` to accept sequences and tuples in addition to structs. Elements in a sequence are serialized as separate sections. Tuples are combined into a single section (for combining `podlet::quadlet::Resource` and `podlet::quadlet::Globals`).
+
+### Miscellaneous
+
+- *(release-container)* Add `--all` to `buildah manifest push`. ([#82](https://github.com/containers/podlet/issues/82))
+- Add Podman v5.1.0 to `PodmanVersion`.
+- *(deps)* Update `compose_spec` to v0.3.0. ([#91](https://github.com/containers/podlet/issues/91), [#96](https://github.com/containers/podlet/issues/96), [#106](https://github.com/containers/podlet/issues/106), [#117](https://github.com/containers/podlet/issues/117))
+- Add Podman v5.2.0 to `PodmanVersion`.
+- *(ci)* Add `msrv` job.
+- Update to Rust 2024 edition.
+  - Includes changes to formatting for the [Rust 2024 style edition](https://doc.rust-lang.org/stable/edition-guide/rust-2024/rustfmt-style-edition.html).
+- *(deps)* Replace `nix` with `rustix`.
+- *(lints)* Fix Clippy lints.
+- *(release)* Update dist.
+  - Formerly known as cargo-dist.
+- *(ci)* Bump actions/checkout to v6.
+- *(ci)* Add `spellcheck` job.
+- *(deps)* Update dependencies.
+
+### New Contributors
+
+- @TheRealBecks made their first contribution in [#167](https://github.com/containers/podlet/pull/167)
+- @Integral-Tech made their first contribution in [#129](https://github.com/containers/podlet/pull/129)
+- @ananthb made their first contribution in [#89](https://github.com/containers/podlet/pull/89)
+- @cprecioso made their first contribution in [#80](https://github.com/containers/podlet/pull/80)
+
 ## [0.3.0] - 2024-05-21
 
 Big release for Podlet!
@@ -326,6 +437,10 @@ The initial release of Podlet! Designed for Podman v4.5.0 and newer.
         - WantedBy=
         - RequiredBy=
 
+[@k9withabone]: https://github.com/k9withabone
+[@TheRealBecks]: https://github.com/TheRealBecks
+
+[0.3.1]: https://github.com/containers/podlet/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/containers/podlet/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/containers/podlet/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/containers/podlet/compare/v0.2.2...v0.2.3
