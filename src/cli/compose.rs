@@ -328,15 +328,9 @@ fn services_try_into_quadlet_files<'a>(
     pod_ports: &'a mut Vec<String>,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
     services.into_iter().flat_map(move |(name, mut service)| {
-        if service.image.is_some() && service.build.is_some() {
-            return iter::once(Err(eyre!(
-                "error converting service `{name}`: `image` and `build` cannot both be set"
-            )))
-            .chain(None);
-        }
-
         let build = service.build.take().map(|build| {
-            let build = Build::try_from(build.into_long()).wrap_err_with(|| {
+            let image = service.image.take();
+            let build = Build::try_from((build.into_long(), image)).wrap_err_with(|| {
                 format!(
                     "error converting `build` for service `{name}` into a Quadlet `.build` file"
                 )
