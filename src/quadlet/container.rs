@@ -45,6 +45,9 @@ pub struct Container {
     /// Indicates whether the container will be auto-updated.
     pub auto_update: Option<AutoUpdate>,
 
+    /// The cgroups mode of the Podman container.
+    pub cgroups_mode: Option<String>,
+
     /// The (optional) name of the Podman container.
     #[allow(clippy::struct_field_names)]
     pub container_name: Option<String>,
@@ -357,7 +360,13 @@ macro_rules! extract {
 impl Container {
     /// Remove Quadlet options added in Podman v5.3.0
     fn remove_v5_3_options(&mut self) {
-        let options = extract!(self, OptionsV5_3 { add_host });
+        let options = extract!(
+            self,
+            OptionsV5_3 {
+                add_host,
+                cgroups_mode
+            }
+        );
 
         self.push_args(options)
             .expect("OptionsV5_3 serializable as args");
@@ -534,6 +543,8 @@ impl Container {
 #[serde(rename_all = "kebab-case")]
 struct OptionsV5_3 {
     add_host: Vec<String>,
+    #[serde(rename = "cgroups")]
+    cgroups_mode: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.2.0

@@ -66,10 +66,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "MODE")]
     cgroupns: Option<String>,
 
-    /// Whether the container will create cgroups
-    #[arg(long, value_name = "HOW")]
-    cgroups: Option<String>,
-
     /// Chroot directories inside the container
     #[arg(long, value_name = "PATH")]
     chrootdirs: Option<String>,
