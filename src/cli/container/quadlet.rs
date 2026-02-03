@@ -55,6 +55,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "HOST-DEVICE[:CONTAINER-DEVICE][:PERMISSIONS]")]
     device: Vec<Device>,
 
+    /// Add a custom host-to-IP mapping
+    ///
+    /// Converts to "AddHost=HOST:IP"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "HOST:IP")]
+    add_host: Vec<String>,
+
     /// Add an annotation to the container
     ///
     /// Converts to "Annotation=KEY=VALUE"
@@ -480,6 +488,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
         QuadletOptions {
             cap_add: add_capability,
             device: add_device,
+            add_host,
             annotation,
             name: container_name,
             dns,
@@ -552,6 +561,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
         Self {
             add_capability,
             add_device,
+            add_host,
             annotation,
             auto_update,
             container_name,
@@ -632,6 +642,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             env_file,
             environment,
             expose,
+            extra_hosts,
             annotations,
             group_add,
             healthcheck,
@@ -718,6 +729,10 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .wrap_err("error converting `env_file`")?,
             env: environment.into_list().into_iter().collect(),
             expose: expose.iter().map(ToString::to_string).collect(),
+            add_host: extra_hosts
+                .into_iter()
+                .map(|(host, ip)| format!("{host}:{ip}"))
+                .collect(),
             annotation: annotations.into_list().into_iter().collect(),
             group_add: group_add.into_iter().map(Into::into).collect(),
             health_cmd,
