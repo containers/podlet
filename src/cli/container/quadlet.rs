@@ -71,6 +71,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "KEY=VALUE")]
     annotation: Vec<String>,
 
+    /// Whether the container will create cgroups
+    ///
+    /// Converts to "CgroupsMode=HOW"
+    #[arg(long, value_name = "HOW")]
+    cgroups: Option<String>,
+
     /// The (optional) name of the container
     ///
     /// The default name is `systemd-%N`, where `%N` is the name of the service
@@ -490,6 +496,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             device: add_device,
             add_host,
             annotation,
+            cgroups,
             name: container_name,
             dns,
             dns_option,
@@ -564,6 +571,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             add_host,
             annotation,
             auto_update,
+            cgroups_mode: cgroups,
             container_name,
             dns: dns.into(),
             dns_option,
