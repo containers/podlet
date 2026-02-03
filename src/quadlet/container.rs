@@ -35,6 +35,9 @@ pub struct Container {
     /// Adds a device node from the host into the container.
     pub add_device: Vec<Device>,
 
+    /// Add host-to-IP mapping to `/etc/hosts` in the container.
+    pub add_host: Vec<String>,
+
     /// Set one or more OCI annotations on the container.
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub annotation: Vec<String>,
@@ -286,6 +289,10 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 {
+            self.remove_v5_3_options();
+        }
+
         if version < PodmanVersion::V5_2 {
             self.remove_v5_2_options();
         }
@@ -348,6 +355,14 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.3.0
+    fn remove_v5_3_options(&mut self) {
+        let options = extract!(self, OptionsV5_3 { add_host });
+
+        self.push_args(options)
+            .expect("OptionsV5_3 serializable as args");
+    }
+
     /// Remove Quadlet options added in Podman v5.2.0
     fn remove_v5_2_options(&mut self) {
         let options = extract!(
@@ -512,6 +527,13 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.3.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_3 {
+    add_host: Vec<String>,
 }
 
 /// Container Quadlet options added in Podman v5.2.0
