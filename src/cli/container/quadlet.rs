@@ -1022,8 +1022,7 @@ fn validate_network_mode(network_mode: NetworkMode) -> color_eyre::Result<String
         NetworkMode::None | NetworkMode::Host | NetworkMode::Container(_) => {
             Ok(network_mode.to_string())
         }
-        NetworkMode::Service(_) => Err(eyre!("network_mode `service:` is not supported")
-            .suggestion("try using the `container:` network_mode instead")),
+        NetworkMode::Service(service) => Ok(format!("{service}.container")),
         NetworkMode::Other(s) => {
             if s.starts_with("bridge")
                 || s.starts_with("ns:")

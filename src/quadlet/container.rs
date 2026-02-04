@@ -326,6 +326,18 @@ impl Downgrade for Container {
                 });
             }
 
+            self.network.iter().try_for_each(|network| {
+                if network.ends_with(".container") {
+                    Err(DowngradeError::Option {
+                        quadlet_option: "Network",
+                        value: network.clone(),
+                        supported_version: PodmanVersion::V5_3,
+                    })
+                } else {
+                    Ok(())
+                }
+            })?;
+
             self.remove_v5_3_options();
         }
 
