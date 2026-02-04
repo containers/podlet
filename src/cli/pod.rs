@@ -7,13 +7,13 @@ use std::{
 
 use clap::{ArgAction, Args, Subcommand, ValueEnum};
 use compose_spec::service::blkio_config::Weight;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use smart_default::SmartDefault;
 
 use crate::{
     quadlet::{
         self,
-        container::{Device, Dns, DnsEntry, Volume},
+        container::{Device, DnsEntry, Volume},
     },
     serde::skip_true,
 };
@@ -78,6 +78,16 @@ pub struct Create {
     /// Can be specified multiple times.
     #[arg(long, value_name = "HOST:IP")]
     add_host: Vec<String>,
+
+    /// Set custom DNS servers.
+    ///
+    /// Converts to "DNS=IP_ADDRESS".
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "IP_ADDRESS")]
+    // TODO: use `Dns` directly if clap ever supports custom collections
+    // (https://github.com/clap-rs/clap/issues/3114).
+    dns: Vec<DnsEntry>,
 
     /// Specify a custom network for the pod.
     ///
@@ -158,6 +168,7 @@ impl From<Create> for quadlet::Pod {
     fn from(
         Create {
             add_host,
+            dns,
             network,
             network_alias,
             name_flag: pod_name,
@@ -172,6 +183,7 @@ impl From<Create> for quadlet::Pod {
 
         Self {
             add_host,
+            dns: dns.into(),
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -233,14 +245,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "PATH:RATE")]
     device_write_bps: Vec<String>,
-
-    /// Set custom DNS servers.
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "IP_ADDRESS")]
-    #[serde(serialize_with = "serialize_dns")]
-    // TODO: use `Dns` directly if clap ever supports custom collections (https://github.com/clap-rs/clap/issues/3114).
-    dns: Vec<DnsEntry>,
 
     /// Set custom DNS options.
     ///
@@ -415,11 +419,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
-}
-
-/// Serialize the `dns` field of [`PodmanArgs`] as [`Dns`].
-fn serialize_dns<S: Serializer>(dns: &[DnsEntry], serializer: S) -> Result<S::Ok, S::Error> {
-    dns.iter().copied().collect::<Dns>().serialize(serializer)
 }
 
 impl Display for PodmanArgs {
