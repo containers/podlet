@@ -71,6 +71,14 @@ impl From<Pod> for quadlet::Resource {
 #[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
+    /// Add a custom host-to-IP mapping.
+    ///
+    /// Converts to "AddHost=HOST:IP".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "HOST:IP")]
+    add_host: Vec<String>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -149,6 +157,7 @@ pub struct Create {
 impl From<Create> for quadlet::Pod {
     fn from(
         Create {
+            add_host,
             network,
             network_alias,
             name_flag: pod_name,
@@ -162,6 +171,7 @@ impl From<Create> for quadlet::Pod {
         let podman_args = podman_args.to_string();
 
         Self {
+            add_host,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -176,12 +186,6 @@ impl From<Create> for quadlet::Pod {
 #[derive(Args, Serialize, Debug, SmartDefault, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
-    /// Add a custom host-to-IP mapping.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "HOST:IP")]
-    add_host: Vec<String>,
-
     /// Block IO relative weight, between 10 and 1000.
     #[arg(long, value_name = "WEIGHT", value_parser = blkio_weight_parser())]
     blkio_weight: Option<Weight>,

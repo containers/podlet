@@ -8,6 +8,9 @@ use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, c
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Pod {
+    /// Add host-to-IP mapping to `/etc/hosts`.
+    pub add_host: Vec<String>,
+
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
@@ -39,6 +42,10 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 {
+            self.remove_v5_3_options();
+        }
+
         if version < PodmanVersion::V5_2 {
             for network_alias in std::mem::take(&mut self.network_alias) {
                 self.push_arg("network-alias", &network_alias);
@@ -57,6 +64,13 @@ impl Downgrade for Pod {
 }
 
 impl Pod {
+    /// Remove Quadlet options added in Podman v5.3.0.
+    fn remove_v5_3_options(&mut self) {
+        for add_host in std::mem::take(&mut self.add_host) {
+            self.push_arg("add-host", &add_host);
+        }
+    }
+
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_with(String::new);
@@ -66,6 +80,12 @@ impl Pod {
         podman_args.push_str("--");
         podman_args.push_str(flag);
         podman_args.push(' ');
-        podman_args.push_str(arg);
+        if arg.contains(char::is_whitespace) {
+            podman_args.push('"');
+            podman_args.push_str(arg);
+            podman_args.push('"');
+        } else {
+            podman_args.push_str(arg);
+        }
     }
 }
