@@ -104,6 +104,9 @@ pub struct Container {
     /// Set an interval for the healthchecks.
     pub health_interval: Option<String>,
 
+    /// Set the destination of the health check log
+    pub health_log_destination: Option<String>,
+
     /// Action to take once the container transitions to an unhealthy state.
     pub health_on_failure: Option<String>,
 
@@ -293,6 +296,14 @@ pub struct Container {
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
         if version < PodmanVersion::V5_3 {
+            if let Some(health_log_destination) = self.health_log_destination.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "HealthLogDestination",
+                    value: health_log_destination,
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
             self.remove_v5_3_options();
         }
 
@@ -320,7 +331,7 @@ impl Downgrade for Container {
             if let Some(pod) = self.pod.take() {
                 return Err(DowngradeError::Option {
                     quadlet_option: "Pod",
-                    value: pod.clone(),
+                    value: pod,
                     supported_version: PodmanVersion::V5_0,
                 });
             }
