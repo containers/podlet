@@ -89,6 +89,14 @@ pub struct Create {
     // (https://github.com/clap-rs/clap/issues/3114).
     dns: Vec<DnsEntry>,
 
+    /// Set custom DNS options.
+    ///
+    /// Converts to "DNSOption=OPTION".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "OPTION")]
+    dns_option: Vec<String>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -169,6 +177,7 @@ impl From<Create> for quadlet::Pod {
         Create {
             add_host,
             dns,
+            dns_option,
             network,
             network_alias,
             name_flag: pod_name,
@@ -184,6 +193,7 @@ impl From<Create> for quadlet::Pod {
         Self {
             add_host,
             dns: dns.into(),
+            dns_option,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -245,12 +255,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "PATH:RATE")]
     device_write_bps: Vec<String>,
-
-    /// Set custom DNS options.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "OPTION")]
-    dns_option: Vec<String>,
 
     /// Set custom DNS search domains.
     ///
