@@ -190,6 +190,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "DIRECTORY_PATH")]
     health_log_destination: Option<String>,
 
+    /// Set maximum number of attempts in the health check log file
+    ///
+    /// Converts to "HealthMaxLogCount=NUMBER_OF_STORED_LOGS"
+    #[arg(long, value_name = "NUMBER_OF_STORED_LOGS")]
+    health_max_log_count: Option<u64>,
+
     /// Action to take once the container transitions to an unhealthy state
     ///
     /// Converts to "HealthOnFailure=ACTION"
@@ -518,6 +524,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_cmd,
             health_interval,
             health_log_destination,
+            health_max_log_count,
             health_on_failure,
             health_retries,
             health_start_period,
@@ -595,6 +602,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_cmd,
             health_interval,
             health_log_destination,
+            health_max_log_count,
             health_on_failure,
             health_retries,
             health_start_period,

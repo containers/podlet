@@ -107,6 +107,9 @@ pub struct Container {
     /// Set the destination of the health check log
     pub health_log_destination: Option<String>,
 
+    /// Set maximum number of attempts in the health check log file
+    pub health_max_log_count: Option<u64>,
+
     /// Action to take once the container transitions to an unhealthy state.
     pub health_on_failure: Option<String>,
 
@@ -300,6 +303,14 @@ impl Downgrade for Container {
                 return Err(DowngradeError::Option {
                     quadlet_option: "HealthLogDestination",
                     value: health_log_destination,
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            if let Some(health_max_log_count) = self.health_max_log_count.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "HealthMaxLogCount",
+                    value: health_max_log_count.to_string(),
                     supported_version: PodmanVersion::V5_3,
                 });
             }
