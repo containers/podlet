@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, container::Volume};
+use super::{
+    Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
+    container::{Dns, Volume},
+};
 
 /// Options for the \[Pod\] section of a `.pod` Quadlet file.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
@@ -10,6 +13,10 @@ use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, c
 pub struct Pod {
     /// Add host-to-IP mapping to `/etc/hosts`.
     pub add_host: Vec<String>,
+
+    /// Set network-scoped DNS resolver/nameserver for containers in this pod.
+    #[serde(rename = "DNS")]
+    pub dns: Dns,
 
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
@@ -68,6 +75,15 @@ impl Pod {
     fn remove_v5_3_options(&mut self) {
         for add_host in std::mem::take(&mut self.add_host) {
             self.push_arg("add-host", &add_host);
+        }
+
+        match std::mem::take(&mut self.dns) {
+            Dns::None => self.push_arg("dns", "none"),
+            Dns::Custom(ip_addrs) => {
+                for ip_addr in ip_addrs {
+                    self.push_arg("dns", &ip_addr.to_string());
+                }
+            }
         }
     }
 
