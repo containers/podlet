@@ -184,6 +184,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "INTERVAL")]
     health_interval: Option<String>,
 
+    /// Set the destination of the health check log
+    ///
+    /// Converts to "HealthLogDestination=DIRECTORY_PATH"
+    #[arg(long, value_name = "DIRECTORY_PATH")]
+    health_log_destination: Option<String>,
+
     /// Action to take once the container transitions to an unhealthy state
     ///
     /// Converts to "HealthOnFailure=ACTION"
@@ -511,6 +517,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             group_add,
             health_cmd,
             health_interval,
+            health_log_destination,
             health_on_failure,
             health_retries,
             health_start_period,
@@ -587,6 +594,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             group_add,
             health_cmd,
             health_interval,
+            health_log_destination,
             health_on_failure,
             health_retries,
             health_start_period,
