@@ -18,6 +18,10 @@ pub struct Pod {
     #[serde(rename = "DNS")]
     pub dns: Dns,
 
+    /// Set custom DNS options.
+    #[serde(rename = "DNSOption")]
+    pub dns_option: Vec<String>,
+
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
@@ -84,6 +88,10 @@ impl Pod {
                     self.push_arg("dns", &ip_addr.to_string());
                 }
             }
+        }
+
+        for dns_option in std::mem::take(&mut self.dns_option) {
+            self.push_arg("dns-option", &dns_option);
         }
     }
 
