@@ -196,6 +196,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NUMBER_OF_STORED_LOGS")]
     health_max_log_count: Option<u64>,
 
+    /// Set maximum length in characters of stored health check log
+    ///
+    /// Converts to "HealthMaxLogSize=SIZE_OF_STORED_LOGS"
+    #[arg(long, value_name = "SIZE_OF_STORED_LOGS")]
+    health_max_log_size: Option<u64>,
+
     /// Action to take once the container transitions to an unhealthy state
     ///
     /// Converts to "HealthOnFailure=ACTION"
@@ -525,6 +531,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_interval,
             health_log_destination,
             health_max_log_count,
+            health_max_log_size,
             health_on_failure,
             health_retries,
             health_start_period,
@@ -603,6 +610,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_interval,
             health_log_destination,
             health_max_log_count,
+            health_max_log_size,
             health_on_failure,
             health_retries,
             health_start_period,
