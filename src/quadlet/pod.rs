@@ -22,6 +22,10 @@ pub struct Pod {
     #[serde(rename = "DNSOption")]
     pub dns_option: Vec<String>,
 
+    /// Set custom DNS search domains.
+    #[serde(rename = "DNSSearch")]
+    pub dns_search: Vec<String>,
+
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
@@ -92,6 +96,10 @@ impl Pod {
 
         for dns_option in std::mem::take(&mut self.dns_option) {
             self.push_arg("dns-option", &dns_option);
+        }
+
+        for dns_search in std::mem::take(&mut self.dns_search) {
+            self.push_arg("dns-search", &dns_search);
         }
     }
 

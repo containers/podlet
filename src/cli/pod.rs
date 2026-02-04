@@ -97,6 +97,14 @@ pub struct Create {
     #[arg(long, value_name = "OPTION")]
     dns_option: Vec<String>,
 
+    /// Set custom DNS search domains.
+    ///
+    /// Converts to "DNSSearch=DOMAIN".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "DOMAIN")]
+    dns_search: Vec<String>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -178,6 +186,7 @@ impl From<Create> for quadlet::Pod {
             add_host,
             dns,
             dns_option,
+            dns_search,
             network,
             network_alias,
             name_flag: pod_name,
@@ -194,6 +203,7 @@ impl From<Create> for quadlet::Pod {
             add_host,
             dns: dns.into(),
             dns_option,
+            dns_search,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -255,12 +265,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "PATH:RATE")]
     device_write_bps: Vec<String>,
-
-    /// Set custom DNS search domains.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "DOMAIN")]
-    dns_search: Vec<String>,
 
     /// Set the exit policy of the pod when the last container exits.
     ///
