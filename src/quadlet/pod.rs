@@ -72,6 +72,10 @@ pub struct Pod {
     #[serde(rename = "UIDMap")]
     pub uid_map: Vec<String>,
 
+    /// Set the user namespace mode for the pod.
+    #[serde(rename = "UserNS")]
+    pub user_ns: Option<String>,
+
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
 }
@@ -151,6 +155,10 @@ impl Pod {
 
         for uidmap in std::mem::take(&mut self.uid_map) {
             self.push_arg("uidmap", &uidmap);
+        }
+
+        if let Some(userns) = self.user_ns.take() {
+            self.push_arg("userns", &userns);
         }
     }
 
