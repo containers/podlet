@@ -60,6 +60,10 @@ pub struct Pod {
     /// Exposes a port, or a range of ports, from the pod to the host.
     pub publish_port: Vec<String>,
 
+    /// Create the pod in a new user namespace using the map with name in the `/etc/subgid` file.
+    #[serde(rename = "SubGIDMap")]
+    pub sub_gid_map: Option<String>,
+
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
 }
@@ -127,6 +131,10 @@ impl Pod {
 
         if let Some(ip6) = self.ip6.take() {
             self.push_arg("ip6", &ip6.to_string());
+        }
+
+        if let Some(subgidname) = self.sub_gid_map.take() {
+            self.push_arg("subgidname", &subgidname);
         }
     }
 
