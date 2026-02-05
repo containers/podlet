@@ -26,6 +26,10 @@ pub struct Pod {
     #[serde(rename = "DNSSearch")]
     pub dns_search: Vec<String>,
 
+    /// GID map for the user namespace.
+    #[serde(rename = "GIDMap")]
+    pub gid_map: Vec<String>,
+
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
@@ -100,6 +104,10 @@ impl Pod {
 
         for dns_search in std::mem::take(&mut self.dns_search) {
             self.push_arg("dns-search", &dns_search);
+        }
+
+        for gidmap in std::mem::take(&mut self.gid_map) {
+            self.push_arg("gidmap", &gidmap);
         }
     }
 
