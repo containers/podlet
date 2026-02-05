@@ -547,7 +547,7 @@ impl Display for PodmanVersion {
 /// Error returned when [downgrading](Downgrade::downgrade()) a Quadlet file fails.
 #[derive(Error, Debug)]
 pub enum DowngradeError {
-    /// Unsupported Quadlet option used
+    /// Unsupported Quadlet option used.
     #[error(
         "Quadlet option `{quadlet_option}={value}` was not \
         supported until Podman v{supported_version}"
@@ -557,7 +557,18 @@ pub enum DowngradeError {
         value: String,
         supported_version: PodmanVersion,
     },
-    /// Unsupported Quadlet kind
+
+    /// Quadlet option set multiple times before supported.
+    #[error(
+        "Quadlet option `{quadlet_option}=` could not be set multiple \
+        times until Podman v{supported_version}"
+    )]
+    Multiple {
+        quadlet_option: &'static str,
+        supported_version: PodmanVersion,
+    },
+
+    /// Unsupported Quadlet kind.
     #[error("`.{kind}` Quadlet files were not supported until Podman v{supported_version}")]
     Kind {
         kind: ResourceKind,
