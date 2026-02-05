@@ -1,4 +1,7 @@
-use std::{net::Ipv4Addr, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    path::PathBuf,
+};
 
 use serde::Serialize;
 
@@ -33,6 +36,10 @@ pub struct Pod {
     /// Specify a static IPv4 address for the pod.
     #[serde(rename = "IP")]
     pub ip: Option<Ipv4Addr>,
+
+    /// Specify a static IPv6 address for the pod.
+    #[serde(rename = "IP6")]
+    pub ip6: Option<Ipv6Addr>,
 
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
@@ -116,6 +123,10 @@ impl Pod {
 
         if let Some(ip) = self.ip.take() {
             self.push_arg("ip", &ip.to_string());
+        }
+
+        if let Some(ip6) = self.ip6.take() {
+            self.push_arg("ip6", &ip6.to_string());
         }
     }
 
