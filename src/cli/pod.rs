@@ -190,6 +190,18 @@ pub struct Create {
     #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "uidmap"])]
     subuidname: Option<String>,
 
+    /// Run all containers in the pod in a new user namespace using the supplied mapping.
+    ///
+    /// Converts to "UIDMap=CONTAINER_UID:FROM_UID[:AMOUNT]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(
+        long,
+        value_name = "CONTAINER_UID:FROM_UID[:AMOUNT]",
+        conflicts_with_all = ["userns", "subuidname"],
+    )]
+    uidmap: Vec<String>,
+
     /// Mount a volume in the pod.
     ///
     /// Converts to "Volume=[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]".
@@ -232,6 +244,7 @@ impl From<Create> for quadlet::Pod {
             publish: publish_port,
             subgidname,
             subuidname,
+            uidmap,
             volume,
             podman_args,
             // Only set `PodName=` Quadlet option when `--name` is used.
@@ -255,6 +268,7 @@ impl From<Create> for quadlet::Pod {
             publish_port,
             sub_gid_map: subgidname,
             sub_uid_map: subuidname,
+            uid_map: uidmap,
             volume,
         }
     }
@@ -423,16 +437,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "NAME=VALUE")]
     sysctl: Vec<String>,
-
-    /// Run all containers in the pod in a new user namespace using the supplied mapping.
-    ///
-    /// Can be specified multiple times.
-    #[arg(
-        long,
-        value_name = "CONTAINER_UID:FROM_UID[:AMOUNT]",
-        conflicts_with_all = ["userns", "subuidname"]
-    )]
-    uidmap: Vec<String>,
 
     /// Set the user namespace mode for all the containers in the pod.
     #[arg(long, value_name = "MODE")]
