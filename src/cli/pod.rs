@@ -202,6 +202,12 @@ pub struct Create {
     )]
     uidmap: Vec<String>,
 
+    /// Set the user namespace mode for all the containers in the pod.
+    ///
+    /// Converts to "UserNS=MODE".
+    #[arg(long, value_name = "MODE")]
+    userns: Option<String>,
+
     /// Mount a volume in the pod.
     ///
     /// Converts to "Volume=[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]".
@@ -245,6 +251,7 @@ impl From<Create> for quadlet::Pod {
             subgidname,
             subuidname,
             uidmap,
+            userns,
             volume,
             podman_args,
             // Only set `PodName=` Quadlet option when `--name` is used.
@@ -269,6 +276,7 @@ impl From<Create> for quadlet::Pod {
             sub_gid_map: subgidname,
             sub_uid_map: subuidname,
             uid_map: uidmap,
+            user_ns: userns,
             volume,
         }
     }
@@ -437,10 +445,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "NAME=VALUE")]
     sysctl: Vec<String>,
-
-    /// Set the user namespace mode for all the containers in the pod.
-    #[arg(long, value_name = "MODE")]
-    userns: Option<String>,
 
     /// Set the UTS namespace mode for the pod.
     #[arg(long, value_name = "MODE")]
