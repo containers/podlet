@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{net::Ipv4Addr, path::PathBuf};
 
 use serde::Serialize;
 
@@ -29,6 +29,10 @@ pub struct Pod {
     /// GID map for the user namespace.
     #[serde(rename = "GIDMap")]
     pub gid_map: Vec<String>,
+
+    /// Specify a static IPv4 address for the pod.
+    #[serde(rename = "IP")]
+    pub ip: Option<Ipv4Addr>,
 
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
@@ -108,6 +112,10 @@ impl Pod {
 
         for gidmap in std::mem::take(&mut self.gid_map) {
             self.push_arg("gidmap", &gidmap);
+        }
+
+        if let Some(ip) = self.ip.take() {
+            self.push_arg("ip", &ip.to_string());
         }
     }
 
