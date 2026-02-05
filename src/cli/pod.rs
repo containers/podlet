@@ -178,6 +178,12 @@ pub struct Create {
     )]
     publish: Vec<String>,
 
+    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
+    ///
+    /// Converts to "SubGIDMap=NAME".
+    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "gidmap"])]
+    subgidname: Option<String>,
+
     /// Mount a volume in the pod.
     ///
     /// Converts to "Volume=[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]".
@@ -218,6 +224,7 @@ impl From<Create> for quadlet::Pod {
             network_alias,
             name_flag: pod_name,
             publish: publish_port,
+            subgidname,
             volume,
             podman_args,
             // Only set `PodName=` Quadlet option when `--name` is used.
@@ -239,6 +246,7 @@ impl From<Create> for quadlet::Pod {
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pod_name,
             publish_port,
+            sub_gid_map: subgidname,
             volume,
         }
     }
@@ -401,10 +409,6 @@ struct PodmanArgs {
     /// Size of systemd-specific tmpfs mounts.
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size_systemd: Option<String>,
-
-    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
-    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "gidmap"])]
-    subgidname: Option<String>,
 
     /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subuid` file.
     #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "uidmap"])]
