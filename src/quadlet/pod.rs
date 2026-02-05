@@ -68,6 +68,10 @@ pub struct Pod {
     #[serde(rename = "SubUIDMap")]
     pub sub_uid_map: Option<String>,
 
+    /// UID map for the user namespace.
+    #[serde(rename = "UIDMap")]
+    pub uid_map: Vec<String>,
+
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
 }
@@ -143,6 +147,10 @@ impl Pod {
 
         if let Some(subuidname) = self.sub_uid_map.take() {
             self.push_arg("subuidname", &subuidname);
+        }
+
+        for uidmap in std::mem::take(&mut self.uid_map) {
+            self.push_arg("uidmap", &uidmap);
         }
     }
 
