@@ -117,6 +117,12 @@ pub struct Create {
     )]
     gidmap: Vec<String>,
 
+    /// Specify a static IPv4 address for the pod.
+    ///
+    /// Converts to "IP=IPV4".
+    #[arg(long, value_name = "IPV4")]
+    ip: Option<Ipv4Addr>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -200,6 +206,7 @@ impl From<Create> for quadlet::Pod {
             dns_option,
             dns_search,
             gidmap,
+            ip,
             network,
             network_alias,
             name_flag: pod_name,
@@ -218,6 +225,7 @@ impl From<Create> for quadlet::Pod {
             dns_option,
             dns_search,
             gid_map: gidmap,
+            ip,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -319,10 +327,6 @@ struct PodmanArgs {
     /// Name used for the pod's infra container.
     #[arg(long, value_name = "NAME")]
     infra_name: Option<String>,
-
-    /// Specify a static IPv4 address for the pod.
-    #[arg(long, value_name = "IPV4")]
-    ip: Option<Ipv4Addr>,
 
     /// Specify a static IPv6 address for the pod.
     #[arg(long, value_name = "IPV6")]
