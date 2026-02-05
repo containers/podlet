@@ -105,6 +105,18 @@ pub struct Create {
     #[arg(long, value_name = "DOMAIN")]
     dns_search: Vec<String>,
 
+    /// GID map for the user namespace.
+    ///
+    /// Converts to "GIDMap=POD_GID:HOST_GID[:AMOUNT]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(
+        long,
+        value_name = "POD_GID:HOST_GID[:AMOUNT]",
+        conflicts_with_all = ["userns", "subgidname"],
+    )]
+    gidmap: Vec<String>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -187,6 +199,7 @@ impl From<Create> for quadlet::Pod {
             dns,
             dns_option,
             dns_search,
+            gidmap,
             network,
             network_alias,
             name_flag: pod_name,
@@ -204,6 +217,7 @@ impl From<Create> for quadlet::Pod {
             dns: dns.into(),
             dns_option,
             dns_search,
+            gid_map: gidmap,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -272,16 +286,6 @@ struct PodmanArgs {
     #[arg(long, value_enum, default_value_t)]
     #[serde(skip)]
     exit_policy: ExitPolicy,
-
-    /// GID map for the user namespace.
-    ///
-    /// Can be specified multiple times
-    #[arg(
-        long,
-        value_name = "POD_GID:HOST_GID[:AMOUNT]",
-        conflicts_with_all = ["userns", "subgidname"]
-    )]
-    gidmap: Vec<String>,
 
     /// GPU devices to add to the pod (`all` to pass all GPUs).
     ///
