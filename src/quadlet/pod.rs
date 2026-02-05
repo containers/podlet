@@ -64,6 +64,10 @@ pub struct Pod {
     #[serde(rename = "SubGIDMap")]
     pub sub_gid_map: Option<String>,
 
+    /// Create the pod in a new user namespace using the map with name in the `/etc/subuid` file.
+    #[serde(rename = "SubUIDMap")]
+    pub sub_uid_map: Option<String>,
+
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
 }
@@ -135,6 +139,10 @@ impl Pod {
 
         if let Some(subgidname) = self.sub_gid_map.take() {
             self.push_arg("subgidname", &subgidname);
+        }
+
+        if let Some(subuidname) = self.sub_uid_map.take() {
+            self.push_arg("subuidname", &subuidname);
         }
     }
 
