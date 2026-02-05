@@ -5,7 +5,10 @@ use std::{
 };
 
 use clap::{ArgAction, Args};
-use color_eyre::eyre::{OptionExt, WrapErr, bail, ensure, eyre};
+use color_eyre::{
+    Section,
+    eyre::{WrapErr, bail, ensure, eyre},
+};
 use compose_spec::{
     ShortOrLong,
     service::{
@@ -117,9 +120,11 @@ pub struct Build {
     ///
     /// Converts to "ImageTag=IMAGE_NAME".
     ///
-    /// This option is required by Quadlet.
-    #[arg(short, long, value_name = "IMAGE_NAME")]
-    tag: String,
+    /// At least one tag is required by Quadlet.
+    ///
+    /// Can be specified multiple times.
+    #[arg(short, long, value_name = "IMAGE_NAME", required = true)]
+    tag: Vec<String>,
 
     /// Add an image label (e.g. label=value) to the image metadata.
     ///
@@ -195,7 +200,7 @@ pub struct Build {
 impl Build {
     /// The name (without extension) of the generated Quadlet file.
     pub fn name(&self) -> &str {
-        image_to_name(&self.tag)
+        image_to_name(self.tag.first().expect("at least one tag"))
     }
 }
 
@@ -354,19 +359,14 @@ impl TryFrom<service::Build> for Build {
             ..PodmanArgs::default()
         };
 
-        let mut tags = tags.into_iter();
-        let tag = tags
-            .next()
-            .ok_or_eyre("an image tag is required")?
-            .into_inner();
-        ensure!(
-            tags.next().is_none(),
-            "Quadlet only supports setting a single tag"
-        );
+        if tags.is_empty() {
+            return Err(eyre!("at least one image tag is required")
+                .suggestion("add a `tags` list to the `build` section"));
+        }
 
         Ok(Self {
             file,
-            tag,
+            tag: tags.into_iter().map(Into::into).collect(),
             label: labels.into_list().into_iter().collect(),
             network: network.map(Into::into).into_iter().collect(),
             pull: pull.then_some(PullPolicy::Always),
