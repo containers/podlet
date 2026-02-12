@@ -170,6 +170,18 @@ pub struct Cli {
     #[arg(short, long, value_name = "RESOLVE_DIR")]
     absolute_host_paths: Option<Option<PathBuf>>,
 
+    /// Change the name of the systemd service Quadlet generates.
+    ///
+    /// Converts to "ServiceName=SERVICE_NAME".
+    ///
+    /// The name should **not** include the `.service` extension.
+    ///
+    /// Podlet will error if this option is used while creating more than one Quadlet file as
+    /// setting the same service name for multiple files will conflict with each other.
+    #[expect(clippy::doc_markdown, reason = "Quadlet option")]
+    #[arg(long)]
+    service_name: Option<String>,
+
     /// The \[Unit\] section
     #[command(flatten)]
     unit: Unit,
@@ -355,6 +367,30 @@ multiple times.";
         let install = self.install.install.then(|| self.install.into());
 
         let mut files = self.command.try_into_files(self.name, unit, install)?;
+
+        if let Some(service_name) = self.service_name {
+            let mut found_quadlet_file = false;
+            for _ in files
+                .iter()
+                .filter(|file| matches!(file, File::Quadlet(..)))
+            {
+                if found_quadlet_file {
+                    return Err(eyre!(
+                        "cannot set `--service-name` when creating more than one Quadlet file"
+                    ))
+                    .note(
+                        "setting the same service name for multiple Quadlet files will conflict \
+                            with each other",
+                    )
+                    .suggestion("manually set `ServiceName=` Quadlet option in each Quadlet file");
+                }
+                found_quadlet_file = true;
+            }
+
+            if let Some(File::Quadlet(file)) = files.first_mut() {
+                file.globals.service_name = Some(service_name);
+            }
+        }
 
         let downgrade = self.podman_version < PodmanVersion::LATEST;
         if downgrade || resolve_dir.is_some() {
