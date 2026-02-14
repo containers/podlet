@@ -37,11 +37,11 @@ use crate::cli::{service::Service, unit::Unit};
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     pub name: String,
-    pub unit: Option<Unit>,
+    pub unit: Unit,
     pub resource: Resource,
     pub globals: Globals,
-    pub service: Option<Service>,
-    pub install: Option<Install>,
+    pub service: Service,
+    pub install: Install,
 }
 
 impl File {
@@ -76,24 +76,24 @@ impl Serialize for File {
             install,
         } = self;
 
-        let len = usize::from(unit.is_some())
+        let len = usize::from(!unit.is_empty())
             + 1 // resource / globals
-            + usize::from(service.is_some())
-            + usize::from(install.is_some());
+            + usize::from(!service.is_empty())
+            + usize::from(!install.is_empty());
 
         let mut seq = serializer.serialize_seq(Some(len))?;
 
-        if let Some(unit) = unit {
+        if !unit.is_empty() {
             seq.serialize_element(unit)?;
         }
 
         seq.serialize_element(&(resource, globals))?;
 
-        if let Some(service) = service {
+        if !service.is_empty() {
             seq.serialize_element(service)?;
         }
 
-        if let Some(install) = install {
+        if !install.is_empty() {
             seq.serialize_element(install)?;
         }
 

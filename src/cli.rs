@@ -363,10 +363,9 @@ multiple times.";
             .resolve_dir()
             .wrap_err("error with `--absolute-host-paths` resolve directory")?;
 
-        let unit = (!self.unit.is_empty()).then_some(self.unit);
-        let install = self.install.install.then(|| self.install.into());
-
-        let mut files = self.command.try_into_files(self.name, unit, install)?;
+        let mut files = self
+            .command
+            .try_into_files(self.name, self.unit, self.install.into())?;
 
         if let Some(service_name) = self.service_name {
             let mut found_quadlet_file = false;
@@ -481,8 +480,8 @@ impl Commands {
     fn try_into_files(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<quadlet::Install>,
+        unit: Unit,
+        install: quadlet::Install,
     ) -> color_eyre::Result<Vec<File>> {
         match self {
             Self::Podman {
@@ -615,11 +614,11 @@ impl PodmanCommands {
     fn into_quadlet(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
+        unit: Unit,
         globals: Globals,
-        install: Option<quadlet::Install>,
+        install: quadlet::Install,
     ) -> quadlet::File {
-        let service = self.service().cloned();
+        let service = self.service().cloned().unwrap_or_default();
         quadlet::File {
             name: name.unwrap_or_else(|| self.name().into()),
             unit,
@@ -632,7 +631,7 @@ impl PodmanCommands {
 
     fn service(&self) -> Option<&Service> {
         match self {
-            Self::Run { service, .. } => (!service.is_empty()).then_some(service),
+            Self::Run { service, .. } => Some(service),
             _ => None,
         }
     }

@@ -116,8 +116,8 @@ impl Generate {
     pub fn try_into_quadlet_files(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> color_eyre::Result<Vec<quadlet::File>> {
         match self {
             Self::Container { container } => Ok(vec![
@@ -206,8 +206,8 @@ impl ContainerParser {
         self,
         pod: Option<&str>,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> quadlet::File {
         let Self {
             global_args,
@@ -231,7 +231,7 @@ impl ContainerParser {
             unit,
             resource: container.into(),
             globals: global_args.into(),
-            service: (!service.is_empty()).then_some(service),
+            service,
             install,
         }
     }
@@ -360,8 +360,8 @@ impl PodParser {
     fn into_quadlet_files(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> Vec<quadlet::File> {
         let Self {
             global_args,
@@ -386,7 +386,7 @@ impl PodParser {
             unit,
             resource: pod.into(),
             globals: global_args.into(),
-            service: None,
+            service: Service::default(),
             install,
         };
 
@@ -555,8 +555,8 @@ impl NetworkInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> quadlet::File {
         let network = Network::from(self);
         quadlet::File {
@@ -564,7 +564,7 @@ impl NetworkInspect {
             unit,
             resource: network.into(),
             globals: Globals::default(),
-            service: None,
+            service: Service::default(),
             install,
         }
     }
@@ -670,8 +670,8 @@ impl VolumeInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> quadlet::File {
         let volume = Volume::from(self);
         quadlet::File {
@@ -679,7 +679,7 @@ impl VolumeInspect {
             unit,
             resource: volume.into(),
             globals: Globals::default(),
-            service: None,
+            service: Service::default(),
             install,
         }
     }
@@ -740,8 +740,8 @@ impl ImageInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<Install>,
+        unit: Unit,
+        install: Install,
     ) -> quadlet::File {
         let image = Image::from(self);
         quadlet::File {
@@ -749,7 +749,7 @@ impl ImageInspect {
             unit,
             resource: image.into(),
             globals: Globals::default(),
-            service: None,
+            service: Service::default(),
             install,
         }
     }

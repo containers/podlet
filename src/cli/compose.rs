@@ -16,7 +16,10 @@ use compose_spec::{
 };
 use indexmap::IndexMap;
 
-use crate::quadlet::{self, Globals, container::volume::Source};
+use crate::{
+    cli,
+    quadlet::{self, Globals, container::volume::Source},
+};
 
 use super::{Build, Container, File, GlobalArgs, Unit, k8s};
 
@@ -87,8 +90,8 @@ impl Compose {
     /// - Converting the compose file to Quadlet files.
     pub fn try_into_files(
         self,
-        unit: Option<Unit>,
-        install: Option<quadlet::Install>,
+        unit: Unit,
+        install: quadlet::Install,
     ) -> color_eyre::Result<Vec<File>> {
         let Self {
             pod,
@@ -115,7 +118,7 @@ impl Compose {
                 unit,
                 resource: kube.into(),
                 globals: Globals::default(),
-                service: None,
+                service: cli::Service::default(),
                 install,
             };
 
@@ -246,8 +249,8 @@ fn parts_try_into_files(
     networks: Networks,
     volumes: Volumes,
     pod_name: Option<String>,
-    unit: Option<Unit>,
-    install: Option<quadlet::Install>,
+    unit: Unit,
+    install: quadlet::Install,
 ) -> color_eyre::Result<Vec<File>> {
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a Quadlet file. Extra volume options must be specified in a
@@ -266,22 +269,14 @@ fn parts_try_into_files(
     let mut pod_ports = Vec::new();
     let mut files = services_try_into_quadlet_files(
         services,
-        unit.as_ref(),
-        install.as_ref(),
+        &unit,
+        &install,
         &volume_has_options,
         pod_name.as_deref(),
         &mut pod_ports,
     )
-    .chain(networks_try_into_quadlet_files(
-        networks,
-        unit.as_ref(),
-        install.as_ref(),
-    ))
-    .chain(volumes_try_into_quadlet_files(
-        volumes,
-        unit.as_ref(),
-        install.as_ref(),
-    ))
+    .chain(networks_try_into_quadlet_files(networks, &unit, &install))
+    .chain(volumes_try_into_quadlet_files(volumes, &unit, &install))
     .map(|result| result.map(Into::into))
     .collect::<Result<Vec<File>, _>>()?;
 
@@ -295,7 +290,7 @@ fn parts_try_into_files(
             unit,
             resource: pod.into(),
             globals: Globals::default(),
-            service: None,
+            service: cli::Service::default(),
             install,
         };
         files.push(pod.into());
@@ -321,8 +316,8 @@ fn parts_try_into_files(
 /// the [`Service`] into a [`quadlet::Container`] file.
 fn services_try_into_quadlet_files<'a>(
     services: IndexMap<Identifier, Service>,
-    unit: Option<&'a Unit>,
-    install: Option<&'a quadlet::Install>,
+    unit: &'a Unit,
+    install: &'a quadlet::Install,
     volume_has_options: &'a HashMap<Identifier, bool>,
     pod_name: Option<&'a str>,
     pod_ports: &'a mut Vec<String>,
@@ -345,11 +340,11 @@ fn services_try_into_quadlet_files<'a>(
             service.image = Some(image);
             Ok(quadlet::File {
                 name: build.name().to_owned(),
-                unit: unit.cloned(),
+                unit: unit.clone(),
                 resource: build.into(),
                 globals: Globals::default(),
-                service: None,
-                install: install.cloned(),
+                service: cli::Service::default(),
+                install: install.clone(),
             })
         });
         if let Some(result @ Err(_)) = build {
@@ -359,8 +354,8 @@ fn services_try_into_quadlet_files<'a>(
         let container = service_try_into_quadlet_file(
             service,
             name,
-            unit.cloned(),
-            install.cloned(),
+            unit.clone(),
+            install.clone(),
             volume_has_options,
             pod_name,
             pod_ports,
@@ -387,8 +382,8 @@ fn services_try_into_quadlet_files<'a>(
 fn service_try_into_quadlet_file(
     mut service: Service,
     name: Identifier,
-    mut unit: Option<Unit>,
-    install: Option<quadlet::Install>,
+    mut unit: Unit,
+    install: quadlet::Install,
     volume_has_options: &HashMap<Identifier, bool>,
     pod_name: Option<&str>,
     pod_ports: &mut Vec<String>,
@@ -396,7 +391,6 @@ fn service_try_into_quadlet_file(
     // Add any service dependencies to the [Unit] section of the Quadlet file.
     let dependencies = mem::take(&mut service.depends_on).into_long();
     if !dependencies.is_empty() {
-        let unit = unit.get_or_insert_with(Unit::default);
         for (ident, dependency) in dependencies {
             unit.add_dependency(
                 pod_name.map_or_else(
@@ -447,7 +441,7 @@ fn service_try_into_quadlet_file(
         unit,
         resource: container.into(),
         globals: global_args.into(),
-        service: restart.map(Into::into),
+        service: restart.map(Into::into).unwrap_or_default(),
         install,
     })
 }
@@ -460,8 +454,8 @@ fn service_try_into_quadlet_file(
 /// [`quadlet::Network`].
 fn networks_try_into_quadlet_files<'a>(
     networks: Networks,
-    unit: Option<&'a Unit>,
-    install: Option<&'a quadlet::Install>,
+    unit: &'a Unit,
+    install: &'a quadlet::Install,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
     networks.into_iter().map(move |(name, network)| {
         let network = match network {
@@ -477,11 +471,11 @@ fn networks_try_into_quadlet_files<'a>(
 
         Ok(quadlet::File {
             name: name.into(),
-            unit: unit.cloned(),
+            unit: unit.clone(),
             resource: network.into(),
             globals: Globals::default(),
-            service: None,
-            install: install.cloned(),
+            service: cli::Service::default(),
+            install: install.clone(),
         })
     })
 }
@@ -497,8 +491,8 @@ fn networks_try_into_quadlet_files<'a>(
 /// to a [`quadlet::Volume`].
 fn volumes_try_into_quadlet_files<'a>(
     volumes: Volumes,
-    unit: Option<&'a Unit>,
-    install: Option<&'a quadlet::Install>,
+    unit: &'a Unit,
+    install: &'a quadlet::Install,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
     volumes.into_iter().filter_map(move |(name, volume)| {
         volume.and_then(|volume| match volume {
@@ -509,11 +503,11 @@ fn volumes_try_into_quadlet_files<'a>(
                     })
                     .map(|volume| quadlet::File {
                         name: name.into(),
-                        unit: unit.cloned(),
+                        unit: unit.clone(),
                         resource: volume.into(),
                         globals: Globals::default(),
-                        service: None,
-                        install: install.cloned(),
+                        service: cli::Service::default(),
+                        install: install.clone(),
                     })
             }),
             Resource::External { .. } => {
