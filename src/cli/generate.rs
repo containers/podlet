@@ -24,11 +24,10 @@ use serde::{
     de::{self, DeserializeOwned, MapAccess, SeqAccess, Visitor, value::MapAccessDeserializer},
 };
 
-use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind};
+use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind, Service, Unit};
 
 use super::{
-    Container, Image, Network, Pod, Volume, global_args::GlobalArgs, image, network,
-    service::Service, unit::Unit, volume,
+    Container, Image, Network, Pod, Volume, global_args::GlobalArgs, image, network, volume,
 };
 
 /// [`Subcommand`] for `podlet generate`

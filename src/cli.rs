@@ -9,8 +9,6 @@ mod k8s;
 mod kube;
 mod network;
 mod pod;
-pub mod service;
-pub mod unit;
 pub mod volume;
 
 #[cfg(unix)]
@@ -35,13 +33,13 @@ use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
 use crate::quadlet::{
-    self, Downgrade, DowngradeError, Globals, HostPaths, JoinOption, PodmanVersion,
+    self, Downgrade, DowngradeError, Globals, HostPaths, JoinOption, PodmanVersion, Service, Unit,
 };
 
 use self::{
     build::Build, compose::Compose, container::Container, generate::Generate,
     global_args::GlobalArgs, image::Image, install::Install, kube::Kube, network::Network,
-    pod::Pod, service::Service, unit::Unit, volume::Volume,
+    pod::Pod, volume::Volume,
 };
 
 #[allow(clippy::option_option)]

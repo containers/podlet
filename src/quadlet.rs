@@ -6,6 +6,8 @@ mod install;
 pub mod kube;
 mod network;
 mod pod;
+mod service;
+mod unit;
 mod volume;
 
 use std::{
@@ -30,9 +32,10 @@ pub use self::{
     kube::Kube,
     network::{IpRange, Network},
     pod::Pod,
+    service::Service,
+    unit::Unit,
     volume::Volume,
 };
-use crate::cli::{service::Service, unit::Unit};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {

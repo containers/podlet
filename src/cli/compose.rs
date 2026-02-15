@@ -16,10 +16,7 @@ use compose_spec::{
 };
 use indexmap::IndexMap;
 
-use crate::{
-    cli,
-    quadlet::{self, Globals, container::volume::Source},
-};
+use crate::quadlet::{self, Globals, container::volume::Source};
 
 use super::{Build, Container, File, GlobalArgs, Unit, k8s};
 
@@ -118,7 +115,7 @@ impl Compose {
                 unit,
                 resource: kube.into(),
                 globals: Globals::default(),
-                service: cli::Service::default(),
+                service: quadlet::Service::default(),
                 install,
             };
 
@@ -290,7 +287,7 @@ fn parts_try_into_files(
             unit,
             resource: pod.into(),
             globals: Globals::default(),
-            service: cli::Service::default(),
+            service: quadlet::Service::default(),
             install,
         };
         files.push(pod.into());
@@ -343,7 +340,7 @@ fn services_try_into_quadlet_files<'a>(
                 unit: unit.clone(),
                 resource: build.into(),
                 globals: Globals::default(),
-                service: cli::Service::default(),
+                service: quadlet::Service::default(),
                 install: install.clone(),
             })
         });
@@ -474,7 +471,7 @@ fn networks_try_into_quadlet_files<'a>(
             unit: unit.clone(),
             resource: network.into(),
             globals: Globals::default(),
-            service: cli::Service::default(),
+            service: quadlet::Service::default(),
             install: install.clone(),
         })
     })
@@ -506,7 +503,7 @@ fn volumes_try_into_quadlet_files<'a>(
                         unit: unit.clone(),
                         resource: volume.into(),
                         globals: Globals::default(),
-                        service: cli::Service::default(),
+                        service: quadlet::Service::default(),
                         install: install.clone(),
                     })
             }),
