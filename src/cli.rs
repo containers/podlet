@@ -203,6 +203,14 @@ pub struct Cli {
     #[arg(long)]
     disable_default_quadlet_dependencies: bool,
 
+    /// Do not start container units with their associated pod.
+    ///
+    /// By default, container units are started alongside the pod.
+    ///
+    /// Converts to "StartWithPod=false" in the `[Container]` section.
+    #[arg(long)]
+    no_start_with_pod: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -411,10 +419,14 @@ multiple times.";
         }
 
         let downgrade = self.podman_version < PodmanVersion::LATEST;
-        if downgrade || resolve_dir.is_some() {
+        if resolve_dir.is_some() || self.no_start_with_pod || downgrade {
             for file in &mut files {
                 if let Some(resolve_dir) = &resolve_dir {
                     file.absolutize_host_paths(resolve_dir);
+                }
+
+                if self.no_start_with_pod {
+                    file.set_start_with_pod(false);
                 }
 
                 if downgrade {
@@ -719,6 +731,13 @@ impl File {
         match self {
             Self::Quadlet(file) => Some(file),
             Self::Kubernetes(_) => None,
+        }
+    }
+
+    /// If this [`File`] is a Quadlet container unit, set the `StartWithPod=` Quadlet option.
+    fn set_start_with_pod(&mut self, start_with_pod: bool) {
+        if let Self::Quadlet(file) = self {
+            file.set_start_with_pod(start_with_pod);
         }
     }
 

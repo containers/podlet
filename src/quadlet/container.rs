@@ -248,6 +248,11 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Start the container after the associated pod is created. Default is `true`.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub start_with_pod: bool,
+
     /// Signal to stop a container.
     pub stop_signal: Option<String>,
 
@@ -322,6 +327,14 @@ impl Downgrade for Container {
                 return Err(DowngradeError::Option {
                     quadlet_option: "HealthMaxLogSize",
                     value: health_max_log_size.to_string(),
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            if !self.start_with_pod {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "StartWithPod",
+                    value: "false".to_owned(),
                     supported_version: PodmanVersion::V5_3,
                 });
             }

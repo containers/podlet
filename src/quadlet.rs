@@ -82,6 +82,13 @@ impl File {
     ) -> Result<String, crate::serde::quadlet::Error> {
         crate::serde::quadlet::to_string(self, join_options)
     }
+
+    /// If this Quadlet [`File`] is a [`Container`] unit, set the `StartWithPod=` Quadlet option.
+    pub fn set_start_with_pod(&mut self, start_with_pod: bool) {
+        if let Resource::Container(container) = &mut self.resource {
+            container.start_with_pod = start_with_pod;
+        }
+    }
 }
 
 impl Serialize for File {
