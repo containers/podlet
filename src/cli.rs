@@ -33,7 +33,8 @@ use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
 use crate::quadlet::{
-    self, Downgrade, DowngradeError, Globals, HostPaths, JoinOption, PodmanVersion, Service, Unit,
+    self, Downgrade, DowngradeError, GenericSections, Globals, HostPaths, JoinOption,
+    PodmanVersion, Quadlet, Service, Unit,
 };
 
 use self::{
@@ -42,7 +43,11 @@ use self::{
     pod::Pod, volume::Volume,
 };
 
-#[allow(clippy::option_option)]
+#[expect(
+    clippy::option_option,
+    clippy::struct_excessive_bools,
+    reason = "CLI args"
+)]
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about, subcommand_precedence_over_arg = true)]
 pub struct Cli {
@@ -187,6 +192,16 @@ pub struct Cli {
     /// The \[Install\] section
     #[command(flatten)]
     install: Install,
+
+    /// Disable Quadlet's default network dependencies.
+    ///
+    /// By default, Quadlet adds a dependency on `network-online.target` (for system units) or
+    /// `podman-user-wait-network-online.service` (for user units) to the generated unit. Using this
+    /// flag will disable the dependencies.
+    ///
+    /// Converts to "DefaultDependencies=false" in the `[Quadlet]` section.
+    #[arg(long)]
+    disable_default_quadlet_dependencies: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -361,9 +376,15 @@ multiple times.";
             .resolve_dir()
             .wrap_err("error with `--absolute-host-paths` resolve directory")?;
 
-        let mut files = self
-            .command
-            .try_into_files(self.name, self.unit, self.install.into())?;
+        let sections = GenericSections {
+            unit: self.unit,
+            quadlet: Quadlet {
+                default_dependencies: !self.disable_default_quadlet_dependencies,
+            },
+            install: self.install.into(),
+        };
+
+        let mut files = self.command.try_into_files(self.name, sections)?;
 
         if let Some(service_name) = self.service_name {
             let mut found_quadlet_file = false;
@@ -478,8 +499,7 @@ impl Commands {
     fn try_into_files(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: quadlet::Install,
+        sections: GenericSections,
     ) -> color_eyre::Result<Vec<File>> {
         match self {
             Self::Podman {
@@ -487,14 +507,14 @@ impl Commands {
                 command,
             } => Ok(vec![
                 command
-                    .into_quadlet(name, unit, (*global_args).into(), install)
+                    .into_quadlet(name, sections, (*global_args).into())
                     .into(),
             ]),
             Self::Compose(compose) => compose
-                .try_into_files(unit, install)
+                .try_into_files(sections)
                 .wrap_err("error converting compose file"),
             Self::Generate(command) => Ok(command
-                .try_into_quadlet_files(name, unit, install)
+                .try_into_quadlet_files(name, sections)
                 .wrap_err("error creating Quadlet file(s) from an existing object")?
                 .into_iter()
                 .map(Into::into)
@@ -612,9 +632,12 @@ impl PodmanCommands {
     fn into_quadlet(
         self,
         name: Option<String>,
-        unit: Unit,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
         globals: Globals,
-        install: quadlet::Install,
     ) -> quadlet::File {
         let service = self.service().cloned().unwrap_or_default();
         quadlet::File {
@@ -622,6 +645,7 @@ impl PodmanCommands {
             unit,
             resource: self.into(),
             globals,
+            quadlet,
             service,
             install,
         }

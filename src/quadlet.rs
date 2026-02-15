@@ -21,6 +21,7 @@ use std::{
 use clap::ValueEnum;
 use compose_spec::service::build::Context;
 use serde::{Serialize, Serializer, ser::SerializeSeq};
+use smart_default::SmartDefault;
 use thiserror::Error;
 
 pub use self::{
@@ -36,6 +37,20 @@ pub use self::{
     unit::Unit,
     volume::Volume,
 };
+use crate::serde::skip_true;
+
+/// Generic Quadlet sections able to be used by all Quadlet types.
+///
+/// Commonly grouped together when creating Quadlet [`File`]s.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenericSections {
+    /// The `[Unit]` section.
+    pub unit: Unit,
+    /// The `[Quadlet]` section.
+    pub quadlet: Quadlet,
+    /// The `[Install]` section.
+    pub install: Install,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
@@ -43,6 +58,7 @@ pub struct File {
     pub unit: Unit,
     pub resource: Resource,
     pub globals: Globals,
+    pub quadlet: Quadlet,
     pub service: Service,
     pub install: Install,
 }
@@ -75,12 +91,14 @@ impl Serialize for File {
             unit,
             resource,
             globals,
+            quadlet,
             service,
             install,
         } = self;
 
         let len = usize::from(!unit.is_empty())
             + 1 // resource / globals
+            + usize::from(!quadlet.is_empty())
             + usize::from(!service.is_empty())
             + usize::from(!install.is_empty());
 
@@ -91,6 +109,10 @@ impl Serialize for File {
         }
 
         seq.serialize_element(&(resource, globals))?;
+
+        if !quadlet.is_empty() {
+            seq.serialize_element(quadlet)?;
+        }
 
         if !service.is_empty() {
             seq.serialize_element(service)?;
@@ -112,8 +134,21 @@ impl HostPaths for File {
 
 impl Downgrade for File {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
-        self.resource.downgrade(version)?;
-        self.globals.downgrade(version)
+        let Self {
+            name: _,
+            unit: _,
+            resource,
+            globals,
+            quadlet,
+            service: _,
+            install: _,
+        } = self;
+
+        resource.downgrade(version)?;
+        globals.downgrade(version)?;
+        quadlet.downgrade(version)?;
+
+        Ok(())
     }
 }
 
@@ -452,6 +487,46 @@ impl From<&Resource> for ResourceKind {
             Resource::Build(_) => Self::Build,
             Resource::Image(_) => Self::Image,
         }
+    }
+}
+
+/// The `[Quadlet]` section.
+///
+/// Options shared between all unit types.
+#[derive(Serialize, SmartDefault, Debug, Clone, Copy, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct Quadlet {
+    /// Whether to add Quadlet's default network dependencies to the unit (default is `true`).
+    ///
+    /// When set to false, Quadlet will **not** add a dependency (After=, Wants=) to
+    /// `network-online.target/podman-user-wait-network-online.service` to the generated unit.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub default_dependencies: bool,
+}
+
+impl Quadlet {
+    /// Returns `true` if all fields are set to their default value.
+    pub fn is_empty(self) -> bool {
+        let Self {
+            default_dependencies,
+        } = self;
+
+        default_dependencies
+    }
+}
+
+impl Downgrade for Quadlet {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 && !self.default_dependencies {
+            return Err(DowngradeError::Option {
+                quadlet_option: "DefaultDependencies",
+                value: "false".to_owned(),
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        Ok(())
     }
 }
 

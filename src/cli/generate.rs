@@ -24,7 +24,7 @@ use serde::{
     de::{self, DeserializeOwned, MapAccess, SeqAccess, Visitor, value::MapAccessDeserializer},
 };
 
-use crate::quadlet::{self, Globals, Install, IpRange, ResourceKind, Service, Unit};
+use crate::quadlet::{self, GenericSections, Globals, IpRange, ResourceKind, Service};
 
 use super::{
     Container, Image, Network, Pod, Volume, global_args::GlobalArgs, image, network, volume,
@@ -115,13 +115,12 @@ impl Generate {
     pub fn try_into_quadlet_files(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        sections: GenericSections,
     ) -> color_eyre::Result<Vec<quadlet::File>> {
         match self {
             Self::Container { container } => Ok(vec![
                 ContainerParser::from_container(&container)?
-                    .into_quadlet_file(None, name, unit, install),
+                    .into_quadlet_file(None, name, sections),
             ]),
             Self::Pod {
                 ignore_infra_conmon_pidfile,
@@ -147,17 +146,17 @@ impl Generate {
                         "use `podlet generate pod --ignore-pod-id-file` to remove the option",
                     ))
                 } else {
-                    Ok(pod.into_quadlet_files(name, unit, install))
+                    Ok(pod.into_quadlet_files(name, sections))
                 }
             }
             Self::Network { network } => Ok(vec![
-                NetworkInspect::from_network(&network)?.into_quadlet_file(name, unit, install),
+                NetworkInspect::from_network(&network)?.into_quadlet_file(name, sections),
             ]),
             Self::Volume { volume } => Ok(vec![
-                VolumeInspect::from_volume(&volume)?.into_quadlet_file(name, unit, install),
+                VolumeInspect::from_volume(&volume)?.into_quadlet_file(name, sections),
             ]),
             Self::Image { image } => Ok(vec![
-                ImageInspect::from_image(&image)?.into_quadlet_file(name, unit, install),
+                ImageInspect::from_image(&image)?.into_quadlet_file(name, sections),
             ]),
         }
     }
@@ -205,8 +204,11 @@ impl ContainerParser {
         self,
         pod: Option<&str>,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
     ) -> quadlet::File {
         let Self {
             global_args,
@@ -230,6 +232,7 @@ impl ContainerParser {
             unit,
             resource: container.into(),
             globals: global_args.into(),
+            quadlet,
             service,
             install,
         }
@@ -359,8 +362,7 @@ impl PodParser {
     fn into_quadlet_files(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        sections: GenericSections,
     ) -> Vec<quadlet::File> {
         let Self {
             global_args,
@@ -375,16 +377,21 @@ impl PodParser {
 
         let mut files: Vec<_> = containers
             .into_iter()
-            .map(|container| {
-                container.into_quadlet_file(Some(pod_name), None, unit.clone(), install.clone())
-            })
+            .map(|container| container.into_quadlet_file(Some(pod_name), None, sections.clone()))
             .collect();
+
+        let GenericSections {
+            unit,
+            quadlet,
+            install,
+        } = sections;
 
         let pod = quadlet::File {
             name: name.unwrap_or_else(|| pod_name.to_owned()),
             unit,
             resource: pod.into(),
             globals: global_args.into(),
+            quadlet,
             service: Service::default(),
             install,
         };
@@ -554,8 +561,11 @@ impl NetworkInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
     ) -> quadlet::File {
         let network = Network::from(self);
         quadlet::File {
@@ -563,6 +573,7 @@ impl NetworkInspect {
             unit,
             resource: network.into(),
             globals: Globals::default(),
+            quadlet,
             service: Service::default(),
             install,
         }
@@ -669,8 +680,11 @@ impl VolumeInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
     ) -> quadlet::File {
         let volume = Volume::from(self);
         quadlet::File {
@@ -678,6 +692,7 @@ impl VolumeInspect {
             unit,
             resource: volume.into(),
             globals: Globals::default(),
+            quadlet,
             service: Service::default(),
             install,
         }
@@ -739,8 +754,11 @@ impl ImageInspect {
     fn into_quadlet_file(
         self,
         name: Option<String>,
-        unit: Unit,
-        install: Install,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
     ) -> quadlet::File {
         let image = Image::from(self);
         quadlet::File {
@@ -748,6 +766,7 @@ impl ImageInspect {
             unit,
             resource: image.into(),
             globals: Globals::default(),
+            quadlet,
             service: Service::default(),
             install,
         }
