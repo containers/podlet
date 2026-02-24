@@ -75,6 +75,7 @@ Options:
       --wants <WANTS>                        Add (weak) requirement dependencies to the unit
       --requires <REQUIRES>                  Similar to --wants, but adds stronger requirement dependencies
       --binds-to <BINDS_TO>                  Similar to --requires, but when the dependency stops, this unit also stops
+      --part-of <PART_OF>                    Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped
       --before <BEFORE>                      Configure ordering dependency between units
       --after <AFTER>                        Configure ordering dependency between units
   -i, --install                              Add an [Install] section to the unit
