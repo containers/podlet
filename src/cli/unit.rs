@@ -66,6 +66,15 @@ pub struct Unit {
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
     after: Vec<String>,
+
+    /// Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped
+    ///
+    /// Converts to "PartOf=PART_OF[ ...]"
+    ///
+    /// Can be specified multiple times
+    #[arg(long)]
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    part_of: Vec<String>,
 }
 
 impl Unit {
@@ -78,6 +87,7 @@ impl Unit {
             binds_to,
             before,
             after,
+            part_of,
         } = self;
 
         description.is_none()
@@ -86,6 +96,7 @@ impl Unit {
             && binds_to.is_empty()
             && before.is_empty()
             && after.is_empty()
+            && part_of.is_empty()
     }
 
     /// Add a compose [`Service`](compose_spec::Service) [`Dependency`] to the unit.

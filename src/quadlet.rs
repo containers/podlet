@@ -145,6 +145,9 @@ pub enum JoinOption {
     /// `Mask=`, used in [Container] sections.
     Mask,
 
+    /// `PartOf=`, used in [Unit] sections.
+    PartOf,
+
     /// `RequiredBy=`, used in [Install] sections.
     RequiredBy,
 
@@ -176,6 +179,7 @@ impl JoinOption {
         Self::Environment,
         Self::Label,
         Self::Mask,
+        Self::PartOf,
         Self::RequiredBy,
         Self::Requires,
         Self::Sysctl,
@@ -201,6 +205,7 @@ impl JoinOption {
             Self::Environment => "Environment",
             Self::Label => "Label",
             Self::Mask => "Mask",
+            Self::PartOf => "PartOf",
             Self::RequiredBy => "RequiredBy",
             Self::Requires => "Requires",
             Self::Sysctl => "Sysctl",
@@ -231,6 +236,7 @@ impl FromStr for JoinOption {
             "Environment" => Ok(Self::Environment),
             "Label" => Ok(Self::Label),
             "Mask" => Ok(Self::Mask),
+            "PartOf" => Ok(Self::PartOf),
             "RequiredBy" => Ok(Self::RequiredBy),
             "Requires" => Ok(Self::Requires),
             "Sysctl" => Ok(Self::Sysctl),
