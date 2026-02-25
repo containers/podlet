@@ -6,6 +6,8 @@ mod install;
 pub mod kube;
 mod network;
 mod pod;
+mod service;
+mod unit;
 mod volume;
 
 use std::{
@@ -19,6 +21,7 @@ use std::{
 use clap::ValueEnum;
 use compose_spec::service::build::Context;
 use serde::{Serialize, Serializer, ser::SerializeSeq};
+use smart_default::SmartDefault;
 use thiserror::Error;
 
 pub use self::{
@@ -30,18 +33,34 @@ pub use self::{
     kube::Kube,
     network::{IpRange, Network},
     pod::Pod,
+    service::Service,
+    unit::Unit,
     volume::Volume,
 };
-use crate::cli::{service::Service, unit::Unit};
+use crate::serde::skip_true;
+
+/// Generic Quadlet sections able to be used by all Quadlet types.
+///
+/// Commonly grouped together when creating Quadlet [`File`]s.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenericSections {
+    /// The `[Unit]` section.
+    pub unit: Unit,
+    /// The `[Quadlet]` section.
+    pub quadlet: Quadlet,
+    /// The `[Install]` section.
+    pub install: Install,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     pub name: String,
-    pub unit: Option<Unit>,
+    pub unit: Unit,
     pub resource: Resource,
     pub globals: Globals,
-    pub service: Option<Service>,
-    pub install: Option<Install>,
+    pub quadlet: Quadlet,
+    pub service: Service,
+    pub install: Install,
 }
 
 impl File {
@@ -63,6 +82,13 @@ impl File {
     ) -> Result<String, crate::serde::quadlet::Error> {
         crate::serde::quadlet::to_string(self, join_options)
     }
+
+    /// If this Quadlet [`File`] is a [`Container`] unit, set the `StartWithPod=` Quadlet option.
+    pub fn set_start_with_pod(&mut self, start_with_pod: bool) {
+        if let Resource::Container(container) = &mut self.resource {
+            container.start_with_pod = start_with_pod;
+        }
+    }
 }
 
 impl Serialize for File {
@@ -72,28 +98,34 @@ impl Serialize for File {
             unit,
             resource,
             globals,
+            quadlet,
             service,
             install,
         } = self;
 
-        let len = usize::from(unit.is_some())
+        let len = usize::from(!unit.is_empty())
             + 1 // resource / globals
-            + usize::from(service.is_some())
-            + usize::from(install.is_some());
+            + usize::from(!quadlet.is_empty())
+            + usize::from(!service.is_empty())
+            + usize::from(!install.is_empty());
 
         let mut seq = serializer.serialize_seq(Some(len))?;
 
-        if let Some(unit) = unit {
+        if !unit.is_empty() {
             seq.serialize_element(unit)?;
         }
 
         seq.serialize_element(&(resource, globals))?;
 
-        if let Some(service) = service {
+        if !quadlet.is_empty() {
+            seq.serialize_element(quadlet)?;
+        }
+
+        if !service.is_empty() {
             seq.serialize_element(service)?;
         }
 
-        if let Some(install) = install {
+        if !install.is_empty() {
             seq.serialize_element(install)?;
         }
 
@@ -109,8 +141,21 @@ impl HostPaths for File {
 
 impl Downgrade for File {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
-        self.resource.downgrade(version)?;
-        self.globals.downgrade(version)
+        let Self {
+            name: _,
+            unit: _,
+            resource,
+            globals,
+            quadlet,
+            service: _,
+            install: _,
+        } = self;
+
+        resource.downgrade(version)?;
+        globals.downgrade(version)?;
+        quadlet.downgrade(version)?;
+
+        Ok(())
     }
 }
 
@@ -452,6 +497,46 @@ impl From<&Resource> for ResourceKind {
     }
 }
 
+/// The `[Quadlet]` section.
+///
+/// Options shared between all unit types.
+#[derive(Serialize, SmartDefault, Debug, Clone, Copy, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct Quadlet {
+    /// Whether to add Quadlet's default network dependencies to the unit (default is `true`).
+    ///
+    /// When set to false, Quadlet will **not** add a dependency (After=, Wants=) to
+    /// `network-online.target/podman-user-wait-network-online.service` to the generated unit.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub default_dependencies: bool,
+}
+
+impl Quadlet {
+    /// Returns `true` if all fields are set to their default value.
+    pub fn is_empty(self) -> bool {
+        let Self {
+            default_dependencies,
+        } = self;
+
+        default_dependencies
+    }
+}
+
+impl Downgrade for Quadlet {
+    fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 && !self.default_dependencies {
+            return Err(DowngradeError::Option {
+                quadlet_option: "DefaultDependencies",
+                value: "false".to_owned(),
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        Ok(())
+    }
+}
+
 /// Trait for types which have varying levels of compatibility with different [`PodmanVersion`]s.
 pub trait Downgrade {
     /// Downgrade Podman compatibility to `version`.
@@ -504,13 +589,17 @@ pub enum PodmanVersion {
     V5_1,
 
     /// Podman v5.2
-    #[value(name = "5.2", aliases = ["latest", "5.2.0", "5.2.1", "5.2.2", "5.2.3", "5.2.4", "5.2.5"])]
+    #[value(name = "5.2", aliases = ["5.2.0", "5.2.1", "5.2.2", "5.2.3", "5.2.4", "5.2.5"])]
     V5_2,
+
+    /// Podman v5.3
+    #[value(name = "5.3", aliases = ["latest", "5.3.0", "5.3.1", "5.3.2"])]
+    V5_3,
 }
 
 impl PodmanVersion {
     /// Latest supported version of Podman with regards to Quadlet.
-    pub const LATEST: Self = Self::V5_2;
+    pub const LATEST: Self = Self::V5_3;
 
     /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
@@ -523,6 +612,7 @@ impl PodmanVersion {
             Self::V5_0 => "5.0",
             Self::V5_1 => "5.1",
             Self::V5_2 => "5.2",
+            Self::V5_3 => "5.3",
         }
     }
 }
@@ -542,7 +632,7 @@ impl Display for PodmanVersion {
 /// Error returned when [downgrading](Downgrade::downgrade()) a Quadlet file fails.
 #[derive(Error, Debug)]
 pub enum DowngradeError {
-    /// Unsupported Quadlet option used
+    /// Unsupported Quadlet option used.
     #[error(
         "Quadlet option `{quadlet_option}={value}` was not \
         supported until Podman v{supported_version}"
@@ -552,7 +642,18 @@ pub enum DowngradeError {
         value: String,
         supported_version: PodmanVersion,
     },
-    /// Unsupported Quadlet kind
+
+    /// Quadlet option set multiple times before supported.
+    #[error(
+        "Quadlet option `{quadlet_option}=` could not be set multiple \
+        times until Podman v{supported_version}"
+    )]
+    Multiple {
+        quadlet_option: &'static str,
+        supported_version: PodmanVersion,
+    },
+
+    /// Unsupported Quadlet kind.
     #[error("`.{kind}` Quadlet files were not supported until Podman v{supported_version}")]
     Kind {
         kind: ResourceKind,

@@ -9,8 +9,6 @@ mod k8s;
 mod kube;
 mod network;
 mod pod;
-pub mod service;
-pub mod unit;
 pub mod volume;
 
 #[cfg(unix)]
@@ -35,16 +33,21 @@ use compose_spec::service::blkio_config::Weight;
 use path_clean::PathClean;
 
 use crate::quadlet::{
-    self, Downgrade, DowngradeError, Globals, HostPaths, JoinOption, PodmanVersion,
+    self, Downgrade, DowngradeError, GenericSections, Globals, HostPaths, JoinOption,
+    PodmanVersion, Quadlet, Service, Unit,
 };
 
 use self::{
     build::Build, compose::Compose, container::Container, generate::Generate,
     global_args::GlobalArgs, image::Image, install::Install, kube::Kube, network::Network,
-    pod::Pod, service::Service, unit::Unit, volume::Volume,
+    pod::Pod, volume::Volume,
 };
 
-#[allow(clippy::option_option)]
+#[expect(
+    clippy::option_option,
+    clippy::struct_excessive_bools,
+    reason = "CLI args"
+)]
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about, subcommand_precedence_over_arg = true)]
 pub struct Cli {
@@ -170,6 +173,18 @@ pub struct Cli {
     #[arg(short, long, value_name = "RESOLVE_DIR")]
     absolute_host_paths: Option<Option<PathBuf>>,
 
+    /// Change the name of the systemd service Quadlet generates.
+    ///
+    /// Converts to "ServiceName=SERVICE_NAME".
+    ///
+    /// The name should **not** include the `.service` extension.
+    ///
+    /// Podlet will error if this option is used while creating more than one Quadlet file as
+    /// setting the same service name for multiple files will conflict with each other.
+    #[expect(clippy::doc_markdown, reason = "Quadlet option")]
+    #[arg(long)]
+    service_name: Option<String>,
+
     /// The \[Unit\] section
     #[command(flatten)]
     unit: Unit,
@@ -177,6 +192,24 @@ pub struct Cli {
     /// The \[Install\] section
     #[command(flatten)]
     install: Install,
+
+    /// Disable Quadlet's default network dependencies.
+    ///
+    /// By default, Quadlet adds a dependency on `network-online.target` (for system units) or
+    /// `podman-user-wait-network-online.service` (for user units) to the generated unit. Using this
+    /// flag will disable the dependencies.
+    ///
+    /// Converts to "DefaultDependencies=false" in the `[Quadlet]` section.
+    #[arg(long)]
+    disable_default_quadlet_dependencies: bool,
+
+    /// Do not start container units with their associated pod.
+    ///
+    /// By default, container units are started alongside the pod.
+    ///
+    /// Converts to "StartWithPod=false" in the `[Container]` section.
+    #[arg(long)]
+    no_start_with_pod: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -351,16 +384,49 @@ multiple times.";
             .resolve_dir()
             .wrap_err("error with `--absolute-host-paths` resolve directory")?;
 
-        let unit = (!self.unit.is_empty()).then_some(self.unit);
-        let install = self.install.install.then(|| self.install.into());
+        let sections = GenericSections {
+            unit: self.unit,
+            quadlet: Quadlet {
+                default_dependencies: !self.disable_default_quadlet_dependencies,
+            },
+            install: self.install.into(),
+        };
 
-        let mut files = self.command.try_into_files(self.name, unit, install)?;
+        let mut files = self.command.try_into_files(self.name, sections)?;
+
+        if let Some(service_name) = self.service_name {
+            let mut found_quadlet_file = false;
+            for _ in files
+                .iter()
+                .filter(|file| matches!(file, File::Quadlet(..)))
+            {
+                if found_quadlet_file {
+                    return Err(eyre!(
+                        "cannot set `--service-name` when creating more than one Quadlet file"
+                    ))
+                    .note(
+                        "setting the same service name for multiple Quadlet files will conflict \
+                            with each other",
+                    )
+                    .suggestion("manually set `ServiceName=` Quadlet option in each Quadlet file");
+                }
+                found_quadlet_file = true;
+            }
+
+            if let Some(File::Quadlet(file)) = files.first_mut() {
+                file.globals.service_name = Some(service_name);
+            }
+        }
 
         let downgrade = self.podman_version < PodmanVersion::LATEST;
-        if downgrade || resolve_dir.is_some() {
+        if resolve_dir.is_some() || self.no_start_with_pod || downgrade {
             for file in &mut files {
                 if let Some(resolve_dir) = &resolve_dir {
                     file.absolutize_host_paths(resolve_dir);
+                }
+
+                if self.no_start_with_pod {
+                    file.set_start_with_pod(false);
                 }
 
                 if downgrade {
@@ -445,8 +511,7 @@ impl Commands {
     fn try_into_files(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
-        install: Option<quadlet::Install>,
+        sections: GenericSections,
     ) -> color_eyre::Result<Vec<File>> {
         match self {
             Self::Podman {
@@ -454,14 +519,14 @@ impl Commands {
                 command,
             } => Ok(vec![
                 command
-                    .into_quadlet(name, unit, (*global_args).into(), install)
+                    .into_quadlet(name, sections, (*global_args).into())
                     .into(),
             ]),
             Self::Compose(compose) => compose
-                .try_into_files(unit, install)
+                .try_into_files(sections)
                 .wrap_err("error converting compose file"),
             Self::Generate(command) => Ok(command
-                .try_into_quadlet_files(name, unit, install)
+                .try_into_quadlet_files(name, sections)
                 .wrap_err("error creating Quadlet file(s) from an existing object")?
                 .into_iter()
                 .map(Into::into)
@@ -579,16 +644,20 @@ impl PodmanCommands {
     fn into_quadlet(
         self,
         name: Option<String>,
-        unit: Option<Unit>,
+        GenericSections {
+            unit,
+            quadlet,
+            install,
+        }: GenericSections,
         globals: Globals,
-        install: Option<quadlet::Install>,
     ) -> quadlet::File {
-        let service = self.service().cloned();
+        let service = self.service().cloned().unwrap_or_default();
         quadlet::File {
             name: name.unwrap_or_else(|| self.name().into()),
             unit,
             resource: self.into(),
             globals,
+            quadlet,
             service,
             install,
         }
@@ -596,7 +665,7 @@ impl PodmanCommands {
 
     fn service(&self) -> Option<&Service> {
         match self {
-            Self::Run { service, .. } => (!service.is_empty()).then_some(service),
+            Self::Run { service, .. } => Some(service),
             _ => None,
         }
     }
@@ -662,6 +731,13 @@ impl File {
         match self {
             Self::Quadlet(file) => Some(file),
             Self::Kubernetes(_) => None,
+        }
+    }
+
+    /// If this [`File`] is a Quadlet container unit, set the `StartWithPod=` Quadlet option.
+    fn set_start_with_pod(&mut self, start_with_pod: bool) {
+        if let Self::Quadlet(file) = self {
+            file.set_start_with_pod(start_with_pod);
         }
     }
 

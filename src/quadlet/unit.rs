@@ -8,64 +8,67 @@ use serde::Serialize;
 
 use crate::serde::quadlet::seq_quote_whitespace;
 
-// Common systemd unit options
-// From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+/// The `[Unit]` section of a systemd unit / Quadlet file.
+///
+/// Includes common systemd unit options.
+///
+/// From [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html).
 #[allow(clippy::doc_markdown)]
 #[derive(Serialize, Args, Default, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Unit {
-    /// Add a description to the unit
+    /// Add a description to the unit.
     ///
-    /// A description should be a short, human readable title of the unit
+    /// A description should be a short, human readable title of the unit.
     ///
-    /// Converts to "Description=DESCRIPTION"
+    /// Converts to "Description=DESCRIPTION".
     #[arg(short, long)]
-    description: Option<String>,
+    pub description: Option<String>,
 
-    /// Add (weak) requirement dependencies to the unit
+    /// Add (weak) requirement dependencies to the unit.
     ///
-    /// Converts to "Wants=WANTS[ ...]"
+    /// Converts to "Wants=WANTS[ ...]".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    wants: Vec<String>,
+    pub wants: Vec<String>,
 
-    /// Similar to --wants, but adds stronger requirement dependencies
+    /// Similar to --wants, but adds stronger requirement dependencies.
     ///
-    /// Converts to "Requires=REQUIRES[ ...]"
+    /// Converts to "Requires=REQUIRES[ ...]".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    requires: Vec<String>,
+    pub requires: Vec<String>,
 
-    /// Similar to --requires, but when the dependency stops, this unit also stops
+    /// Similar to --requires, but when the dependency stops, this unit also stops.
     ///
-    /// Converts to "BindsTo=BINDS_TO[ ...]"
+    /// Converts to "BindsTo=BINDS_TO[ ...]".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    binds_to: Vec<String>,
+    pub binds_to: Vec<String>,
 
-    /// Configure ordering dependency between units
+    /// Configure ordering dependency between units.
     ///
-    /// Converts to "Before=BEFORE[ ...]"
+    /// Converts to "Before=BEFORE[ ...]".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    before: Vec<String>,
+    pub before: Vec<String>,
 
-    /// Configure ordering dependency between units
+    /// Configure ordering dependency between units.
     ///
-    /// Converts to "After=AFTER[ ...]"
+    /// Converts to "After=AFTER[ ...]".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    after: Vec<String>,
+    pub after: Vec<String>,
 
     /// Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped
     ///
@@ -74,11 +77,11 @@ pub struct Unit {
     /// Can be specified multiple times
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
-    part_of: Vec<String>,
+    pub part_of: Vec<String>,
 }
 
 impl Unit {
-    /// Returns `true` if all fields are empty.
+    /// Returns `true` if all fields are empty or [`None`].
     pub fn is_empty(&self) -> bool {
         let Self {
             description,

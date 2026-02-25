@@ -1,13 +1,46 @@
-use std::path::PathBuf;
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    path::PathBuf,
+};
 
 use serde::Serialize;
 
-use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, container::Volume};
+use super::{
+    Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
+    container::{Dns, Volume},
+};
 
 /// Options for the \[Pod\] section of a `.pod` Quadlet file.
 #[derive(Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Pod {
+    /// Add host-to-IP mapping to `/etc/hosts`.
+    pub add_host: Vec<String>,
+
+    /// Set network-scoped DNS resolver/nameserver for containers in this pod.
+    #[serde(rename = "DNS")]
+    pub dns: Dns,
+
+    /// Set custom DNS options.
+    #[serde(rename = "DNSOption")]
+    pub dns_option: Vec<String>,
+
+    /// Set custom DNS search domains.
+    #[serde(rename = "DNSSearch")]
+    pub dns_search: Vec<String>,
+
+    /// GID map for the user namespace.
+    #[serde(rename = "GIDMap")]
+    pub gid_map: Vec<String>,
+
+    /// Specify a static IPv4 address for the pod.
+    #[serde(rename = "IP")]
+    pub ip: Option<Ipv4Addr>,
+
+    /// Specify a static IPv6 address for the pod.
+    #[serde(rename = "IP6")]
+    pub ip6: Option<Ipv6Addr>,
+
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
 
@@ -27,6 +60,22 @@ pub struct Pod {
     /// Exposes a port, or a range of ports, from the pod to the host.
     pub publish_port: Vec<String>,
 
+    /// Create the pod in a new user namespace using the map with name in the `/etc/subgid` file.
+    #[serde(rename = "SubGIDMap")]
+    pub sub_gid_map: Option<String>,
+
+    /// Create the pod in a new user namespace using the map with name in the `/etc/subuid` file.
+    #[serde(rename = "SubUIDMap")]
+    pub sub_uid_map: Option<String>,
+
+    /// UID map for the user namespace.
+    #[serde(rename = "UIDMap")]
+    pub uid_map: Vec<String>,
+
+    /// Set the user namespace mode for the pod.
+    #[serde(rename = "UserNS")]
+    pub user_ns: Option<String>,
+
     /// Mount a volume in the pod.
     pub volume: Vec<Volume>,
 }
@@ -39,6 +88,10 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 {
+            self.remove_v5_3_options();
+        }
+
         if version < PodmanVersion::V5_2 {
             for network_alias in std::mem::take(&mut self.network_alias) {
                 self.push_arg("network-alias", &network_alias);
@@ -57,6 +110,58 @@ impl Downgrade for Pod {
 }
 
 impl Pod {
+    /// Remove Quadlet options added in Podman v5.3.0.
+    fn remove_v5_3_options(&mut self) {
+        for add_host in std::mem::take(&mut self.add_host) {
+            self.push_arg("add-host", &add_host);
+        }
+
+        match std::mem::take(&mut self.dns) {
+            Dns::None => self.push_arg("dns", "none"),
+            Dns::Custom(ip_addrs) => {
+                for ip_addr in ip_addrs {
+                    self.push_arg("dns", &ip_addr.to_string());
+                }
+            }
+        }
+
+        for dns_option in std::mem::take(&mut self.dns_option) {
+            self.push_arg("dns-option", &dns_option);
+        }
+
+        for dns_search in std::mem::take(&mut self.dns_search) {
+            self.push_arg("dns-search", &dns_search);
+        }
+
+        for gidmap in std::mem::take(&mut self.gid_map) {
+            self.push_arg("gidmap", &gidmap);
+        }
+
+        if let Some(ip) = self.ip.take() {
+            self.push_arg("ip", &ip.to_string());
+        }
+
+        if let Some(ip6) = self.ip6.take() {
+            self.push_arg("ip6", &ip6.to_string());
+        }
+
+        if let Some(subgidname) = self.sub_gid_map.take() {
+            self.push_arg("subgidname", &subgidname);
+        }
+
+        if let Some(subuidname) = self.sub_uid_map.take() {
+            self.push_arg("subuidname", &subuidname);
+        }
+
+        for uidmap in std::mem::take(&mut self.uid_map) {
+            self.push_arg("uidmap", &uidmap);
+        }
+
+        if let Some(userns) = self.user_ns.take() {
+            self.push_arg("userns", &userns);
+        }
+    }
+
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_with(String::new);
@@ -66,6 +171,12 @@ impl Pod {
         podman_args.push_str("--");
         podman_args.push_str(flag);
         podman_args.push(' ');
-        podman_args.push_str(arg);
+        if arg.contains(char::is_whitespace) {
+            podman_args.push('"');
+            podman_args.push_str(arg);
+            podman_args.push('"');
+        } else {
+            podman_args.push_str(arg);
+        }
     }
 }
