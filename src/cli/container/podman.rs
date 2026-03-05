@@ -128,6 +128,7 @@ pub struct PodmanArgs {
     ///
     /// Automatically set by Quadlet
     #[arg(short, long, require_equals = true, default_missing_value = "true")]
+    #[serde(skip_serializing)]
     detach: Option<bool>,
 
     /// Key sequence for detaching a container
