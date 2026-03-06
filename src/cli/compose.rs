@@ -62,6 +62,13 @@ pub struct Compose {
     #[arg(long, conflicts_with = "pod")]
     pub kube: bool,
 
+    /// Set `ContainerName` for each container to the compose service name.
+    ///
+    /// Without this option, `ContainerName` is only set if `container_name`
+    /// is explicitly specified in the compose file.
+    #[arg(long)]
+    pub add_container_name: bool,
+
     /// The compose file to convert
     ///
     /// If `-` or not provided and stdin is not a terminal,
@@ -93,6 +100,7 @@ impl Compose {
         let Self {
             pod,
             kube,
+            add_container_name,
             compose_file,
         } = self;
 
@@ -150,8 +158,16 @@ impl Compose {
                 "compose extensions are not supported"
             );
 
-            parts_try_into_files(services, networks, volumes, pod_name, unit, install)
-                .wrap_err("error converting compose file into Quadlet files")
+            parts_try_into_files(
+                services,
+                networks,
+                volumes,
+                pod_name,
+                unit,
+                install,
+                add_container_name,
+            )
+            .wrap_err("error converting compose file into Quadlet files")
         }
     }
 }
@@ -248,6 +264,7 @@ fn parts_try_into_files(
     pod_name: Option<String>,
     unit: Option<Unit>,
     install: Option<quadlet::Install>,
+    add_container_name: bool,
 ) -> color_eyre::Result<Vec<File>> {
     // Get a map of volumes to whether the volume has options associated with it for use in
     // converting a service into a Quadlet file. Extra volume options must be specified in a
@@ -271,6 +288,7 @@ fn parts_try_into_files(
         &volume_has_options,
         pod_name.as_deref(),
         &mut pod_ports,
+        add_container_name,
     )
     .chain(networks_try_into_quadlet_files(
         networks,
@@ -326,6 +344,7 @@ fn services_try_into_quadlet_files<'a>(
     volume_has_options: &'a HashMap<Identifier, bool>,
     pod_name: Option<&'a str>,
     pod_ports: &'a mut Vec<String>,
+    add_container_name: bool,
 ) -> impl Iterator<Item = color_eyre::Result<quadlet::File>> + 'a {
     services.into_iter().flat_map(move |(name, mut service)| {
         if service.image.is_some() && service.build.is_some() {
@@ -364,6 +383,7 @@ fn services_try_into_quadlet_files<'a>(
             volume_has_options,
             pod_name,
             pod_ports,
+            add_container_name,
         );
 
         iter::once(container).chain(build)
@@ -392,6 +412,7 @@ fn service_try_into_quadlet_file(
     volume_has_options: &HashMap<Identifier, bool>,
     pod_name: Option<&str>,
     pod_ports: &mut Vec<String>,
+    add_container_name: bool,
 ) -> color_eyre::Result<quadlet::File> {
     // Add any service dependencies to the [Unit] section of the Quadlet file.
     let dependencies = mem::take(&mut service.depends_on).into_long();
@@ -418,6 +439,12 @@ fn service_try_into_quadlet_file(
     let mut container = Container::try_from(service)
         .map(quadlet::Container::from)
         .wrap_err_with(|| format!("error converting service `{name}` into a Quadlet container"))?;
+
+    // If the --add-container-name flag is set and the compose service does not already have an
+    // explicit container_name, use the compose service key as the container name.
+    if add_container_name && container.container_name.is_none() {
+        container.container_name = Some(name.to_string());
+    }
 
     // For each named volume, check to see if it has any options set.
     // If it does, add `.volume` to the source to link this `.container` file to the generated
