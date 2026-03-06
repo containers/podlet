@@ -176,6 +176,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENTRY")]
     group_entry: Option<String>,
 
+    /// Base file to create the `/etc/hosts` file inside the container
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
+
     /// Add a user account to /etc/passwd from the host to the container
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
