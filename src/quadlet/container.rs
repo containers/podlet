@@ -35,12 +35,18 @@ pub struct Container {
     /// Adds a device node from the host into the container.
     pub add_device: Vec<Device>,
 
+    /// Add host-to-IP mapping to `/etc/hosts` in the container.
+    pub add_host: Vec<String>,
+
     /// Set one or more OCI annotations on the container.
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub annotation: Vec<String>,
 
     /// Indicates whether the container will be auto-updated.
     pub auto_update: Option<AutoUpdate>,
+
+    /// The cgroups mode of the Podman container.
+    pub cgroups_mode: Option<String>,
 
     /// The (optional) name of the Podman container.
     #[allow(clippy::struct_field_names)]
@@ -97,6 +103,15 @@ pub struct Container {
 
     /// Set an interval for the healthchecks.
     pub health_interval: Option<String>,
+
+    /// Set the destination of the health check log.
+    pub health_log_destination: Option<String>,
+
+    /// Set maximum number of attempts in the health check log file.
+    pub health_max_log_count: Option<u64>,
+
+    /// Set maximum length in characters of stored health check log.
+    pub health_max_log_size: Option<u64>,
 
     /// Action to take once the container transitions to an unhealthy state.
     pub health_on_failure: Option<String>,
@@ -233,6 +248,11 @@ pub struct Container {
     /// Size of `/dev/shm`.
     pub shm_size: Option<String>,
 
+    /// Start the container after the associated pod is created. Default is `true`.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub start_with_pod: bool,
+
     /// Signal to stop a container.
     pub stop_signal: Option<String>,
 
@@ -286,6 +306,54 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 {
+            if let Some(health_log_destination) = self.health_log_destination.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "HealthLogDestination",
+                    value: health_log_destination,
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            if let Some(health_max_log_count) = self.health_max_log_count.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "HealthMaxLogCount",
+                    value: health_max_log_count.to_string(),
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            if let Some(health_max_log_size) = self.health_max_log_size.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "HealthMaxLogSize",
+                    value: health_max_log_size.to_string(),
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            if !self.start_with_pod {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "StartWithPod",
+                    value: "false".to_owned(),
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+
+            self.network.iter().try_for_each(|network| {
+                if network.ends_with(".container") {
+                    Err(DowngradeError::Option {
+                        quadlet_option: "Network",
+                        value: network.clone(),
+                        supported_version: PodmanVersion::V5_3,
+                    })
+                } else {
+                    Ok(())
+                }
+            })?;
+
+            self.remove_v5_3_options();
+        }
+
         if version < PodmanVersion::V5_2 {
             self.remove_v5_2_options();
         }
@@ -310,7 +378,7 @@ impl Downgrade for Container {
             if let Some(pod) = self.pod.take() {
                 return Err(DowngradeError::Option {
                     quadlet_option: "Pod",
-                    value: pod.clone(),
+                    value: pod,
                     supported_version: PodmanVersion::V5_0,
                 });
             }
@@ -348,6 +416,20 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.3.0
+    fn remove_v5_3_options(&mut self) {
+        let options = extract!(
+            self,
+            OptionsV5_3 {
+                add_host,
+                cgroups_mode
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV5_3 serializable as args");
+    }
+
     /// Remove Quadlet options added in Podman v5.2.0
     fn remove_v5_2_options(&mut self) {
         let options = extract!(
@@ -512,6 +594,15 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.3.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_3 {
+    add_host: Vec<String>,
+    #[serde(rename = "cgroups")]
+    cgroups_mode: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.2.0

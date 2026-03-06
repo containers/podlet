@@ -2,17 +2,23 @@ use clap::{Args, ValueEnum};
 use compose_spec::service::Restart;
 use serde::Serialize;
 
+/// The `[Service]` section of a systemd unit / Quadlet file.
+///
+/// Only includes options needed to convert [Podman CLI](crate::cli::PodmanCommands) and
+/// [`Compose`](compose_spec::Compose) files.
 #[derive(Args, Serialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Service {
-    /// Configure if and when the service should be restarted
+    /// Configure if and when the service should be restarted.
     #[arg(long, value_name = "POLICY")]
-    restart: Option<RestartConfig>,
+    pub restart: Option<RestartConfig>,
 }
 
 impl Service {
+    /// Returns `true` if all fields are [`None`].
     pub fn is_empty(&self) -> bool {
         let Self { restart } = self;
+
         restart.is_none()
     }
 }
@@ -31,12 +37,12 @@ impl From<Restart> for Service {
     }
 }
 
-/// Possible service restart configurations
+/// Possible service restart configurations.
 ///
-/// From [systemd.service](https://www.freedesktop.org/software/systemd/man/systemd.service.html#Restart=)
+/// From [systemd.service](https://www.freedesktop.org/software/systemd/man/systemd.service.html#Restart=).
 #[derive(ValueEnum, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
-enum RestartConfig {
+pub enum RestartConfig {
     No,
     OnSuccess,
     OnFailure,

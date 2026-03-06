@@ -26,12 +26,6 @@ use super::compose;
 #[derive(Args, Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
-    /// Add a custom host-to-IP mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "HOST:IP")]
-    add_host: Vec<String>,
-
     /// Override the architecture of the image to be pulled
     ///
     /// Defaults to hosts architecture
@@ -71,10 +65,6 @@ pub struct PodmanArgs {
     /// Set the cgroup namespace for the container
     #[arg(long, value_name = "MODE")]
     cgroupns: Option<String>,
-
-    /// Whether the container will create cgroups
-    #[arg(long, value_name = "HOW")]
-    cgroups: Option<String>,
 
     /// Chroot directories inside the container
     #[arg(long, value_name = "PATH")]
@@ -437,7 +427,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             cgroup,
             cgroup_parent,
             device_cgroup_rules,
-            extra_hosts,
             ipc,
             uts,
             mac_address,
@@ -499,10 +488,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             device_cgroup_rule: device_cgroup_rules
                 .iter()
                 .map(ToString::to_string)
-                .collect(),
-            add_host: extra_hosts
-                .into_iter()
-                .map(|(host, ip)| format!("{host}:{ip}"))
                 .collect(),
             ipc: ipc
                 .map(validate_ipc)
