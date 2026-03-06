@@ -306,6 +306,23 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_4 {
+            self.mount.iter().try_for_each(|mount| {
+                if let Mount::Volume(mount::Volume {
+                    subpath: Some(_), ..
+                }) = mount
+                {
+                    Err(DowngradeError::Option {
+                        quadlet_option: "Mount",
+                        value: mount.to_string(),
+                        supported_version: PodmanVersion::V5_4,
+                    })
+                } else {
+                    Ok(())
+                }
+            })?;
+        }
+
         if version < PodmanVersion::V5_3 {
             if let Some(health_log_destination) = self.health_log_destination.take() {
                 return Err(DowngradeError::Option {

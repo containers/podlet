@@ -421,6 +421,10 @@ pub struct Volume {
     /// Create an idmapped mount to the target user namespace in the container.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub idmap: Option<Idmap>,
+
+    /// Mount only a specific path within the volume, instead of the whole volume.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subpath: Option<PathBuf>,
 }
 
 impl Volume {
@@ -433,6 +437,7 @@ impl Volume {
             read_only: false,
             chown: false,
             idmap: None,
+            subpath: None,
         }
     }
 }
@@ -574,8 +579,8 @@ mod tests {
         assert_eq!(mount, Mount::Volume(Volume::new("/dst".into())),);
         assert_eq!(mount.to_string(), string);
 
-        let string =
-            "type=volume,source=volume,destination=/dst,readonly=true,chown=true,idmap=uids=@0-1-2";
+        let string = "type=volume,source=volume,destination=/dst,readonly=true,chown=true,\
+            idmap=uids=@0-1-2,subpath=/subpath";
         let mount: Mount = string.parse().unwrap();
         assert_eq!(
             mount,
@@ -593,6 +598,7 @@ mod tests {
                     }],
                     gids: Vec::new(),
                 }),
+                subpath: Some("/subpath".into()),
             }),
         );
         assert_eq!(mount.to_string(), string);
