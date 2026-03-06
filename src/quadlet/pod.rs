@@ -60,6 +60,9 @@ pub struct Pod {
     /// Exposes a port, or a range of ports, from the pod to the host.
     pub publish_port: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    pub shm_size: Option<String>,
+
     /// Create the pod in a new user namespace using the map with name in the `/etc/subgid` file.
     #[serde(rename = "SubGIDMap")]
     pub sub_gid_map: Option<String>,
@@ -88,6 +91,12 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_4 {
+            if let Some(shm_size) = self.shm_size.take() {
+                self.push_arg("shm-size", &shm_size);
+            }
+        }
+
         if version < PodmanVersion::V5_3 {
             self.remove_v5_3_options();
         }

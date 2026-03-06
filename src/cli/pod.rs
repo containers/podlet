@@ -178,6 +178,12 @@ pub struct Create {
     )]
     publish: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    ///
+    /// Converts to "ShmSize=NUMBER[UNIT]".
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
     /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
     ///
     /// Converts to "SubGIDMap=NAME".
@@ -248,6 +254,7 @@ impl From<Create> for quadlet::Pod {
             network_alias,
             name_flag: pod_name,
             publish: publish_port,
+            shm_size,
             subgidname,
             subuidname,
             uidmap,
@@ -273,6 +280,7 @@ impl From<Create> for quadlet::Pod {
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pod_name,
             publish_port,
+            shm_size,
             sub_gid_map: subgidname,
             sub_uid_map: subuidname,
             uid_map: uidmap,
@@ -431,10 +439,6 @@ struct PodmanArgs {
     #[serde(skip_serializing_if = "skip_true")]
     #[default = true]
     share_parent: bool,
-
-    /// Size of `/dev/shm`.
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    shm_size: Option<String>,
 
     /// Size of systemd-specific tmpfs mounts.
     #[arg(long, value_name = "NUMBER[UNIT]")]
