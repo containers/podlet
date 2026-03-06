@@ -359,6 +359,10 @@ struct PodmanArgs {
     #[arg(long, value_name = "NAME")]
     hostname: Option<String>,
 
+    /// Base file to create the `/etc/hosts` file inside the pod's containers.
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
+
     /// Create an infra container and associate it with the pod.
     ///
     /// Set by default and cannot be disabled as it is required by Quadlet.
