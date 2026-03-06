@@ -240,6 +240,11 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     no_healthcheck: bool,
 
+    /// Do not create the `/etc/hostname` file for the container
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
+
     /// Do not create /etc/hosts for the container
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
