@@ -291,6 +291,7 @@ impl From<Create> for quadlet::Pod {
 }
 
 /// [`Args`] for `podman pod create` (i.e. [`Create`]) that convert into `PodmanArgs=ARGS`.
+#[expect(clippy::struct_excessive_bools, reason = "CLI flags")]
 #[derive(Args, Serialize, Debug, SmartDefault, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
@@ -407,6 +408,11 @@ struct PodmanArgs {
     /// Limit value equal to memory plus swap.
     #[arg(long, value_name = "NUMBER[UNIT]")]
     memory_swap: Option<String>,
+
+    /// Do not create the `/etc/hostname` file in the containers.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
 
     /// Do not create /etc/hosts for the pod.
     #[arg(long, conflicts_with = "add_host")]
