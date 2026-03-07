@@ -176,6 +176,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENTRY")]
     group_entry: Option<String>,
 
+    /// Base file to create the `/etc/hosts` file inside the container
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
+
     /// Add a user account to /etc/passwd from the host to the container
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
@@ -235,6 +239,11 @@ pub struct PodmanArgs {
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
     no_healthcheck: bool,
+
+    /// Do not create the `/etc/hostname` file for the container
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
 
     /// Do not create /etc/hosts for the container
     #[arg(long)]

@@ -178,6 +178,12 @@ pub struct Create {
     )]
     publish: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    ///
+    /// Converts to "ShmSize=NUMBER[UNIT]".
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
     /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
     ///
     /// Converts to "SubGIDMap=NAME".
@@ -248,6 +254,7 @@ impl From<Create> for quadlet::Pod {
             network_alias,
             name_flag: pod_name,
             publish: publish_port,
+            shm_size,
             subgidname,
             subuidname,
             uidmap,
@@ -273,6 +280,7 @@ impl From<Create> for quadlet::Pod {
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pod_name,
             publish_port,
+            shm_size,
             sub_gid_map: subgidname,
             sub_uid_map: subuidname,
             uid_map: uidmap,
@@ -283,6 +291,7 @@ impl From<Create> for quadlet::Pod {
 }
 
 /// [`Args`] for `podman pod create` (i.e. [`Create`]) that convert into `PodmanArgs=ARGS`.
+#[expect(clippy::struct_excessive_bools, reason = "CLI flags")]
 #[derive(Args, Serialize, Debug, SmartDefault, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
@@ -351,6 +360,10 @@ struct PodmanArgs {
     #[arg(long, value_name = "NAME")]
     hostname: Option<String>,
 
+    /// Base file to create the `/etc/hosts` file inside the pod's containers.
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
+
     /// Create an infra container and associate it with the pod.
     ///
     /// Set by default and cannot be disabled as it is required by Quadlet.
@@ -396,6 +409,11 @@ struct PodmanArgs {
     #[arg(long, value_name = "NUMBER[UNIT]")]
     memory_swap: Option<String>,
 
+    /// Do not create the `/etc/hostname` file in the containers.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
+
     /// Do not create /etc/hosts for the pod.
     #[arg(long, conflicts_with = "add_host")]
     #[serde(skip_serializing_if = "Not::not")]
@@ -431,10 +449,6 @@ struct PodmanArgs {
     #[serde(skip_serializing_if = "skip_true")]
     #[default = true]
     share_parent: bool,
-
-    /// Size of `/dev/shm`.
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    shm_size: Option<String>,
 
     /// Size of systemd-specific tmpfs mounts.
     #[arg(long, value_name = "NUMBER[UNIT]")]
