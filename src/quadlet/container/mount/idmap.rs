@@ -265,16 +265,15 @@ impl Display for Mapping {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use serde::de::value::UnitDeserializer;
 
     use super::*;
 
     #[test]
-    fn uids() {
+    fn uids() -> Result<(), ParseIdmapError> {
         let string = "uids=0-1-2#@3-4-5";
-        let idmap: Idmap = string.parse().unwrap();
+        let idmap: Idmap = string.parse()?;
 
         assert_eq!(
             idmap,
@@ -297,12 +296,14 @@ mod tests {
             },
         );
         assert_eq!(idmap.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn gids() {
+    fn gids() -> Result<(), ParseIdmapError> {
         let string = "gids=0-1-2#@3-4-5";
-        let idmap: Idmap = string.parse().unwrap();
+        let idmap: Idmap = string.parse()?;
 
         assert_eq!(
             idmap,
@@ -325,12 +326,14 @@ mod tests {
             },
         );
         assert_eq!(idmap.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn uids_and_gids() {
+    fn uids_and_gids() -> Result<(), ParseIdmapError> {
         let string = "uids=0-1-2;gids=3-4-5";
-        let idmap: Idmap = string.parse().unwrap();
+        let idmap: Idmap = string.parse()?;
 
         assert_eq!(
             idmap,
@@ -350,18 +353,21 @@ mod tests {
             },
         );
         assert_eq!(idmap.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn deserialize_unit() {
-        let idmap = Idmap::deserialize(UnitDeserializer::<de::value::Error>::new()).unwrap();
+    fn deserialize_unit() -> Result<(), de::value::Error> {
+        let idmap = Idmap::deserialize(UnitDeserializer::new())?;
         assert_eq!(idmap, Idmap::default());
+        Ok(())
     }
 
     #[test]
-    fn mapping_round_trip() {
+    fn mapping_round_trip() -> Result<(), ParseMappingError> {
         let string = "@0-1-2";
-        let mapping: Mapping = string.parse().unwrap();
+        let mapping: Mapping = string.parse()?;
 
         assert_eq!(
             mapping,
@@ -373,5 +379,7 @@ mod tests {
             },
         );
         assert_eq!(mapping.to_string(), string);
+
+        Ok(())
     }
 }

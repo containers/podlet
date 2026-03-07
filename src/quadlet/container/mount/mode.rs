@@ -30,7 +30,6 @@ pub fn skip_default(mode: &Mode) -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use std::fmt::{self, Display, Formatter};
 
@@ -58,8 +57,9 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_string() {
-        let mode = deserialize(BorrowedStrDeserializer::<Error>::new("755")).unwrap();
+    fn deserialize_string() -> Result<(), Error> {
+        let mode = deserialize(BorrowedStrDeserializer::new("755"))?;
         assert_eq!(mode, Mode::from(0o755));
+        Ok(())
     }
 }

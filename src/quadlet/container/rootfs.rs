@@ -136,16 +136,15 @@ pub enum ParseRootfsError {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::super::mount::idmap::Mapping;
 
     use super::*;
 
     #[test]
-    fn path() {
+    fn path() -> Result<(), ParseRootfsError> {
         let string = "/test";
-        let rootfs: Rootfs = string.parse().unwrap();
+        let rootfs: Rootfs = string.parse()?;
 
         assert_eq!(
             rootfs,
@@ -156,12 +155,14 @@ mod tests {
             },
         );
         assert_eq!(rootfs.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn overlay() {
+    fn overlay() -> Result<(), ParseRootfsError> {
         let string = "/test:O";
-        let rootfs: Rootfs = string.parse().unwrap();
+        let rootfs: Rootfs = string.parse()?;
 
         assert_eq!(
             rootfs,
@@ -172,12 +173,14 @@ mod tests {
             },
         );
         assert_eq!(rootfs.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn idmap() {
+    fn idmap() -> Result<(), ParseRootfsError> {
         let string = "/test:idmap=uids=0-1-2";
-        let rootfs: Rootfs = string.parse().unwrap();
+        let rootfs: Rootfs = string.parse()?;
 
         assert_eq!(
             rootfs,
@@ -196,12 +199,14 @@ mod tests {
             },
         );
         assert_eq!(rootfs.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn overlay_and_idmap() {
+    fn overlay_and_idmap() -> Result<(), ParseRootfsError> {
         let string = "/test:O,idmap";
-        let rootfs: Rootfs = string.parse().unwrap();
+        let rootfs: Rootfs = string.parse()?;
 
         assert_eq!(
             rootfs,
@@ -212,5 +217,7 @@ mod tests {
             },
         );
         assert_eq!(rootfs.to_string(), string);
+
+        Ok(())
     }
 }

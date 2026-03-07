@@ -249,13 +249,13 @@ enum SshMode {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn default_args_serialize_empty() {
-        let global_args = crate::serde::args::to_string(GlobalArgs::default()).unwrap();
+    fn default_args_serialize_empty() -> Result<(), crate::serde::args::Error> {
+        let global_args = crate::serde::args::to_string(GlobalArgs::default())?;
         assert!(global_args.is_empty());
+        Ok(())
     }
 }

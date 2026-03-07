@@ -391,9 +391,11 @@ impl<'de> Deserialize<'de> for Size {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
-    use super::{super::Mount, *};
+    use super::{
+        super::{Mount, ParseMountError},
+        *,
+    };
 
     #[test]
     fn mode_default() {
@@ -401,23 +403,25 @@ mod tests {
     }
 
     #[test]
-    fn defaults() {
+    fn defaults() -> Result<(), ParseMountError> {
         let string = "type=tmpfs,destination=/test";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
 
         assert_eq!(mount, Mount::Tmpfs(Tmpfs::new("/test".into())));
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn tmpcopyup() {
-        let mount: Mount = "type=tmpfs,destination=/test,tmpcopyup".parse().unwrap();
+    fn tmpcopyup() -> Result<(), ParseMountError> {
+        let mount: Mount = "type=tmpfs,destination=/test,tmpcopyup".parse()?;
 
         // tmpcopyup default is true
         assert_eq!(mount, Mount::Tmpfs(Tmpfs::new("/test".into())));
 
         let string = "type=tmpfs,destination=/test,notmpcopyup";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
 
         assert_eq!(
             mount,
@@ -427,5 +431,7 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 }
