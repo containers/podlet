@@ -597,13 +597,17 @@ pub enum PodmanVersion {
     V5_3,
 
     /// Podman v5.4
-    #[value(name = "5.4", aliases = ["latest", "5.4.0", "5.4.1", "5.4.2"])]
+    #[value(name = "5.4", aliases = ["5.4.0", "5.4.1", "5.4.2"])]
     V5_4,
+
+    /// Podman v5.5
+    #[value(name = "5.5", aliases = ["latest", "5.5.0", "5.5.1", "5.5.2"])]
+    V5_5,
 }
 
 impl PodmanVersion {
     /// Latest supported version of Podman with regards to Quadlet.
-    pub const LATEST: Self = Self::V5_4;
+    pub const LATEST: Self = Self::V5_5;
 
     /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
@@ -618,6 +622,7 @@ impl PodmanVersion {
             Self::V5_2 => "5.2",
             Self::V5_3 => "5.3",
             Self::V5_4 => "5.4",
+            Self::V5_5 => "5.5",
         }
     }
 }
