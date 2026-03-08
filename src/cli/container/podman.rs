@@ -219,10 +219,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ADDRESS")]
     mac_address: Option<String>,
 
-    /// Memory limit
-    #[arg(short, long, value_name = "NUMBER[UNIT]")]
-    memory: Option<String>,
-
     /// Memory soft limit
     #[arg(long, value_name = "NUMBER[UNIT]")]
     memory_reservation: Option<String>,
@@ -439,7 +435,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             ipc,
             uts,
             mac_address,
-            mem_limit,
             mem_reservation,
             mem_swappiness,
             memswap_limit,
@@ -504,7 +499,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
                 .wrap_err("`ipc` invalid")?,
             uts: uts.as_ref().map(ToString::to_string),
             mac_address: mac_address.as_ref().map(ToString::to_string),
-            memory: mem_limit.as_ref().map(ToString::to_string),
             memory_reservation: mem_reservation.as_ref().map(ToString::to_string),
             memory_swap: memswap_limit,
             memory_swappiness: mem_swappiness.map(Into::into),

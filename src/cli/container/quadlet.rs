@@ -296,6 +296,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NAME=VALUE")]
     log_opt: Vec<String>,
 
+    /// Memory limit
+    ///
+    /// Converts to "Memory=NUMBER[UNIT]"
+    #[arg(short, long, value_name = "NUMBER[UNIT]")]
+    memory: Option<String>,
+
     /// Attach a filesystem mount to the container
     ///
     /// Converts to "Mount=MOUNT"
@@ -548,6 +554,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_driver,
             log_opt,
             mount,
+            memory,
             network,
             network_alias,
             sdnotify: notify,
@@ -626,6 +633,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             label,
             log_driver,
             log_opt,
+            memory,
             mount,
             network,
             network_alias,
@@ -683,6 +691,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             labels,
             log_driver,
             log_options,
+            mem_limit,
             network_config,
             pids_limit,
             ports,
@@ -788,6 +797,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                     option
                 })
                 .collect(),
+            memory: mem_limit.as_ref().map(ToString::to_string),
             network: network_config
                 .map(network_config_try_into_network_options)
                 .transpose()

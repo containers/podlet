@@ -169,6 +169,9 @@ pub struct Container {
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub mask: Vec<String>,
 
+    /// Specify the amount of memory for the container.
+    pub memory: Option<String>,
+
     /// Attach a filesystem mount to the container.
     #[serde(serialize_with = "serialize_display_seq")]
     pub mount: Vec<Mount>,
@@ -373,6 +376,11 @@ impl Container {
                 Ok(())
             }
         })?;
+
+        let options = extract!(self, OptionsV5_5 { memory });
+
+        self.push_args(options)
+            .expect("OptionsV5_5 serializable as args");
 
         Ok(())
     }
@@ -641,6 +649,13 @@ impl Container {
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.5.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_5 {
+    memory: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.3.0
