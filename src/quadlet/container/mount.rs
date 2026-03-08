@@ -38,6 +38,7 @@ pub use self::{idmap::Idmap, tmpfs::Tmpfs};
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Mount {
+    Artifact(Artifact),
     Bind(Bind),
     DevPts(DevPts),
     Glob(Bind),
@@ -51,6 +52,7 @@ pub enum Mount {
 #[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 enum MountType {
+    Artifact,
     Bind,
     DevPts,
     Glob,
@@ -77,6 +79,7 @@ impl MountType {
         let map = MapAccessDeserializer::new(map);
         match_type_deserialize! {
             self, map,
+            Artifact => Artifact,
             Bind => Bind,
             DevPts => DevPts,
             Glob => Bind,
@@ -120,7 +123,7 @@ impl<'de> Visitor<'de> for MountVisitor {
 
 impl Display for Mount {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let mount = mount_options::to_string(self).map_err(|_| fmt::Error)?;
+        let mount = mount_options::to_string(self).expect("mount serialization cannot fail");
         f.write_str(&mount)
     }
 }
@@ -155,7 +158,8 @@ impl HostPaths for Mount {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
         match self {
             Self::Bind(bind) | Self::Glob(bind) => Some(&mut bind.source),
-            Self::DevPts(_)
+            Self::Artifact(_)
+            | Self::DevPts(_)
             | Self::Image(_)
             | Self::Ramfs(_)
             | Self::Tmpfs(_)
@@ -163,6 +167,102 @@ impl HostPaths for Mount {
         }
         .into_iter()
     }
+}
+
+/// Artifact type [`Mount`].
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(into = "ArtifactFlat", try_from = "ArtifactFlat")]
+pub struct Artifact {
+    /// Mount source spec.
+    pub source: String,
+
+    /// Mount destination spec.
+    pub destination: PathBuf,
+
+    /// If the artifact contains multiple blobs, the digest or title of the blob to use.
+    pub digest_or_title: Option<DigestOrTitle>,
+}
+
+/// A flattened version of [`Artifact`] for (de)serialization.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+struct ArtifactFlat {
+    /// Mount source spec.
+    #[serde(alias = "src")]
+    source: String,
+
+    /// Mount destination spec.
+    #[serde(alias = "dst", alias = "target")]
+    destination: PathBuf,
+
+    /// If the artifact contains multiple blobs, the digest to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    digest: Option<String>,
+
+    /// If the artifact contains multiple blobs, the title to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+}
+
+impl From<Artifact> for ArtifactFlat {
+    fn from(
+        Artifact {
+            source,
+            destination,
+            digest_or_title,
+        }: Artifact,
+    ) -> Self {
+        let (digest, title) = match digest_or_title {
+            Some(DigestOrTitle::Digest(digest)) => (Some(digest), None),
+            Some(DigestOrTitle::Title(title)) => (None, Some(title)),
+            None => (None, None),
+        };
+
+        Self {
+            source,
+            destination,
+            digest,
+            title,
+        }
+    }
+}
+
+impl TryFrom<ArtifactFlat> for Artifact {
+    type Error = &'static str;
+
+    fn try_from(
+        ArtifactFlat {
+            source,
+            destination,
+            digest,
+            title,
+        }: ArtifactFlat,
+    ) -> Result<Self, Self::Error> {
+        let digest_or_title = match (digest, title) {
+            (Some(digest), None) => Some(DigestOrTitle::Digest(digest)),
+            (None, Some(title)) => Some(DigestOrTitle::Title(title)),
+            (None, None) => None,
+            (Some(_), Some(_)) => return Err("cannot set both `digest` and `title`"),
+        };
+
+        Ok(Self {
+            source,
+            destination,
+            digest_or_title,
+        })
+    }
+}
+
+/// The `digest` or `title` field of the [`Artifact`] [`Mount`] type.
+///
+/// Used if an artifact contains more than one blob to select the blob to mount.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DigestOrTitle {
+    /// The digest to select the artifact blob with.
+    Digest(String),
+
+    /// The title to select the artifact blob with.
+    Title(String),
 }
 
 /// Bind or glob type [`Mount`].
@@ -445,6 +545,58 @@ impl Volume {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn artifact() -> Result<(), ParseMountError> {
+        // No digest or title
+        let string = "type=artifact,source=artifact,destination=/dst";
+        let mount: Mount = string.parse()?;
+        assert_eq!(
+            mount,
+            Mount::Artifact(Artifact {
+                source: "artifact".to_owned(),
+                destination: "/dst".into(),
+                digest_or_title: None
+            })
+        );
+        assert_eq!(mount.to_string(), string);
+
+        // Digest
+        let string = "type=artifact,source=artifact,destination=/dst,digest=digest";
+        let mount: Mount = string.parse()?;
+        assert_eq!(
+            mount,
+            Mount::Artifact(Artifact {
+                source: "artifact".to_owned(),
+                destination: "/dst".into(),
+                digest_or_title: Some(DigestOrTitle::Digest("digest".to_owned())),
+            })
+        );
+        assert_eq!(mount.to_string(), string);
+
+        // Title
+        let string = "type=artifact,source=artifact,destination=/dst,title=title";
+        let mount: Mount = string.parse()?;
+        assert_eq!(
+            mount,
+            Mount::Artifact(Artifact {
+                source: "artifact".to_owned(),
+                destination: "/dst".into(),
+                digest_or_title: Some(DigestOrTitle::Title("title".to_owned())),
+            })
+        );
+        assert_eq!(mount.to_string(), string);
+
+        // Digest and title is error
+        assert!(
+            Mount::from_str(
+                "type=artifact,source=artifact,destination=/dst,digest=digest,title=title"
+            )
+            .is_err()
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn bind() -> Result<(), ParseMountError> {
