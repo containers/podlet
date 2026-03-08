@@ -375,6 +375,14 @@ pub struct QuadletOptions {
     #[default = true]
     read_only_tmpfs: bool,
 
+    /// Number of times to retry pulling or pushing images between the registry and local storage
+    ///
+    /// Converts to "Retry=ATTEMPTS"
+    ///
+    /// Default is 3
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
     /// The rootfs to use for the container
     ///
     /// Converts to "Rootfs=PATH"
@@ -563,6 +571,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             pull,
             read_only,
             read_only_tmpfs,
+            retry,
             rootfs,
             init: run_init,
             secret,
@@ -643,6 +652,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             pull,
             read_only,
             read_only_tmpfs,
+            retry,
             rootfs,
             run_init,
             secret,

@@ -326,12 +326,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "CONTAINER[,...]")]
     requires: Option<String>,
 
-    /// Number of times to retry pulling or pushing images between the registry and local storage
-    ///
-    /// Default is 3
-    #[arg(long, value_name = "ATTEMPTS")]
-    retry: Option<u64>,
-
     /// Duration of delay between retry attempts when pulling or pushing images
     ///
     /// Default is to start at two seconds and then exponentially back off
