@@ -383,6 +383,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "ATTEMPTS")]
     retry: Option<u64>,
 
+    /// Duration of delay between retry attempts when pulling or pushing images
+    ///
+    /// Converts to "RetryDelay=DURATION"
+    ///
+    /// Default is to start at two seconds and then exponentially back off
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
+
     /// The rootfs to use for the container
     ///
     /// Converts to "Rootfs=PATH"
@@ -572,6 +580,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             read_only,
             read_only_tmpfs,
             retry,
+            retry_delay,
             rootfs,
             init: run_init,
             secret,
@@ -653,6 +662,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             read_only,
             read_only_tmpfs,
             retry,
+            retry_delay,
             rootfs,
             run_init,
             secret,

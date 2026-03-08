@@ -220,6 +220,9 @@ pub struct Container {
     /// Number of times to retry the image pull when a HTTP error occurs.
     pub retry: Option<u64>,
 
+    /// Delay between retries.
+    pub retry_delay: Option<String>,
+
     /// The rootfs to use for the container.
     pub rootfs: Option<Rootfs>,
 
@@ -380,7 +383,14 @@ impl Container {
             }
         })?;
 
-        let options = extract!(self, OptionsV5_5 { memory, retry });
+        let options = extract!(
+            self,
+            OptionsV5_5 {
+                memory,
+                retry,
+                retry_delay,
+            }
+        );
 
         self.push_args(options)
             .expect("OptionsV5_5 serializable as args");
@@ -660,6 +670,7 @@ impl Container {
 struct OptionsV5_5 {
     memory: Option<String>,
     retry: Option<u64>,
+    retry_delay: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.3.0
