@@ -116,6 +116,14 @@ pub struct Pull {
     #[arg(long)]
     pub retry: Option<u64>,
 
+    /// Duration of delay between retry attempts when pulling or pushing images.
+    ///
+    /// Converts to "RetryDelay=DURATION".
+    ///
+    /// Default is to start at two seconds and then exponentially back off.
+    #[arg(long, value_name = "DURATION")]
+    pub retry_delay: Option<String>,
+
     /// Require HTTPS and verify certificates when contacting registries
     ///
     /// Converts to "TLSVerify=TLS_VERIFY"
@@ -147,6 +155,7 @@ impl From<Pull> for quadlet::Image {
             os,
             platform,
             retry,
+            retry_delay,
             tls_verify,
             variant,
             source: image,
@@ -168,6 +177,7 @@ impl From<Pull> for quadlet::Image {
             os,
             podman_args: None,
             retry,
+            retry_delay,
             tls_verify,
             variant,
         }

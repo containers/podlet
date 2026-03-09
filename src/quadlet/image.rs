@@ -8,7 +8,9 @@ use std::{
 
 use serde::{Serialize, Serializer};
 
-use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, push_arg_display};
+use super::{
+    Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, push_arg, push_arg_display,
+};
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -52,6 +54,9 @@ pub struct Image {
     /// Number of times to retry the image pull when a HTTP error occurs.
     pub retry: Option<u64>,
 
+    /// Delay between retries.
+    pub retry_delay: Option<String>,
+
     /// Require HTTPS and verification of certificates when contacting registries.
     #[serde(rename = "TLSVerify")]
     pub tls_verify: Option<bool>,
@@ -89,6 +94,18 @@ impl Downgrade for Image {
                 }
                 self.push_arg_display("retry", retry);
             }
+
+            if let Some(retry_delay) = self.retry_delay.take() {
+                // `podman image pull --retry-delay` was added in Podman v5.0.0
+                if version < PodmanVersion::V5_0 {
+                    return Err(DowngradeError::Option {
+                        quadlet_option: "RetryDelay",
+                        value: retry_delay,
+                        supported_version: PodmanVersion::V5_0,
+                    });
+                }
+                self.push_arg("retry-delay", &retry_delay);
+            }
         }
 
         if version < PodmanVersion::V4_8 {
@@ -103,6 +120,12 @@ impl Downgrade for Image {
 }
 
 impl Image {
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: &str) {
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg(podman_args, flag, arg);
+    }
+
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     ///
     /// Ensure `arg` does not contain whitespace.
