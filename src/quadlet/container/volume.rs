@@ -666,22 +666,22 @@ impl Display for Overlay {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn container_only() {
+    fn container_only() -> Result<(), ParseVolumeError> {
         let string = "/container/path";
-        let volume: Volume = string.parse().unwrap();
+        let volume: Volume = string.parse()?;
         assert_eq!(volume, Volume::new("/container/path".into()));
         assert_eq!(volume.to_string(), string);
+        Ok(())
     }
 
     #[test]
-    fn source_and_container() {
+    fn source_and_container() -> Result<(), ParseVolumeError> {
         let string = "/host/path:/container/path";
-        let volume: Volume = string.parse().unwrap();
+        let volume: Volume = string.parse()?;
         assert_eq!(
             volume,
             Volume {
@@ -691,13 +691,14 @@ mod tests {
             },
         );
         assert_eq!(volume.to_string(), string);
+        Ok(())
     }
 
     #[test]
-    fn all_options() {
+    fn all_options() -> Result<(), ParseVolumeError> {
         let string = "/host/path:/container/path:ro,Z,O,upperdir=/upper/dir,workdir=/work/dir,U,\
             nocopy,dev,noexec,suid,rbind,shared,idmap";
-        let volume: Volume = string.parse().unwrap();
+        let volume: Volume = string.parse()?;
         let options = Options {
             read_only: true,
             selinux_relabel: Some(SELinuxRelabel::Private),
@@ -723,5 +724,6 @@ mod tests {
             }
         );
         assert_eq!(volume.to_string(), string);
+        Ok(())
     }
 }

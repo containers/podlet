@@ -443,14 +443,13 @@ impl Volume {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn bind() {
+    fn bind() -> Result<(), ParseMountError> {
         let string = "type=bind,source=/src,destination=/dst";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Bind(Bind {
@@ -462,7 +461,7 @@ mod tests {
 
         let string = "type=bind,source=/src,destination=/dst,readonly=true,bind-propagation=shared,\
             bind-nonrecursive=true,relabel=shared,idmap,chown=true,no-dereference=true";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Bind(Bind {
@@ -478,17 +477,19 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn devpts() {
+    fn devpts() -> Result<(), ParseMountError> {
         let string = "type=devpts,destination=/dst";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(mount, Mount::DevPts(DevPts::new("/dst".into())));
         assert_eq!(mount.to_string(), string);
 
         let string = "type=devpts,destination=/dst,uid=100,gid=100,mode=755,max=10";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::DevPts(DevPts {
@@ -500,12 +501,14 @@ mod tests {
             })
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn glob() {
+    fn glob() -> Result<(), ParseMountError> {
         let string = "type=glob,source=/usr/lib/libfoo*,destination=/usr/lib,readonly=true";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Glob(Bind {
@@ -515,13 +518,15 @@ mod tests {
             })
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn image() {
+    fn image() -> Result<(), ParseMountError> {
         let string =
             "type=image,source=fedora,destination=/fedora-image,readwrite=true,subpath=path";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Image(Image {
@@ -532,13 +537,15 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn ramfs() {
+    fn ramfs() -> Result<(), ParseMountError> {
         let string = "type=ramfs,destination=/dst,readonly=true,\
                         tmpfs-size=256m,tmpfs-mode=755,notmpcopyup,chown=true";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Ramfs(Tmpfs {
@@ -551,13 +558,15 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn tmpfs() {
+    fn tmpfs() -> Result<(), ParseMountError> {
         let string = "type=tmpfs,destination=/dst,readonly=true,\
                         tmpfs-size=256m,tmpfs-mode=755,notmpcopyup,chown=true";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Tmpfs(Tmpfs {
@@ -570,18 +579,20 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
-    fn volume() {
+    fn volume() -> Result<(), ParseMountError> {
         let string = "type=volume,destination=/dst";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(mount, Mount::Volume(Volume::new("/dst".into())),);
         assert_eq!(mount.to_string(), string);
 
         let string = "type=volume,source=volume,destination=/dst,readonly=true,chown=true,\
             idmap=uids=@0-1-2,subpath=/subpath";
-        let mount: Mount = string.parse().unwrap();
+        let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
             Mount::Volume(Volume {
@@ -602,5 +613,7 @@ mod tests {
             }),
         );
         assert_eq!(mount.to_string(), string);
+
+        Ok(())
     }
 }

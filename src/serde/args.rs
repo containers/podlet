@@ -25,7 +25,8 @@ use crate::escape::arg_quote;
 ///     str: "Hello world!",
 ///     vec: vec![1, 2],
 /// };
-/// assert_eq!(to_string(example).unwrap(), "--str \"Hello world!\" --vec 1 --vec 2");
+/// assert_eq!(to_string(example)?, "--str \"Hello world!\" --vec 1 --vec 2");
+/// # Ok::<(), Error>(())
 /// ```
 pub fn to_string<T: Serialize>(value: T) -> Result<String, Error> {
     let mut serializer = Serializer::default();
@@ -488,12 +489,11 @@ impl ser::SerializeTupleVariant for &mut ValueSerializer<'_> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn basic_struct() {
+    fn basic_struct() -> Result<(), Error> {
         #[derive(Serialize)]
         #[serde(rename_all = "kebab-case")]
         struct Test {
@@ -505,11 +505,13 @@ mod tests {
             option_one: "one",
             two: 2,
         };
-        assert_eq!(to_string(sut).unwrap(), "--option-one one --two 2");
+        assert_eq!(to_string(sut)?, "--option-one one --two 2");
+
+        Ok(())
     }
 
     #[test]
-    fn struct_with_sequence() {
+    fn struct_with_sequence() -> Result<(), Error> {
         #[derive(Serialize)]
         struct Test {
             tuple: (u16, u32, u64),
@@ -523,15 +525,17 @@ mod tests {
             vec: vec!["one", "two", "three"],
         };
         assert_eq!(
-            to_string(sut).unwrap(),
+            to_string(sut)?,
             "--tuple 1 --tuple 2 --tuple 3 \
              --array a --array b --array c \
              --vec one --vec two --vec three"
         );
+
+        Ok(())
     }
 
     #[test]
-    fn escape_values() {
+    fn escape_values() -> Result<(), Error> {
         #[derive(Serialize)]
         struct Test {
             test: &'static str,
@@ -540,11 +544,13 @@ mod tests {
         let sut = Test {
             test: "Hello, world!",
         };
-        assert_eq!(to_string(sut).unwrap(), "--test 'Hello, world!'");
+        assert_eq!(to_string(sut)?, "--test 'Hello, world!'");
+
+        Ok(())
     }
 
     #[test]
-    fn bool() {
+    fn bool() -> Result<(), Error> {
         #[derive(Serialize)]
         struct Test {
             yes: bool,
@@ -555,11 +561,13 @@ mod tests {
             yes: true,
             no: false,
         };
-        assert_eq!(to_string(sut).unwrap(), "--yes --no=false");
+        assert_eq!(to_string(sut)?, "--yes --no=false");
+
+        Ok(())
     }
 
     #[test]
-    fn enum_value() {
+    fn enum_value() -> Result<(), Error> {
         #[derive(Serialize)]
         #[serde(rename_all = "kebab-case")]
         enum Enum {
@@ -578,7 +586,9 @@ mod tests {
             two: Enum::Two,
         };
 
-        assert_eq!(to_string(sut).unwrap(), "--one one --two two");
+        assert_eq!(to_string(sut)?, "--one one --two two");
+
+        Ok(())
     }
 
     #[test]
@@ -596,7 +606,7 @@ mod tests {
         let sut = Test {
             nested: Nested { nested: "nested" },
         };
-        assert_eq!(to_string(sut).unwrap_err(), Error::Nested);
+        assert_eq!(to_string(sut), Err(Error::Nested));
     }
 
     #[test]
@@ -614,9 +624,9 @@ mod tests {
         }
 
         let sut = Test1 { empty: () };
-        assert_eq!(to_string(sut).unwrap_err(), Error::InvalidFlag);
+        assert_eq!(to_string(sut), Err(Error::InvalidFlag));
 
         let sut = Test2 { spaces: () };
-        assert_eq!(to_string(sut).unwrap_err(), Error::InvalidFlag);
+        assert_eq!(to_string(sut), Err(Error::InvalidFlag));
     }
 }

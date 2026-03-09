@@ -189,14 +189,13 @@ impl From<service::Device> for Device {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn host() {
+    fn host() -> Result<(), ParseDeviceError> {
         let string = "/host";
-        let device = Device::from_str(string).unwrap();
+        let device = Device::from_str(string)?;
 
         assert_eq!(
             device,
@@ -211,13 +210,15 @@ mod tests {
 
         assert_eq!(device.to_string(), string);
 
-        assert_eq!(device, "/host::".parse().unwrap());
+        assert_eq!(device, "/host::".parse()?);
+
+        Ok(())
     }
 
     #[test]
-    fn host_container() {
+    fn host_container() -> Result<(), ParseDeviceError> {
         let string = "/host:/container";
-        let device = Device::from_str(string).unwrap();
+        let device = Device::from_str(string)?;
 
         assert_eq!(
             device,
@@ -232,13 +233,15 @@ mod tests {
 
         assert_eq!(device.to_string(), string);
 
-        assert_eq!(device, "/host:/container:".parse().unwrap());
+        assert_eq!(device, "/host:/container:".parse()?);
+
+        Ok(())
     }
 
     #[test]
-    fn host_permissions() {
+    fn host_permissions() -> Result<(), ParseDeviceError> {
         let string = "/host:rwm";
-        let device = Device::from_str(string).unwrap();
+        let device = Device::from_str(string)?;
 
         assert_eq!(
             device,
@@ -253,14 +256,16 @@ mod tests {
 
         assert_eq!(device.to_string(), string);
 
-        assert_eq!(device, "/host::rwm".parse().unwrap());
-        assert_eq!(device, "/host:r:wm".parse().unwrap());
+        assert_eq!(device, "/host::rwm".parse()?);
+        assert_eq!(device, "/host:r:wm".parse()?);
+
+        Ok(())
     }
 
     #[test]
-    fn host_container_permissions() {
+    fn host_container_permissions() -> Result<(), ParseDeviceError> {
         let string = "/host:/container:rwm";
-        let device = Device::from_str(string).unwrap();
+        let device = Device::from_str(string)?;
 
         assert_eq!(
             device,
@@ -274,25 +279,24 @@ mod tests {
         );
 
         assert_eq!(device.to_string(), string);
+
+        Ok(())
     }
 
     #[test]
     fn empty_host_err() {
         assert_eq!(
-            Device::from_str(":/container").unwrap_err(),
-            ParseDeviceError::EmptyHostPath,
+            Device::from_str(":/container"),
+            Err(ParseDeviceError::EmptyHostPath),
         );
-        assert_eq!(
-            Device::from_str("").unwrap_err(),
-            ParseDeviceError::EmptyHostPath,
-        );
+        assert_eq!(Device::from_str(""), Err(ParseDeviceError::EmptyHostPath));
     }
 
     #[test]
     fn unknown_permission_err() {
         assert_eq!(
-            Device::from_str("/host:a").unwrap_err(),
-            ParseDeviceError::UnknownPermission('a'),
+            Device::from_str("/host:a"),
+            Err(ParseDeviceError::UnknownPermission('a')),
         );
     }
 }

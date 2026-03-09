@@ -34,9 +34,10 @@ mod ser;
 ///     option: false,
 /// };
 /// assert_eq!(
-///     to_string(example).unwrap(),
+///     to_string(example)?,
 ///     "hello=world,option=false",
 /// );
+/// # Ok::<(), Error>(())
 /// ```
 pub fn to_string<T: Serialize>(value: T) -> Result<String, Error> {
     let mut serializer = Serializer::default();
@@ -102,7 +103,6 @@ impl serde::de::Error for Error {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -153,34 +153,38 @@ mod tests {
     }
 
     #[test]
-    fn serialize() {
-        assert_eq!(to_string(Test::new()).unwrap(), Test::DEFAULT);
+    fn serialize() -> Result<(), Error> {
+        assert_eq!(to_string(Test::new())?, Test::DEFAULT);
+        Ok(())
     }
 
     #[test]
-    fn deserialize() {
-        let test: Test = from_str(Test::DEFAULT).unwrap();
+    fn deserialize() -> Result<(), Error> {
+        let test: Test = from_str(Test::DEFAULT)?;
         assert_eq!(test, Test::new());
+        Ok(())
     }
 
     #[test]
-    fn deserialize_bool() {
+    fn deserialize_bool() -> Result<(), Error> {
         #[derive(Deserialize, Debug, PartialEq, Eq)]
         struct Test {
             #[serde(default)]
             bool: bool,
         }
 
-        let test: Test = from_str("bool=true").unwrap();
+        let test: Test = from_str("bool=true")?;
         assert_eq!(test, Test { bool: true });
 
-        let test: Test = from_str("bool=false").unwrap();
+        let test: Test = from_str("bool=false")?;
         assert_eq!(test, Test { bool: false });
 
-        let test: Test = from_str("bool").unwrap();
+        let test: Test = from_str("bool")?;
         assert_eq!(test, Test { bool: true });
 
-        let test: Test = from_str("").unwrap();
+        let test: Test = from_str("")?;
         assert_eq!(test, Test { bool: false });
+
+        Ok(())
     }
 }
