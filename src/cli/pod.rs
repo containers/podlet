@@ -7,13 +7,13 @@ use std::{
 
 use clap::{ArgAction, Args, Subcommand, ValueEnum};
 use compose_spec::service::blkio_config::Weight;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 use smart_default::SmartDefault;
 
 use crate::{
     quadlet::{
         self,
-        container::{Device, Dns, DnsEntry, Volume},
+        container::{Device, DnsEntry, Volume},
     },
     serde::skip_true,
 };
@@ -71,6 +71,64 @@ impl From<Pod> for quadlet::Resource {
 #[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Create {
+    /// Add a custom host-to-IP mapping.
+    ///
+    /// Converts to "AddHost=HOST:IP".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "HOST:IP")]
+    add_host: Vec<String>,
+
+    /// Set custom DNS servers.
+    ///
+    /// Converts to "DNS=IP_ADDRESS".
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "IP_ADDRESS")]
+    // TODO: use `Dns` directly if clap ever supports custom collections
+    // (https://github.com/clap-rs/clap/issues/3114).
+    dns: Vec<DnsEntry>,
+
+    /// Set custom DNS options.
+    ///
+    /// Converts to "DNSOption=OPTION".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "OPTION")]
+    dns_option: Vec<String>,
+
+    /// Set custom DNS search domains.
+    ///
+    /// Converts to "DNSSearch=DOMAIN".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, value_name = "DOMAIN")]
+    dns_search: Vec<String>,
+
+    /// GID map for the user namespace.
+    ///
+    /// Converts to "GIDMap=POD_GID:HOST_GID[:AMOUNT]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(
+        long,
+        value_name = "POD_GID:HOST_GID[:AMOUNT]",
+        conflicts_with_all = ["userns", "subgidname"],
+    )]
+    gidmap: Vec<String>,
+
+    /// Specify a static IPv4 address for the pod.
+    ///
+    /// Converts to "IP=IPV4".
+    #[arg(long, value_name = "IPV4")]
+    ip: Option<Ipv4Addr>,
+
+    /// Specify a static IPv6 address for the pod.
+    ///
+    /// Converts to "IP6=IPV6".
+    #[arg(long, value_name = "IPV6")]
+    ip6: Option<Ipv6Addr>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -120,6 +178,42 @@ pub struct Create {
     )]
     publish: Vec<String>,
 
+    /// Size of `/dev/shm`.
+    ///
+    /// Converts to "ShmSize=NUMBER[UNIT]".
+    #[arg(long, value_name = "NUMBER[UNIT]")]
+    shm_size: Option<String>,
+
+    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
+    ///
+    /// Converts to "SubGIDMap=NAME".
+    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "gidmap"])]
+    subgidname: Option<String>,
+
+    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subuid` file.
+    ///
+    /// Converts to "SubUIDMap=NAME".
+    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "uidmap"])]
+    subuidname: Option<String>,
+
+    /// Run all containers in the pod in a new user namespace using the supplied mapping.
+    ///
+    /// Converts to "UIDMap=CONTAINER_UID:FROM_UID[:AMOUNT]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(
+        long,
+        value_name = "CONTAINER_UID:FROM_UID[:AMOUNT]",
+        conflicts_with_all = ["userns", "subuidname"],
+    )]
+    uidmap: Vec<String>,
+
+    /// Set the user namespace mode for all the containers in the pod.
+    ///
+    /// Converts to "UserNS=MODE".
+    #[arg(long, value_name = "MODE")]
+    userns: Option<String>,
+
     /// Mount a volume in the pod.
     ///
     /// Converts to "Volume=[[SOURCE-VOLUME|HOST-DIR:]CONTAINER-DIR[:OPTIONS]]".
@@ -149,10 +243,22 @@ pub struct Create {
 impl From<Create> for quadlet::Pod {
     fn from(
         Create {
+            add_host,
+            dns,
+            dns_option,
+            dns_search,
+            gidmap,
+            ip,
+            ip6,
             network,
             network_alias,
             name_flag: pod_name,
             publish: publish_port,
+            shm_size,
+            subgidname,
+            subuidname,
+            uidmap,
+            userns,
             volume,
             podman_args,
             // Only set `PodName=` Quadlet option when `--name` is used.
@@ -162,26 +268,33 @@ impl From<Create> for quadlet::Pod {
         let podman_args = podman_args.to_string();
 
         Self {
+            add_host,
+            dns: dns.into(),
+            dns_option,
+            dns_search,
+            gid_map: gidmap,
+            ip,
+            ip6,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pod_name,
             publish_port,
+            shm_size,
+            sub_gid_map: subgidname,
+            sub_uid_map: subuidname,
+            uid_map: uidmap,
+            user_ns: userns,
             volume,
         }
     }
 }
 
 /// [`Args`] for `podman pod create` (i.e. [`Create`]) that convert into `PodmanArgs=ARGS`.
+#[expect(clippy::struct_excessive_bools, reason = "CLI flags")]
 #[derive(Args, Serialize, Debug, SmartDefault, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 struct PodmanArgs {
-    /// Add a custom host-to-IP mapping.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "HOST:IP")]
-    add_host: Vec<String>,
-
     /// Block IO relative weight, between 10 and 1000.
     #[arg(long, value_name = "WEIGHT", value_parser = blkio_weight_parser())]
     blkio_weight: Option<Weight>,
@@ -230,42 +343,12 @@ struct PodmanArgs {
     #[arg(long, value_name = "PATH:RATE")]
     device_write_bps: Vec<String>,
 
-    /// Set custom DNS servers.
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "IP_ADDRESS")]
-    #[serde(serialize_with = "serialize_dns")]
-    // TODO: use `Dns` directly if clap ever supports custom collections (https://github.com/clap-rs/clap/issues/3114).
-    dns: Vec<DnsEntry>,
-
-    /// Set custom DNS options.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "OPTION")]
-    dns_option: Vec<String>,
-
-    /// Set custom DNS search domains.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "DOMAIN")]
-    dns_search: Vec<String>,
-
     /// Set the exit policy of the pod when the last container exits.
     ///
     /// Only `stop` is supported as it is automatically set by Quadlet.
     #[arg(long, value_enum, default_value_t)]
     #[serde(skip)]
     exit_policy: ExitPolicy,
-
-    /// GID map for the user namespace.
-    ///
-    /// Can be specified multiple times
-    #[arg(
-        long,
-        value_name = "POD_GID:HOST_GID[:AMOUNT]",
-        conflicts_with_all = ["userns", "subgidname"]
-    )]
-    gidmap: Vec<String>,
 
     /// GPU devices to add to the pod (`all` to pass all GPUs).
     ///
@@ -276,6 +359,10 @@ struct PodmanArgs {
     /// Set the hostname of the pod.
     #[arg(long, value_name = "NAME")]
     hostname: Option<String>,
+
+    /// Base file to create the `/etc/hosts` file inside the pod's containers.
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
 
     /// Create an infra container and associate it with the pod.
     ///
@@ -300,14 +387,6 @@ struct PodmanArgs {
     #[arg(long, value_name = "NAME")]
     infra_name: Option<String>,
 
-    /// Specify a static IPv4 address for the pod.
-    #[arg(long, value_name = "IPV4")]
-    ip: Option<Ipv4Addr>,
-
-    /// Specify a static IPv6 address for the pod.
-    #[arg(long, value_name = "IPV6")]
-    ip6: Option<Ipv6Addr>,
-
     /// Add metadata to the pod.
     ///
     /// Can be specified multiple times
@@ -329,6 +408,11 @@ struct PodmanArgs {
     /// Limit value equal to memory plus swap.
     #[arg(long, value_name = "NUMBER[UNIT]")]
     memory_swap: Option<String>,
+
+    /// Do not create the `/etc/hostname` file in the containers.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
 
     /// Do not create /etc/hosts for the pod.
     #[arg(long, conflicts_with = "add_host")]
@@ -366,41 +450,15 @@ struct PodmanArgs {
     #[default = true]
     share_parent: bool,
 
-    /// Size of `/dev/shm`.
-    #[arg(long, value_name = "NUMBER[UNIT]")]
-    shm_size: Option<String>,
-
     /// Size of systemd-specific tmpfs mounts.
     #[arg(long, value_name = "NUMBER[UNIT]")]
     shm_size_systemd: Option<String>,
-
-    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subgid` file.
-    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "gidmap"])]
-    subgidname: Option<String>,
-
-    /// Run the pod in a new user namespace using the map with `NAME` in the `/etc/subuid` file.
-    #[arg(long, value_name = "NAME", conflicts_with_all = ["userns", "uidmap"])]
-    subuidname: Option<String>,
 
     /// Configure namespaced kernel parameters for all containers in the pod.
     ///
     /// Can be specified multiple times.
     #[arg(long, value_name = "NAME=VALUE")]
     sysctl: Vec<String>,
-
-    /// Run all containers in the pod in a new user namespace using the supplied mapping.
-    ///
-    /// Can be specified multiple times.
-    #[arg(
-        long,
-        value_name = "CONTAINER_UID:FROM_UID[:AMOUNT]",
-        conflicts_with_all = ["userns", "subuidname"]
-    )]
-    uidmap: Vec<String>,
-
-    /// Set the user namespace mode for all the containers in the pod.
-    #[arg(long, value_name = "MODE")]
-    userns: Option<String>,
 
     /// Set the UTS namespace mode for the pod.
     #[arg(long, value_name = "MODE")]
@@ -411,11 +469,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "CONTAINER[:OPTIONS]")]
     volumes_from: Vec<String>,
-}
-
-/// Serialize the `dns` field of [`PodmanArgs`] as [`Dns`].
-fn serialize_dns<S: Serializer>(dns: &[DnsEntry], serializer: S) -> Result<S::Ok, S::Error> {
-    dns.iter().copied().collect::<Dns>().serialize(serializer)
 }
 
 impl Display for PodmanArgs {

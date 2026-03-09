@@ -182,6 +182,7 @@ impl From<GlobalArgs> for Globals {
         Self {
             containers_conf_module: value.module,
             global_args: (!global_args.is_empty()).then_some(global_args),
+            service_name: None,
         }
     }
 }

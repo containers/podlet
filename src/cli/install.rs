@@ -33,14 +33,20 @@ pub struct Install {
 }
 
 impl From<Install> for crate::quadlet::Install {
-    fn from(value: Install) -> Self {
+    fn from(
+        Install {
+            install,
+            wanted_by,
+            required_by,
+        }: Install,
+    ) -> Self {
         Self {
-            wanted_by: if value.wanted_by.is_empty() && value.required_by.is_empty() {
+            wanted_by: if install && wanted_by.is_empty() && required_by.is_empty() {
                 vec![String::from("default.target")]
             } else {
-                value.wanted_by
+                wanted_by
             },
-            required_by: value.required_by,
+            required_by,
         }
     }
 }

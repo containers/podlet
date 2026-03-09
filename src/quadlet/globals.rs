@@ -13,10 +13,25 @@ pub struct Globals {
 
     /// A list of arguments passed directly after `podman`.
     pub global_args: Option<String>,
+
+    /// Change the name of the systemd service that Quadlet generates.
+    ///
+    /// The name should **not** include the `.service` extension.
+    pub service_name: Option<String>,
 }
 
 impl Downgrade for Globals {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 {
+            if let Some(service_name) = self.service_name.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "ServiceName",
+                    value: service_name,
+                    supported_version: PodmanVersion::V5_3,
+                });
+            }
+        }
+
         if version < PodmanVersion::V4_8 {
             if let Some(containers_conf_module) =
                 std::mem::take(&mut self.containers_conf_module).first()

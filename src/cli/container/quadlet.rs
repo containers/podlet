@@ -55,6 +55,14 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "HOST-DEVICE[:CONTAINER-DEVICE][:PERMISSIONS]")]
     device: Vec<Device>,
 
+    /// Add a custom host-to-IP mapping
+    ///
+    /// Converts to "AddHost=HOST:IP"
+    ///
+    /// Can be specified multiple times
+    #[arg(long, value_name = "HOST:IP")]
+    add_host: Vec<String>,
+
     /// Add an annotation to the container
     ///
     /// Converts to "Annotation=KEY=VALUE"
@@ -62,6 +70,12 @@ pub struct QuadletOptions {
     /// Can be specified multiple times
     #[arg(long, value_name = "KEY=VALUE")]
     annotation: Vec<String>,
+
+    /// Whether the container will create cgroups
+    ///
+    /// Converts to "CgroupsMode=HOW"
+    #[arg(long, value_name = "HOW")]
+    cgroups: Option<String>,
 
     /// The (optional) name of the container
     ///
@@ -169,6 +183,24 @@ pub struct QuadletOptions {
     /// Converts to "HealthInterval=INTERVAL"
     #[arg(long, value_name = "INTERVAL")]
     health_interval: Option<String>,
+
+    /// Set the destination of the health check log
+    ///
+    /// Converts to "HealthLogDestination=DIRECTORY_PATH"
+    #[arg(long, value_name = "DIRECTORY_PATH")]
+    health_log_destination: Option<String>,
+
+    /// Set maximum number of attempts in the health check log file
+    ///
+    /// Converts to "HealthMaxLogCount=NUMBER_OF_STORED_LOGS"
+    #[arg(long, value_name = "NUMBER_OF_STORED_LOGS")]
+    health_max_log_count: Option<u64>,
+
+    /// Set maximum length in characters of stored health check log
+    ///
+    /// Converts to "HealthMaxLogSize=SIZE_OF_STORED_LOGS"
+    #[arg(long, value_name = "SIZE_OF_STORED_LOGS")]
+    health_max_log_size: Option<u64>,
 
     /// Action to take once the container transitions to an unhealthy state
     ///
@@ -480,7 +512,9 @@ impl From<QuadletOptions> for crate::quadlet::Container {
         QuadletOptions {
             cap_add: add_capability,
             device: add_device,
+            add_host,
             annotation,
+            cgroups,
             name: container_name,
             dns,
             dns_option,
@@ -495,6 +529,9 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             group_add,
             health_cmd,
             health_interval,
+            health_log_destination,
+            health_max_log_count,
+            health_max_log_size,
             health_on_failure,
             health_retries,
             health_start_period,
@@ -552,8 +589,10 @@ impl From<QuadletOptions> for crate::quadlet::Container {
         Self {
             add_capability,
             add_device,
+            add_host,
             annotation,
             auto_update,
+            cgroups_mode: cgroups,
             container_name,
             dns: dns.into(),
             dns_option,
@@ -569,6 +608,9 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             group_add,
             health_cmd,
             health_interval,
+            health_log_destination,
+            health_max_log_count,
+            health_max_log_size,
             health_on_failure,
             health_retries,
             health_start_period,
@@ -632,6 +674,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             env_file,
             environment,
             expose,
+            extra_hosts,
             annotations,
             group_add,
             healthcheck,
@@ -718,6 +761,10 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                 .wrap_err("error converting `env_file`")?,
             env: environment.into_list().into_iter().collect(),
             expose: expose.iter().map(ToString::to_string).collect(),
+            add_host: extra_hosts
+                .into_iter()
+                .map(|(host, ip)| format!("{host}:{ip}"))
+                .collect(),
             annotation: annotations.into_list().into_iter().collect(),
             group_add: group_add.into_iter().map(Into::into).collect(),
             health_cmd,
@@ -975,8 +1022,7 @@ fn validate_network_mode(network_mode: NetworkMode) -> color_eyre::Result<String
         NetworkMode::None | NetworkMode::Host | NetworkMode::Container(_) => {
             Ok(network_mode.to_string())
         }
-        NetworkMode::Service(_) => Err(eyre!("network_mode `service:` is not supported")
-            .suggestion("try using the `container:` network_mode instead")),
+        NetworkMode::Service(service) => Ok(format!("{service}.container")),
         NetworkMode::Other(s) => {
             if s.starts_with("bridge")
                 || s.starts_with("ns:")

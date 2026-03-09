@@ -57,7 +57,7 @@ pub struct Build {
 
     /// Specifies the name which is assigned to the resulting image if the build process completes
     /// successfully.
-    pub image_tag: String,
+    pub image_tag: Vec<String>,
 
     /// Add an image label (e.g. label=value) to the image metadata.
     #[serde(serialize_with = "seq_quote_whitespace")]
@@ -105,6 +105,13 @@ impl HostPaths for Build {
 
 impl Downgrade for Build {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_3 && self.image_tag.len() > 1 {
+            return Err(DowngradeError::Multiple {
+                quadlet_option: "ImageTag",
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
         if version < PodmanVersion::V5_2 {
             return Err(DowngradeError::Kind {
                 kind: ResourceKind::Build,

@@ -26,12 +26,6 @@ use super::compose;
 #[derive(Args, Serialize, SmartDefault, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
-    /// Add a custom host-to-IP mapping
-    ///
-    /// Can be specified multiple times
-    #[arg(long, value_name = "HOST:IP")]
-    add_host: Vec<String>,
-
     /// Override the architecture of the image to be pulled
     ///
     /// Defaults to hosts architecture
@@ -71,10 +65,6 @@ pub struct PodmanArgs {
     /// Set the cgroup namespace for the container
     #[arg(long, value_name = "MODE")]
     cgroupns: Option<String>,
-
-    /// Whether the container will create cgroups
-    #[arg(long, value_name = "HOW")]
-    cgroups: Option<String>,
 
     /// Chroot directories inside the container
     #[arg(long, value_name = "PATH")]
@@ -186,6 +176,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "ENTRY")]
     group_entry: Option<String>,
 
+    /// Base file to create the `/etc/hosts` file inside the container
+    #[arg(long, value_name = "PATH | none | image")]
+    hosts_file: Option<String>,
+
     /// Add a user account to /etc/passwd from the host to the container
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
@@ -245,6 +239,11 @@ pub struct PodmanArgs {
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
     no_healthcheck: bool,
+
+    /// Do not create the `/etc/hostname` file for the container
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_hostname: bool,
 
     /// Do not create /etc/hosts for the container
     #[arg(long)]
@@ -437,7 +436,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             cgroup,
             cgroup_parent,
             device_cgroup_rules,
-            extra_hosts,
             ipc,
             uts,
             mac_address,
@@ -499,10 +497,6 @@ impl TryFrom<compose::PodmanArgs> for PodmanArgs {
             device_cgroup_rule: device_cgroup_rules
                 .iter()
                 .map(ToString::to_string)
-                .collect(),
-            add_host: extra_hosts
-                .into_iter()
-                .map(|(host, ip)| format!("{host}:{ip}"))
                 .collect(),
             ipc: ipc
                 .map(validate_ipc)
