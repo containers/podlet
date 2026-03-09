@@ -117,6 +117,12 @@ pub struct Create {
     )]
     gidmap: Vec<String>,
 
+    /// Set the hostname of the pod.
+    ///
+    /// Converts to "HostName=NAME".
+    #[arg(long, value_name = "NAME")]
+    hostname: Option<String>,
+
     /// Specify a static IPv4 address for the pod.
     ///
     /// Converts to "IP=IPV4".
@@ -248,6 +254,7 @@ impl From<Create> for quadlet::Pod {
             dns_option,
             dns_search,
             gidmap,
+            hostname,
             ip,
             ip6,
             network,
@@ -273,6 +280,7 @@ impl From<Create> for quadlet::Pod {
             dns_option,
             dns_search,
             gid_map: gidmap,
+            host_name: hostname,
             ip,
             ip6,
             network,
@@ -355,10 +363,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "ENTRY")]
     gpus: Vec<String>,
-
-    /// Set the hostname of the pod.
-    #[arg(long, value_name = "NAME")]
-    hostname: Option<String>,
 
     /// Base file to create the `/etc/hosts` file inside the pod's containers.
     #[arg(long, value_name = "PATH | none | image")]

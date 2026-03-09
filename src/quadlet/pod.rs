@@ -33,6 +33,9 @@ pub struct Pod {
     #[serde(rename = "GIDMap")]
     pub gid_map: Vec<String>,
 
+    /// Set the pod’s hostname inside all containers.
+    pub host_name: Option<String>,
+
     /// Specify a static IPv4 address for the pod.
     #[serde(rename = "IP")]
     pub ip: Option<Ipv4Addr>,
@@ -91,6 +94,12 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_5 {
+            if let Some(host_name) = self.host_name.take() {
+                self.push_arg("hostname", &host_name);
+            }
+        }
+
         if version < PodmanVersion::V5_4 {
             if let Some(shm_size) = self.shm_size.take() {
                 self.push_arg("shm-size", &shm_size);
