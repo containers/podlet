@@ -8,7 +8,7 @@ use std::{
 
 use serde::{Serialize, Serializer};
 
-use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind};
+use super::{Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, push_arg_display};
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
@@ -49,6 +49,9 @@ pub struct Image {
     /// generated file.
     pub podman_args: Option<String>,
 
+    /// Number of times to retry the image pull when a HTTP error occurs.
+    pub retry: Option<u64>,
+
     /// Require HTTPS and verification of certificates when contacting registries.
     #[serde(rename = "TLSVerify")]
     pub tls_verify: Option<bool>,
@@ -74,6 +77,20 @@ impl HostPaths for Image {
 impl Downgrade for Image {
     #[allow(clippy::unused_self)]
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_5 {
+            if let Some(retry) = self.retry.take() {
+                // `podman image pull --retry` was added in Podman v5.0.0
+                if version < PodmanVersion::V5_0 {
+                    return Err(DowngradeError::Option {
+                        quadlet_option: "Retry",
+                        value: retry.to_string(),
+                        supported_version: PodmanVersion::V5_0,
+                    });
+                }
+                self.push_arg_display("retry", retry);
+            }
+        }
+
         if version < PodmanVersion::V4_8 {
             return Err(DowngradeError::Kind {
                 kind: ResourceKind::Image,
@@ -82,6 +99,16 @@ impl Downgrade for Image {
         }
 
         Ok(())
+    }
+}
+
+impl Image {
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    ///
+    /// Ensure `arg` does not contain whitespace.
+    fn push_arg_display(&mut self, flag: &str, arg: impl Display) {
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg_display(podman_args, flag, arg);
     }
 }
 
