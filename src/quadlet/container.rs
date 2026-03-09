@@ -22,7 +22,7 @@ use crate::serde::{quadlet::seq_quote_whitespace, serialize_display_seq, skip_tr
 
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
-use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion};
+use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion, push_arg_display};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
@@ -650,13 +650,16 @@ impl Container {
     }
 
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    ///
+    /// Ensure `arg` does not contain whitespace.
     fn push_arg(&mut self, flag: &str, arg: impl Display) {
-        self.podman_args_push_str(&format!("--{flag} {arg}"));
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg_display(podman_args, flag, arg);
     }
 
     /// Push `string` to `podman_args`, adding a space if needed.
     fn podman_args_push_str(&mut self, string: &str) {
-        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        let podman_args = self.podman_args.get_or_insert_default();
         if !podman_args.is_empty() {
             podman_args.push(' ');
         }

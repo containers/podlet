@@ -12,7 +12,7 @@ mod volume;
 
 use std::{
     collections::HashSet,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Display, Formatter, Write},
     iter,
     path::PathBuf,
     str::FromStr,
@@ -779,4 +779,34 @@ impl HostPaths for Context {
         }
         .into_iter()
     }
+}
+
+/// Add "--{flag} {arg}" to `podman_args`, quoting whitespace in `arg`.
+fn push_arg(podman_args: &mut String, flag: &str, arg: &str) {
+    if !podman_args.is_empty() {
+        podman_args.push(' ');
+    }
+
+    podman_args.push_str("--");
+    podman_args.push_str(flag);
+    podman_args.push(' ');
+
+    if arg.contains(char::is_whitespace) {
+        podman_args.push('"');
+        podman_args.push_str(arg);
+        podman_args.push('"');
+    } else {
+        podman_args.push_str(arg);
+    }
+}
+
+/// Add "--{flag} {arg}" to `podman_args` using `arg`'s [`Display`] implementation.
+///
+/// Prefer using [`push_arg()`] as it quotes whtiespace.
+fn push_arg_display(podman_args: &mut String, flag: &str, arg: impl Display) {
+    if !podman_args.is_empty() {
+        podman_args.push(' ');
+    }
+
+    write!(podman_args, "--{flag} {arg}").expect("write to String cannot fail");
 }

@@ -8,6 +8,7 @@ use serde::Serialize;
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
     container::{Dns, Volume},
+    push_arg,
 };
 
 /// Options for the \[Pod\] section of a `.pod` Quadlet file.
@@ -182,19 +183,7 @@ impl Pod {
 
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
-        let podman_args = self.podman_args.get_or_insert_with(String::new);
-        if !podman_args.is_empty() {
-            podman_args.push(' ');
-        }
-        podman_args.push_str("--");
-        podman_args.push_str(flag);
-        podman_args.push(' ');
-        if arg.contains(char::is_whitespace) {
-            podman_args.push('"');
-            podman_args.push_str(arg);
-            podman_args.push('"');
-        } else {
-            podman_args.push_str(arg);
-        }
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg(podman_args, flag, arg);
     }
 }
