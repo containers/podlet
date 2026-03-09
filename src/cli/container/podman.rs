@@ -117,9 +117,9 @@ pub struct PodmanArgs {
     /// Detached mode: run the container in the background
     ///
     /// Automatically set by Quadlet
-    #[arg(short, long)]
+    #[arg(short, long, require_equals = true, default_missing_value = "true")]
     #[serde(skip_serializing)]
-    detach: bool,
+    detach: Option<bool>,
 
     /// Key sequence for detaching a container
     #[arg(long, value_name = "SEQUENCE")]
