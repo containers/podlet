@@ -5,6 +5,8 @@ use std::{
 
 use serde::Serialize;
 
+use crate::serde::quadlet::seq_quote_whitespace;
+
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
     container::{Dns, Volume},
@@ -44,6 +46,10 @@ pub struct Pod {
     /// Specify a static IPv6 address for the pod.
     #[serde(rename = "IP6")]
     pub ip6: Option<Ipv6Addr>,
+
+    /// Set one or more OCI labels on the pod.
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub label: Vec<String>,
 
     /// Specify a custom network for the pod.
     pub network: Vec<String>,
@@ -95,6 +101,12 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_6 {
+            for label in std::mem::take(&mut self.label) {
+                self.push_arg("label", &label);
+            }
+        }
+
         if version < PodmanVersion::V5_5 {
             if let Some(host_name) = self.host_name.take() {
                 self.push_arg("hostname", &host_name);

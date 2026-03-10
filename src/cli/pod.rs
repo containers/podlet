@@ -135,6 +135,14 @@ pub struct Create {
     #[arg(long, value_name = "IPV6")]
     ip6: Option<Ipv6Addr>,
 
+    /// Add metadata to the pod.
+    ///
+    /// Converts to "Label=KEY=VALUE".
+    ///
+    /// Can be specified multiple times.
+    #[arg(short, long, value_name = "KEY=VALUE")]
+    label: Vec<String>,
+
     /// Specify a custom network for the pod.
     ///
     /// Converts to "Network=MODE".
@@ -257,6 +265,7 @@ impl From<Create> for quadlet::Pod {
             hostname,
             ip,
             ip6,
+            label,
             network,
             network_alias,
             name_flag: pod_name,
@@ -283,6 +292,7 @@ impl From<Create> for quadlet::Pod {
             host_name: hostname,
             ip,
             ip6,
+            label,
             network,
             network_alias,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
@@ -390,12 +400,6 @@ struct PodmanArgs {
     /// Name used for the pod's infra container.
     #[arg(long, value_name = "NAME")]
     infra_name: Option<String>,
-
-    /// Add metadata to the pod.
-    ///
-    /// Can be specified multiple times
-    #[arg(short, long, value_name = "KEY=VALUE")]
-    label: Vec<String>,
 
     /// Read in a line-delimited file of labels
     #[arg(long, value_name = "FILE")]
