@@ -296,6 +296,12 @@ pub struct QuadletOptions {
     #[arg(long, value_name = "NAME=VALUE")]
     log_opt: Vec<String>,
 
+    /// Memory limit
+    ///
+    /// Converts to "Memory=NUMBER[UNIT]"
+    #[arg(short, long, value_name = "NUMBER[UNIT]")]
+    memory: Option<String>,
+
     /// Attach a filesystem mount to the container
     ///
     /// Converts to "Mount=MOUNT"
@@ -368,6 +374,22 @@ pub struct QuadletOptions {
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
     #[default = true]
     read_only_tmpfs: bool,
+
+    /// Number of times to retry pulling or pushing images between the registry and local storage
+    ///
+    /// Converts to "Retry=ATTEMPTS"
+    ///
+    /// Default is 3
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
+    /// Duration of delay between retry attempts when pulling or pushing images
+    ///
+    /// Converts to "RetryDelay=DURATION"
+    ///
+    /// Default is to start at two seconds and then exponentially back off
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
 
     /// The rootfs to use for the container
     ///
@@ -548,6 +570,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             log_driver,
             log_opt,
             mount,
+            memory,
             network,
             network_alias,
             sdnotify: notify,
@@ -556,6 +579,8 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             pull,
             read_only,
             read_only_tmpfs,
+            retry,
+            retry_delay,
             rootfs,
             init: run_init,
             secret,
@@ -626,6 +651,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             label,
             log_driver,
             log_opt,
+            memory,
             mount,
             network,
             network_alias,
@@ -635,6 +661,8 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             pull,
             read_only,
             read_only_tmpfs,
+            retry,
+            retry_delay,
             rootfs,
             run_init,
             secret,
@@ -683,6 +711,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
             labels,
             log_driver,
             log_options,
+            mem_limit,
             network_config,
             pids_limit,
             ports,
@@ -788,6 +817,7 @@ impl TryFrom<compose::Quadlet> for QuadletOptions {
                     option
                 })
                 .collect(),
+            memory: mem_limit.as_ref().map(ToString::to_string),
             network: network_config
                 .map(network_config_try_into_network_options)
                 .transpose()

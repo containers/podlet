@@ -52,6 +52,24 @@ pub struct Unit {
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub binds_to: Vec<String>,
 
+    /// Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped.
+    ///
+    /// Converts to "PartOf=PART_OF[ ...]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long)]
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub part_of: Vec<String>,
+
+    /// Similar to --wants, but dependencies are continuously started when inactive or failed.
+    ///
+    /// Converts to "Upholds=UPHOLDS[ ...]".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long)]
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub upholds: Vec<String>,
+
     /// Configure ordering dependency between units.
     ///
     /// Converts to "Before=BEFORE[ ...]".
@@ -69,15 +87,6 @@ pub struct Unit {
     #[arg(long)]
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub after: Vec<String>,
-
-    /// Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped
-    ///
-    /// Converts to "PartOf=PART_OF[ ...]"
-    ///
-    /// Can be specified multiple times
-    #[arg(long)]
-    #[serde(serialize_with = "seq_quote_whitespace")]
-    pub part_of: Vec<String>,
 }
 
 impl Unit {
@@ -88,18 +97,20 @@ impl Unit {
             wants,
             requires,
             binds_to,
+            part_of,
+            upholds,
             before,
             after,
-            part_of,
         } = self;
 
         description.is_none()
             && wants.is_empty()
             && requires.is_empty()
             && binds_to.is_empty()
+            && part_of.is_empty()
+            && upholds.is_empty()
             && before.is_empty()
             && after.is_empty()
-            && part_of.is_empty()
     }
 
     /// Add a compose [`Service`](compose_spec::Service) [`Dependency`] to the unit.

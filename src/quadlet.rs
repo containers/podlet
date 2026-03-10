@@ -12,7 +12,7 @@ mod volume;
 
 use std::{
     collections::HashSet,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Display, Formatter, Write},
     iter,
     path::PathBuf,
     str::FromStr,
@@ -205,6 +205,12 @@ pub enum JoinOption {
     /// `Unmask=`, used in [Container] sections.
     Unmask,
 
+    /// `UpheldBy=`, used in [Install] sections.
+    UpheldBy,
+
+    /// `Upholds=`, used in [Unit] sections.
+    Upholds,
+
     /// `WantedBy=`, used in [Install] sections.
     WantedBy,
 
@@ -229,6 +235,8 @@ impl JoinOption {
         Self::Requires,
         Self::Sysctl,
         Self::Unmask,
+        Self::UpheldBy,
+        Self::Upholds,
         Self::WantedBy,
         Self::Wants,
     ];
@@ -255,6 +263,8 @@ impl JoinOption {
             Self::Requires => "Requires",
             Self::Sysctl => "Sysctl",
             Self::Unmask => "Unmask",
+            Self::UpheldBy => "UpheldBy",
+            Self::Upholds => "Upholds",
             Self::WantedBy => "WantedBy",
             Self::Wants => "Wants",
         }
@@ -286,6 +296,8 @@ impl FromStr for JoinOption {
             "Requires" => Ok(Self::Requires),
             "Sysctl" => Ok(Self::Sysctl),
             "Unmask" => Ok(Self::Unmask),
+            "UpheldBy" => Ok(Self::UpheldBy),
+            "Upholds" => Ok(Self::Upholds),
             "WantedBy" => Ok(Self::WantedBy),
             "Wants" => Ok(Self::Wants),
             s => Err(ParseJoinOptionError(s.to_owned())),
@@ -597,13 +609,17 @@ pub enum PodmanVersion {
     V5_3,
 
     /// Podman v5.4
-    #[value(name = "5.4", aliases = ["latest", "5.4.0", "5.4.1", "5.4.2"])]
+    #[value(name = "5.4", aliases = ["5.4.0", "5.4.1", "5.4.2"])]
     V5_4,
+
+    /// Podman v5.5
+    #[value(name = "5.5", aliases = ["latest", "5.5.0", "5.5.1", "5.5.2"])]
+    V5_5,
 }
 
 impl PodmanVersion {
     /// Latest supported version of Podman with regards to Quadlet.
-    pub const LATEST: Self = Self::V5_4;
+    pub const LATEST: Self = Self::V5_5;
 
     /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
@@ -618,6 +634,7 @@ impl PodmanVersion {
             Self::V5_2 => "5.2",
             Self::V5_3 => "5.3",
             Self::V5_4 => "5.4",
+            Self::V5_5 => "5.5",
         }
     }
 }
@@ -774,4 +791,34 @@ impl HostPaths for Context {
         }
         .into_iter()
     }
+}
+
+/// Add "--{flag} {arg}" to `podman_args`, quoting whitespace in `arg`.
+fn push_arg(podman_args: &mut String, flag: &str, arg: &str) {
+    if !podman_args.is_empty() {
+        podman_args.push(' ');
+    }
+
+    podman_args.push_str("--");
+    podman_args.push_str(flag);
+    podman_args.push(' ');
+
+    if arg.contains(char::is_whitespace) {
+        podman_args.push('"');
+        podman_args.push_str(arg);
+        podman_args.push('"');
+    } else {
+        podman_args.push_str(arg);
+    }
+}
+
+/// Add "--{flag} {arg}" to `podman_args` using `arg`'s [`Display`] implementation.
+///
+/// Prefer using [`push_arg()`] as it quotes whtiespace.
+fn push_arg_display(podman_args: &mut String, flag: &str, arg: impl Display) {
+    if !podman_args.is_empty() {
+        podman_args.push(' ');
+    }
+
+    write!(podman_args, "--{flag} {arg}").expect("write to String cannot fail");
 }

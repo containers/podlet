@@ -3,7 +3,7 @@ use clap::Args;
 #[allow(clippy::doc_markdown)]
 #[derive(Args, Debug, Clone, PartialEq)]
 pub struct Install {
-    /// Add an [Install] section to the unit
+    /// Add an [Install] section to the unit.
     ///
     /// By default, if the --wanted-by and --required-by options are not used,
     /// the section will have "WantedBy=default.target".
@@ -11,25 +11,35 @@ pub struct Install {
     #[arg(short, long)]
     pub install: bool,
 
-    /// Add (weak) parent dependencies to the unit
+    /// Add (weak) parent dependencies to the unit.
     ///
-    /// Requires the --install option
+    /// Requires the --install option.
     ///
-    /// Converts to "WantedBy=WANTED_BY"
+    /// Converts to "WantedBy=WANTED_BY".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long, requires = "install")]
     wanted_by: Vec<String>,
 
-    /// Similar to --wanted-by, but adds stronger parent dependencies
+    /// Similar to --wanted-by, but adds stronger parent dependencies.
     ///
-    /// Requires the --install option
+    /// Requires the --install option.
     ///
-    /// Converts to "RequiredBy=REQUIRED_BY"
+    /// Converts to "RequiredBy=REQUIRED_BY".
     ///
-    /// Can be specified multiple times
+    /// Can be specified multiple times.
     #[arg(long, requires = "install")]
     required_by: Vec<String>,
+
+    /// Similar to --wanted-by, but ensures this unit is up if the parent dependency is.
+    ///
+    /// Requires the --install option.
+    ///
+    /// Converts to "UpheldBy=UPHELD_BY".
+    ///
+    /// Can be specified multiple times.
+    #[arg(long, requires = "install")]
+    upheld_by: Vec<String>,
 }
 
 impl From<Install> for crate::quadlet::Install {
@@ -38,15 +48,21 @@ impl From<Install> for crate::quadlet::Install {
             install,
             wanted_by,
             required_by,
+            upheld_by,
         }: Install,
     ) -> Self {
         Self {
-            wanted_by: if install && wanted_by.is_empty() && required_by.is_empty() {
+            wanted_by: if install
+                && wanted_by.is_empty()
+                && required_by.is_empty()
+                && upheld_by.is_empty()
+            {
                 vec![String::from("default.target")]
             } else {
                 wanted_by
             },
             required_by,
+            upheld_by,
         }
     }
 }

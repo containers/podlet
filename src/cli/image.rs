@@ -107,6 +107,23 @@ pub struct Pull {
     #[arg(long, conflicts_with_all = ["os", "arch"], value_name = "OS/ARCH")]
     pub platform: Option<Platform>,
 
+    /// Number of times to retry pulling or pushing images between the registry and local storage.
+    ///
+    /// Converts to "Retry=ATTEMPTS".
+    ///
+    /// Default is 3.
+    #[arg(long, value_name = "ATTEMPTS")]
+    #[arg(long)]
+    pub retry: Option<u64>,
+
+    /// Duration of delay between retry attempts when pulling or pushing images.
+    ///
+    /// Converts to "RetryDelay=DURATION".
+    ///
+    /// Default is to start at two seconds and then exponentially back off.
+    #[arg(long, value_name = "DURATION")]
+    pub retry_delay: Option<String>,
+
     /// Require HTTPS and verify certificates when contacting registries
     ///
     /// Converts to "TLSVerify=TLS_VERIFY"
@@ -137,6 +154,8 @@ impl From<Pull> for quadlet::Image {
             disable_content_trust: _,
             os,
             platform,
+            retry,
+            retry_delay,
             tls_verify,
             variant,
             source: image,
@@ -157,6 +176,8 @@ impl From<Pull> for quadlet::Image {
             image_tag: None,
             os,
             podman_args: None,
+            retry,
+            retry_delay,
             tls_verify,
             variant,
         }

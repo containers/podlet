@@ -22,7 +22,7 @@ use crate::serde::{quadlet::seq_quote_whitespace, serialize_display_seq, skip_tr
 
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
-use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion};
+use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion, push_arg_display};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize, SmartDefault, Debug, Clone, PartialEq)]
@@ -169,6 +169,9 @@ pub struct Container {
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub mask: Vec<String>,
 
+    /// Specify the amount of memory for the container.
+    pub memory: Option<String>,
+
     /// Attach a filesystem mount to the container.
     #[serde(serialize_with = "serialize_display_seq")]
     pub mount: Vec<Mount>,
@@ -213,6 +216,12 @@ pub struct Container {
     #[serde(skip_serializing_if = "skip_true")]
     #[default = true]
     pub read_only_tmpfs: bool,
+
+    /// Number of times to retry the image pull when a HTTP error occurs.
+    pub retry: Option<u64>,
+
+    /// Delay between retries.
+    pub retry_delay: Option<String>,
 
     /// The rootfs to use for the container.
     pub rootfs: Option<Rootfs>,
@@ -306,69 +315,16 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_5 {
+            self.remove_v5_5_options()?;
+        }
+
         if version < PodmanVersion::V5_4 {
-            self.mount.iter().try_for_each(|mount| {
-                if let Mount::Volume(mount::Volume {
-                    subpath: Some(_), ..
-                }) = mount
-                {
-                    Err(DowngradeError::Option {
-                        quadlet_option: "Mount",
-                        value: mount.to_string(),
-                        supported_version: PodmanVersion::V5_4,
-                    })
-                } else {
-                    Ok(())
-                }
-            })?;
+            self.remove_v5_4_options()?;
         }
 
         if version < PodmanVersion::V5_3 {
-            if let Some(health_log_destination) = self.health_log_destination.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: "HealthLogDestination",
-                    value: health_log_destination,
-                    supported_version: PodmanVersion::V5_3,
-                });
-            }
-
-            if let Some(health_max_log_count) = self.health_max_log_count.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: "HealthMaxLogCount",
-                    value: health_max_log_count.to_string(),
-                    supported_version: PodmanVersion::V5_3,
-                });
-            }
-
-            if let Some(health_max_log_size) = self.health_max_log_size.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: "HealthMaxLogSize",
-                    value: health_max_log_size.to_string(),
-                    supported_version: PodmanVersion::V5_3,
-                });
-            }
-
-            if !self.start_with_pod {
-                return Err(DowngradeError::Option {
-                    quadlet_option: "StartWithPod",
-                    value: "false".to_owned(),
-                    supported_version: PodmanVersion::V5_3,
-                });
-            }
-
-            self.network.iter().try_for_each(|network| {
-                if network.ends_with(".container") {
-                    Err(DowngradeError::Option {
-                        quadlet_option: "Network",
-                        value: network.clone(),
-                        supported_version: PodmanVersion::V5_3,
-                    })
-                } else {
-                    Ok(())
-                }
-            })?;
-
-            self.remove_v5_3_options();
+            self.remove_v5_3_options()?;
         }
 
         if version < PodmanVersion::V5_2 {
@@ -380,27 +336,7 @@ impl Downgrade for Container {
         }
 
         if version < PodmanVersion::V5_0 {
-            if self.notify.is_healthy() {
-                if version < PodmanVersion::V4_7 {
-                    return Err(DowngradeError::Option {
-                        quadlet_option: "Notify",
-                        value: "healthy".to_owned(),
-                        supported_version: PodmanVersion::V4_7,
-                    });
-                }
-                self.notify = Notify::default();
-                self.push_arg("sdnotify", "healthy");
-            }
-
-            if let Some(pod) = self.pod.take() {
-                return Err(DowngradeError::Option {
-                    quadlet_option: "Pod",
-                    value: pod,
-                    supported_version: PodmanVersion::V5_0,
-                });
-            }
-
-            self.remove_v5_0_options();
+            self.remove_v5_0_options(version)?;
         }
 
         if version < PodmanVersion::V4_8 {
@@ -433,8 +369,99 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.5.0
+    fn remove_v5_5_options(&mut self) -> Result<(), DowngradeError> {
+        self.mount.iter().try_for_each(|mount| {
+            if let Mount::Artifact(_) = mount {
+                Err(DowngradeError::Option {
+                    quadlet_option: "Mount",
+                    value: mount.to_string(),
+                    supported_version: PodmanVersion::V5_5,
+                })
+            } else {
+                Ok(())
+            }
+        })?;
+
+        let options = extract!(
+            self,
+            OptionsV5_5 {
+                memory,
+                retry,
+                retry_delay,
+            }
+        );
+
+        self.push_args(options)
+            .expect("OptionsV5_5 serializable as args");
+
+        Ok(())
+    }
+
+    /// Remove Quadlet options added in Podman v5.4.0
+    fn remove_v5_4_options(&mut self) -> Result<(), DowngradeError> {
+        self.mount.iter().try_for_each(|mount| {
+            if let Mount::Volume(mount::Volume {
+                subpath: Some(_), ..
+            }) = mount
+            {
+                Err(DowngradeError::Option {
+                    quadlet_option: "Mount",
+                    value: mount.to_string(),
+                    supported_version: PodmanVersion::V5_4,
+                })
+            } else {
+                Ok(())
+            }
+        })
+    }
+
     /// Remove Quadlet options added in Podman v5.3.0
-    fn remove_v5_3_options(&mut self) {
+    fn remove_v5_3_options(&mut self) -> Result<(), DowngradeError> {
+        if let Some(health_log_destination) = self.health_log_destination.take() {
+            return Err(DowngradeError::Option {
+                quadlet_option: "HealthLogDestination",
+                value: health_log_destination,
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        if let Some(health_max_log_count) = self.health_max_log_count.take() {
+            return Err(DowngradeError::Option {
+                quadlet_option: "HealthMaxLogCount",
+                value: health_max_log_count.to_string(),
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        if let Some(health_max_log_size) = self.health_max_log_size.take() {
+            return Err(DowngradeError::Option {
+                quadlet_option: "HealthMaxLogSize",
+                value: health_max_log_size.to_string(),
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        if !self.start_with_pod {
+            return Err(DowngradeError::Option {
+                quadlet_option: "StartWithPod",
+                value: "false".to_owned(),
+                supported_version: PodmanVersion::V5_3,
+            });
+        }
+
+        self.network.iter().try_for_each(|network| {
+            if network.ends_with(".container") {
+                Err(DowngradeError::Option {
+                    quadlet_option: "Network",
+                    value: network.clone(),
+                    supported_version: PodmanVersion::V5_3,
+                })
+            } else {
+                Ok(())
+            }
+        })?;
+
         let options = extract!(
             self,
             OptionsV5_3 {
@@ -445,6 +472,8 @@ impl Container {
 
         self.push_args(options)
             .expect("OptionsV5_3 serializable as args");
+
+        Ok(())
     }
 
     /// Remove Quadlet options added in Podman v5.2.0
@@ -471,7 +500,27 @@ impl Container {
     }
 
     /// Remove Quadlet options added in Podman v5.0.0
-    fn remove_v5_0_options(&mut self) {
+    fn remove_v5_0_options(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if self.notify.is_healthy() {
+            if version < PodmanVersion::V4_7 {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "Notify",
+                    value: "healthy".to_owned(),
+                    supported_version: PodmanVersion::V4_7,
+                });
+            }
+            self.notify = Notify::default();
+            self.push_arg("sdnotify", "healthy");
+        }
+
+        if let Some(pod) = self.pod.take() {
+            return Err(DowngradeError::Option {
+                quadlet_option: "Pod",
+                value: pod,
+                supported_version: PodmanVersion::V5_0,
+            });
+        }
+
         let options = extract!(
             self,
             OptionsV5_0 {
@@ -482,6 +531,8 @@ impl Container {
 
         self.push_args(options)
             .expect("OptionsV5_0 serializable as args");
+
+        Ok(())
     }
 
     /// Remove Quadlet options added in Podman v4.8.0
@@ -599,18 +650,30 @@ impl Container {
     }
 
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    ///
+    /// Ensure `arg` does not contain whitespace.
     fn push_arg(&mut self, flag: &str, arg: impl Display) {
-        self.podman_args_push_str(&format!("--{flag} {arg}"));
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg_display(podman_args, flag, arg);
     }
 
     /// Push `string` to `podman_args`, adding a space if needed.
     fn podman_args_push_str(&mut self, string: &str) {
-        let podman_args = self.podman_args.get_or_insert_with(String::new);
+        let podman_args = self.podman_args.get_or_insert_default();
         if !podman_args.is_empty() {
             podman_args.push(' ');
         }
         podman_args.push_str(string);
     }
+}
+
+/// Container Quadlet options added in Podman v5.5.0
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OptionsV5_5 {
+    memory: Option<String>,
+    retry: Option<u64>,
+    retry_delay: Option<String>,
 }
 
 /// Container Quadlet options added in Podman v5.3.0

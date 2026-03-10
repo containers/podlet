@@ -148,6 +148,22 @@ pub struct Build {
     #[arg(long, value_name = "POLICY")]
     pull: Option<PullPolicy>,
 
+    /// Number of times to retry pulling images from the registry in case of failure.
+    ///
+    /// Converts to "Retry=ATTEMPTS".
+    ///
+    /// Default is 3.
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
+    /// Duration of delay between retry attempts.
+    ///
+    /// Converts to "RetryDelay=DURATION".
+    ///
+    /// Default is to start at two seconds and then exponentially back off.
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
+
     /// Pass secret information in a safe way to the build container.
     ///
     /// Converts to "Secret=id=ID,src=PATH".
@@ -221,6 +237,8 @@ impl From<Build> for quadlet::Build {
             label,
             network,
             pull,
+            retry,
+            retry_delay,
             secret,
             target,
             tls_verify,
@@ -248,6 +266,8 @@ impl From<Build> for quadlet::Build {
             network,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pull,
+            retry,
+            retry_delay,
             secret,
             set_working_directory: context,
             target,
@@ -575,6 +595,12 @@ struct PodmanArgs {
     #[arg(long, value_name = "IMAGE_ID_FILE")]
     iidfile: Option<PathBuf>,
 
+    /// Inherit the labels from the base image or base stages.
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    inherit_labels: bool,
+
     /// Sets the configuration for IPC namespaces when handling `RUN` instructions.
     #[arg(long, value_name = "HOW")]
     ipc: Option<String>,
@@ -672,14 +698,6 @@ struct PodmanArgs {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "Not::not")]
     quiet: bool,
-
-    /// Number of times to retry pulling images from the registry in case of failure.
-    #[arg(long, value_name = "ATTEMPTS")]
-    retry: Option<u64>,
-
-    /// Duration of delay between retry attempts.
-    #[arg(long, value_name = "DURATION")]
-    retry_delay: Option<String>,
 
     /// Remove intermediate containers after a successful build.
     #[arg(long, action = ArgAction::Set, default_value_t = true)]

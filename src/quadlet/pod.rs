@@ -8,6 +8,7 @@ use serde::Serialize;
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
     container::{Dns, Volume},
+    push_arg,
 };
 
 /// Options for the \[Pod\] section of a `.pod` Quadlet file.
@@ -32,6 +33,9 @@ pub struct Pod {
     /// GID map for the user namespace.
     #[serde(rename = "GIDMap")]
     pub gid_map: Vec<String>,
+
+    /// Set the pod’s hostname inside all containers.
+    pub host_name: Option<String>,
 
     /// Specify a static IPv4 address for the pod.
     #[serde(rename = "IP")]
@@ -91,6 +95,12 @@ impl HostPaths for Pod {
 
 impl Downgrade for Pod {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_5 {
+            if let Some(host_name) = self.host_name.take() {
+                self.push_arg("hostname", &host_name);
+            }
+        }
+
         if version < PodmanVersion::V5_4 {
             if let Some(shm_size) = self.shm_size.take() {
                 self.push_arg("shm-size", &shm_size);
@@ -173,19 +183,7 @@ impl Pod {
 
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     fn push_arg(&mut self, flag: &str, arg: &str) {
-        let podman_args = self.podman_args.get_or_insert_with(String::new);
-        if !podman_args.is_empty() {
-            podman_args.push(' ');
-        }
-        podman_args.push_str("--");
-        podman_args.push_str(flag);
-        podman_args.push(' ');
-        if arg.contains(char::is_whitespace) {
-            podman_args.push('"');
-            podman_args.push_str(arg);
-            podman_args.push('"');
-        } else {
-            podman_args.push_str(arg);
-        }
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg(podman_args, flag, arg);
     }
 }
