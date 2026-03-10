@@ -192,7 +192,7 @@ struct ArtifactFlat {
     source: String,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     destination: PathBuf,
 
     /// If the artifact contains multiple blobs, the digest to use.
@@ -278,6 +278,7 @@ pub struct Bind {
     #[serde(
         default,
         alias = "dst",
+        alias = "dest",
         alias = "target",
         skip_serializing_if = "Option::is_none"
     )]
@@ -417,7 +418,7 @@ impl From<SELinux> for SELinuxRelabel {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct DevPts {
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// UID of the file owner.
@@ -475,7 +476,7 @@ pub struct Image {
     pub source: String,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// Read-write permission.
@@ -501,7 +502,7 @@ pub struct Volume {
     pub source: Option<String>,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// Only read permissions
