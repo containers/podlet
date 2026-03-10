@@ -32,7 +32,7 @@ pub use self::{
     install::Install,
     kube::Kube,
     network::{IpRange, Network},
-    pod::Pod,
+    pod::{ExitPolicy, Pod},
     service::Service,
     unit::Unit,
     volume::Volume,

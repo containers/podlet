@@ -1,11 +1,13 @@
 use std::{
+    fmt::{self, Display, Formatter},
     net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
 };
 
+use clap::ValueEnum;
 use serde::Serialize;
 
-use crate::serde::quadlet::seq_quote_whitespace;
+use crate::serde::{quadlet::seq_quote_whitespace, skip_default};
 
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
@@ -31,6 +33,10 @@ pub struct Pod {
     /// Set custom DNS search domains.
     #[serde(rename = "DNSSearch")]
     pub dns_search: Vec<String>,
+
+    /// Set the exit policy of the pod when the last container exits.
+    #[serde(skip_serializing_if = "skip_default")]
+    pub exit_policy: ExitPolicy,
 
     /// GID map for the user namespace.
     #[serde(rename = "GIDMap")]
@@ -104,6 +110,14 @@ impl Downgrade for Pod {
         if version < PodmanVersion::V5_6 {
             for label in std::mem::take(&mut self.label) {
                 self.push_arg("label", &label);
+            }
+
+            if self.exit_policy != ExitPolicy::default() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "ExitPolicy",
+                    value: std::mem::take(&mut self.exit_policy).to_string(),
+                    supported_version: PodmanVersion::V5_6,
+                });
             }
         }
 
@@ -197,5 +211,28 @@ impl Pod {
     fn push_arg(&mut self, flag: &str, arg: &str) {
         let podman_args = self.podman_args.get_or_insert_default();
         push_arg(podman_args, flag, arg);
+    }
+}
+
+/// Supported values of the `ExitPolicy=` Quadlet option for [`Pod`] units.
+#[derive(ValueEnum, Serialize, Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExitPolicy {
+    /// The pod continues running, by keeping its infra container alive, when the last container
+    /// exits.
+    Continue,
+
+    /// The pod (including its infra container) is stopped when the last container exits.
+    #[default]
+    Stop,
+}
+
+impl Display for ExitPolicy {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let str = match self {
+            Self::Continue => "continue",
+            Self::Stop => "stop",
+        };
+        f.write_str(str)
     }
 }

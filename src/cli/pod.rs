@@ -5,14 +5,14 @@ use std::{
     path::PathBuf,
 };
 
-use clap::{ArgAction, Args, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, Subcommand};
 use compose_spec::service::blkio_config::Weight;
 use serde::Serialize;
 use smart_default::SmartDefault;
 
 use crate::{
     quadlet::{
-        self,
+        self, ExitPolicy,
         container::{Device, DnsEntry, Volume},
     },
     serde::skip_true,
@@ -104,6 +104,14 @@ pub struct Create {
     /// Can be specified multiple times.
     #[arg(long, value_name = "DOMAIN")]
     dns_search: Vec<String>,
+
+    /// Set the exit policy of the pod when the last container exits.
+    ///
+    /// Converts to "ExitPolicy=EXIT_POLICY".
+    ///
+    /// Default for Quadlets is `stop`.
+    #[arg(long, value_enum, default_value_t)]
+    exit_policy: ExitPolicy,
 
     /// GID map for the user namespace.
     ///
@@ -261,6 +269,7 @@ impl From<Create> for quadlet::Pod {
             dns,
             dns_option,
             dns_search,
+            exit_policy,
             gidmap,
             hostname,
             ip,
@@ -288,6 +297,7 @@ impl From<Create> for quadlet::Pod {
             dns: dns.into(),
             dns_option,
             dns_search,
+            exit_policy,
             gid_map: gidmap,
             host_name: hostname,
             ip,
@@ -360,13 +370,6 @@ struct PodmanArgs {
     /// Can be specified multiple times.
     #[arg(long, value_name = "PATH:RATE")]
     device_write_bps: Vec<String>,
-
-    /// Set the exit policy of the pod when the last container exits.
-    ///
-    /// Only `stop` is supported as it is automatically set by Quadlet.
-    #[arg(long, value_enum, default_value_t)]
-    #[serde(skip)]
-    exit_policy: ExitPolicy,
 
     /// GPU devices to add to the pod (`all` to pass all GPUs).
     ///
@@ -483,25 +486,6 @@ impl Display for PodmanArgs {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let args = crate::serde::args::to_string(self).map_err(|_| fmt::Error)?;
         f.write_str(&args)
-    }
-}
-
-/// Supported values of `podman pod create --exit-policy` for [`PodmanArgs`].
-///
-/// Only [`Stop`](Self::Stop) is supported because it automatically set by Quadlet for `.pod` files.
-#[derive(ValueEnum, Debug, Default, Clone, Copy, PartialEq, Eq)]
-enum ExitPolicy {
-    /// The pod (including its infra container) is stopped when the last container exits.
-    #[default]
-    Stop,
-}
-
-impl Display for ExitPolicy {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let str = match self {
-            Self::Stop => "stop",
-        };
-        f.write_str(str)
     }
 }
 
