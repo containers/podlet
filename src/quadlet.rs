@@ -205,6 +205,9 @@ pub enum JoinOption {
     /// `Unmask=`, used in [Container] sections.
     Unmask,
 
+    /// `UpheldBy=`, used in [Install] sections.
+    UpheldBy,
+
     /// `WantedBy=`, used in [Install] sections.
     WantedBy,
 
@@ -229,6 +232,7 @@ impl JoinOption {
         Self::Requires,
         Self::Sysctl,
         Self::Unmask,
+        Self::UpheldBy,
         Self::WantedBy,
         Self::Wants,
     ];
@@ -255,6 +259,7 @@ impl JoinOption {
             Self::Requires => "Requires",
             Self::Sysctl => "Sysctl",
             Self::Unmask => "Unmask",
+            Self::UpheldBy => "UpheldBy",
             Self::WantedBy => "WantedBy",
             Self::Wants => "Wants",
         }
@@ -286,6 +291,7 @@ impl FromStr for JoinOption {
             "Requires" => Ok(Self::Requires),
             "Sysctl" => Ok(Self::Sysctl),
             "Unmask" => Ok(Self::Unmask),
+            "UpheldBy" => Ok(Self::UpheldBy),
             "WantedBy" => Ok(Self::WantedBy),
             "Wants" => Ok(Self::Wants),
             s => Err(ParseJoinOptionError(s.to_owned())),

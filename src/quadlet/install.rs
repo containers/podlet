@@ -3,6 +3,7 @@ use serde::Serialize;
 use crate::serde::quadlet::seq_quote_whitespace;
 
 /// The `[Install]` section of a systemd unit / Quadlet file.
+#[expect(clippy::struct_field_names, reason = "systemd directives")]
 #[derive(Serialize, Default, Debug, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub struct Install {
@@ -13,6 +14,10 @@ pub struct Install {
     /// Add stronger parent dependencies to the unit.
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub required_by: Vec<String>,
+
+    /// Add stronger parent dependencies to the unit.
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub upheld_by: Vec<String>,
 }
 
 impl Install {
@@ -21,8 +26,9 @@ impl Install {
         let Self {
             wanted_by,
             required_by,
+            upheld_by,
         } = self;
 
-        wanted_by.is_empty() && required_by.is_empty()
+        wanted_by.is_empty() && required_by.is_empty() && upheld_by.is_empty()
     }
 }
