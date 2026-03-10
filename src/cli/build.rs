@@ -148,6 +148,14 @@ pub struct Build {
     #[arg(long, value_name = "POLICY")]
     pull: Option<PullPolicy>,
 
+    /// Number of times to retry pulling images from the registry in case of failure.
+    ///
+    /// Converts to "Retry=ATTEMPTS".
+    ///
+    /// Default is 3.
+    #[arg(long, value_name = "ATTEMPTS")]
+    retry: Option<u64>,
+
     /// Pass secret information in a safe way to the build container.
     ///
     /// Converts to "Secret=id=ID,src=PATH".
@@ -221,6 +229,7 @@ impl From<Build> for quadlet::Build {
             label,
             network,
             pull,
+            retry,
             secret,
             target,
             tls_verify,
@@ -248,6 +257,7 @@ impl From<Build> for quadlet::Build {
             network,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pull,
+            retry,
             secret,
             set_working_directory: context,
             target,
@@ -672,10 +682,6 @@ struct PodmanArgs {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "Not::not")]
     quiet: bool,
-
-    /// Number of times to retry pulling images from the registry in case of failure.
-    #[arg(long, value_name = "ATTEMPTS")]
-    retry: Option<u64>,
 
     /// Duration of delay between retry attempts.
     #[arg(long, value_name = "DURATION")]
