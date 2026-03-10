@@ -14,7 +14,7 @@ use crate::serde::{quadlet::seq_quote_whitespace, skip_true};
 use super::{
     Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind,
     container::{Dns, PullPolicy},
-    push_arg_display,
+    push_arg, push_arg_display,
 };
 
 /// Options for the \[Build\] section of a `.build` Quadlet file.
@@ -77,6 +77,9 @@ pub struct Build {
     /// Number of times to retry the image pull when a HTTP error occurs.
     pub retry: Option<u64>,
 
+    /// Delay between retries.
+    pub retry_delay: Option<String>,
+
     /// Pass secret information used in Containerfile build stages in a safe way.
     pub secret: Vec<Secret>,
 
@@ -113,6 +116,10 @@ impl Downgrade for Build {
             if let Some(retry) = self.retry.take() {
                 self.push_arg_display("retry", retry);
             }
+
+            if let Some(retry_delay) = self.retry_delay.take() {
+                self.push_arg("retry-delay", &retry_delay);
+            }
         }
 
         if version < PodmanVersion::V5_3 && self.image_tag.len() > 1 {
@@ -134,6 +141,12 @@ impl Downgrade for Build {
 }
 
 impl Build {
+    /// Add `--{flag} {arg}` to `PodmanArgs=`.
+    fn push_arg(&mut self, flag: &str, arg: &str) {
+        let podman_args = self.podman_args.get_or_insert_default();
+        push_arg(podman_args, flag, arg);
+    }
+
     /// Add `--{flag} {arg}` to `PodmanArgs=`.
     ///
     /// Ensure `arg` does not contain whitespace.

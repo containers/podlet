@@ -156,6 +156,14 @@ pub struct Build {
     #[arg(long, value_name = "ATTEMPTS")]
     retry: Option<u64>,
 
+    /// Duration of delay between retry attempts.
+    ///
+    /// Converts to "RetryDelay=DURATION".
+    ///
+    /// Default is to start at two seconds and then exponentially back off.
+    #[arg(long, value_name = "DURATION")]
+    retry_delay: Option<String>,
+
     /// Pass secret information in a safe way to the build container.
     ///
     /// Converts to "Secret=id=ID,src=PATH".
@@ -230,6 +238,7 @@ impl From<Build> for quadlet::Build {
             network,
             pull,
             retry,
+            retry_delay,
             secret,
             target,
             tls_verify,
@@ -258,6 +267,7 @@ impl From<Build> for quadlet::Build {
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
             pull,
             retry,
+            retry_delay,
             secret,
             set_working_directory: context,
             target,
@@ -682,10 +692,6 @@ struct PodmanArgs {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "Not::not")]
     quiet: bool,
-
-    /// Duration of delay between retry attempts.
-    #[arg(long, value_name = "DURATION")]
-    retry_delay: Option<String>,
 
     /// Remove intermediate containers after a successful build.
     #[arg(long, action = ArgAction::Set, default_value_t = true)]
