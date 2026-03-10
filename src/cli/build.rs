@@ -595,6 +595,12 @@ struct PodmanArgs {
     #[arg(long, value_name = "IMAGE_ID_FILE")]
     iidfile: Option<PathBuf>,
 
+    /// Inherit the labels from the base image or base stages.
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    inherit_labels: bool,
+
     /// Sets the configuration for IPC namespaces when handling `RUN` instructions.
     #[arg(long, value_name = "HOW")]
     ipc: Option<String>,
