@@ -13,6 +13,14 @@ use crate::quadlet::Globals;
 #[command(next_help_heading = "Podman Global Options")]
 #[serde(rename_all = "kebab-case")]
 pub struct GlobalArgs {
+    /// CDI spec directory path
+    ///
+    /// Default is `/etc/cdi`
+    ///
+    /// Can be specified multiple times
+    #[arg(long, global = true, value_name = "PATH")]
+    cdi_spec_dir: Vec<PathBuf>,
+
     /// Cgroup manager to use
     #[arg(long, global = true, value_name = "MANAGER")]
     cgroup_manager: Option<CGroupManager>,
