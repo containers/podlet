@@ -624,6 +624,7 @@ impl From<NetworkInspect> for Network {
                     .collect(),
                 driver: Some(driver),
                 gateway,
+                interface_name: Some(network_interface),
                 internal,
                 ipam_driver: Some(ipam_driver),
                 ip_range,
@@ -638,7 +639,6 @@ impl From<NetworkInspect> for Network {
                     .collect(),
                 subnet,
                 podman_args: network::PodmanArgs {
-                    interface_name: Some(network_interface),
                     route: routes.iter().map(NetworkRoute::to_route_value).collect(),
                 },
                 name,
