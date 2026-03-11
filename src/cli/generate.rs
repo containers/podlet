@@ -662,6 +662,10 @@ struct VolumeInspect {
 
     /// --opt
     options: IndexMap<String, String>,
+
+    /// --uid
+    #[serde(rename = "UID", default)]
+    uid: Option<u32>,
 }
 
 impl VolumeInspect {
@@ -706,6 +710,7 @@ impl From<VolumeInspect> for Volume {
             driver,
             labels,
             options,
+            uid,
         }: VolumeInspect,
     ) -> Self {
         Volume::Create {
@@ -721,6 +726,7 @@ impl From<VolumeInspect> for Volume {
                     .into_iter()
                     .map(|(label, value)| format!("{label}={value}"))
                     .collect(),
+                podman_args: volume::PodmanArgs { uid },
                 name,
             },
         }
