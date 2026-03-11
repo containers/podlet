@@ -9,7 +9,8 @@ use std::{
 use serde::{Serialize, Serializer};
 
 use super::{
-    Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, push_arg, push_arg_display,
+    Downgrade, DowngradeError, HostPaths, PodmanVersion, ResourceKind, container::PullPolicy,
+    push_arg, push_arg_display,
 };
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
@@ -51,6 +52,9 @@ pub struct Image {
     /// generated file.
     pub podman_args: Option<String>,
 
+    /// The pull policy to use when pulling the image.
+    pub policy: Option<PullPolicy>,
+
     /// Number of times to retry the image pull when a HTTP error occurs.
     pub retry: Option<u64>,
 
@@ -82,6 +86,16 @@ impl HostPaths for Image {
 impl Downgrade for Image {
     #[allow(clippy::unused_self)]
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_6 {
+            if let Some(policy) = self.policy.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "Policy",
+                    value: policy.to_string(),
+                    supported_version: PodmanVersion::V5_6,
+                });
+            }
+        }
+
         if version < PodmanVersion::V5_5 {
             if let Some(retry) = self.retry.take() {
                 // `podman image pull --retry` was added in Podman v5.0.0
