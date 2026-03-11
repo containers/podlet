@@ -116,6 +116,10 @@ pub struct PodmanArgs {
     /// Set the UID that the volume will be created as.
     #[arg(long)]
     pub uid: Option<u32>,
+
+    /// Set the GID that the volume will be created as.
+    #[arg(long)]
+    pub gid: Option<u32>,
 }
 
 #[cfg(test)]
