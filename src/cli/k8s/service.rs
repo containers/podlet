@@ -47,6 +47,7 @@ pub(super) struct Service {
     resources: ContainerResources,
     security_context: ContainerSecurityContext,
     command: Option<Command>,
+    cpuset: CpuSet,
     entrypoint: Option<Command>,
     environment: ListOrMap,
     healthcheck: Option<Healthcheck>,
@@ -164,7 +165,6 @@ impl Service {
                 cpu_quota,
                 cpu_rt_runtime,
                 cpu_rt_period,
-                cpuset,
                 cgroup,
                 cgroup_parent,
                 configs,
@@ -231,6 +231,7 @@ impl Service {
                 user,
             },
             command,
+            cpuset,
             entrypoint,
             environment,
             healthcheck,
@@ -251,6 +252,7 @@ impl Service {
     /// # Errors
     ///
     /// Returns an error if an unsupported option was used or conversion of one of the fields fails.
+    #[expect(clippy::too_many_lines, reason = "`Self` expansion")]
     pub(super) fn add_to_pod(self, pod: &mut Pod) -> color_eyre::Result<()> {
         let Self {
             unsupported,
@@ -258,6 +260,7 @@ impl Service {
             resources,
             security_context,
             command,
+            cpuset,
             entrypoint,
             environment,
             healthcheck,
@@ -356,6 +359,13 @@ impl Service {
             pod.metadata.annotations.get_or_insert_default().insert(
                 format!("io.podman.annotations.pids-limit/{name}"),
                 pids_limit.to_string(),
+            );
+        }
+
+        if !cpuset.is_empty() {
+            pod.metadata.annotations.get_or_insert_default().insert(
+                format!("io.podman.annotations.cpuset/{name}"),
+                cpuset.to_string(),
             );
         }
 
@@ -699,7 +709,6 @@ struct Unsupported {
     cpu_quota: Option<Duration>,
     cpu_rt_runtime: Option<Duration>,
     cpu_rt_period: Option<Duration>,
-    cpuset: CpuSet,
     cgroup: Option<Cgroup>,
     cgroup_parent: Option<String>,
     configs: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
@@ -771,7 +780,6 @@ impl Unsupported {
             cpu_quota,
             cpu_rt_runtime,
             cpu_rt_period,
-            cpuset,
             cgroup,
             cgroup_parent,
             configs,
@@ -835,7 +843,6 @@ impl Unsupported {
             ("cpu_quota", cpu_quota.is_none()),
             ("cpu_rt_runtime", cpu_rt_runtime.is_none()),
             ("cpu_rt_period", cpu_rt_period.is_none()),
-            ("cpuset", cpuset.is_empty()),
             ("cgroup", cgroup.is_none()),
             ("cgroup_parent", cgroup_parent.is_none()),
             ("configs", configs.is_empty()),
