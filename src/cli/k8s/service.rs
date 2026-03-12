@@ -25,7 +25,7 @@ use compose_spec::{
 use indexmap::{IndexMap, IndexSet};
 use k8s_openapi::{
     api::core::v1::{
-        Capabilities, Container, ContainerPort, EnvVar, ExecAction, Pod, Probe,
+        Capabilities, Container, ContainerPort, EnvVar, ExecAction, Lifecycle, Pod, Probe,
         ResourceRequirements, SELinuxOptions, SecurityContext,
     },
     apimachinery::pkg::api::resource::Quantity,
@@ -56,6 +56,7 @@ pub(super) struct Service {
     ports: Ports,
     pull_policy: Option<PullPolicy>,
     stdin_open: bool,
+    stop_signal: Option<String>,
     tmpfs: Option<ItemOrList<AbsolutePath>>,
     tty: bool,
     volumes: Volumes,
@@ -208,7 +209,6 @@ impl Service {
                 secrets,
                 shm_size,
                 stop_grace_period,
-                stop_signal,
                 storage_opt,
                 sysctls,
                 ulimits,
@@ -240,6 +240,7 @@ impl Service {
             ports,
             pull_policy,
             stdin_open,
+            stop_signal,
             tmpfs,
             tty,
             volumes,
@@ -269,6 +270,7 @@ impl Service {
             ports,
             pull_policy,
             stdin_open,
+            stop_signal,
             tmpfs,
             tty,
             volumes,
@@ -313,6 +315,11 @@ impl Service {
                 })
                 .transpose()
                 .wrap_err("error converting `environment`")?,
+            lifecycle: stop_signal.map(|stop_signal| Lifecycle {
+                post_start: None,
+                pre_stop: None,
+                stop_signal: Some(stop_signal),
+            }),
             liveness_probe: healthcheck
                 .and_then(|healthcheck| match healthcheck {
                     Healthcheck::Command(command) => {
@@ -752,7 +759,6 @@ struct Unsupported {
     secrets: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
     shm_size: Option<ByteValue>,
     stop_grace_period: Option<Duration>,
-    stop_signal: Option<String>,
     storage_opt: Map,
     sysctls: ListOrMap,
     ulimits: Ulimits,
@@ -823,7 +829,6 @@ impl Unsupported {
             secrets,
             shm_size,
             stop_grace_period,
-            stop_signal,
             storage_opt,
             sysctls,
             ulimits,
@@ -880,7 +885,6 @@ impl Unsupported {
             ("scale", scale.is_none()),
             ("secrets", secrets.is_empty()),
             ("shm_size", shm_size.is_none()),
-            ("stop_signal", stop_signal.is_none()),
             ("storage_opt", storage_opt.is_empty()),
             ("ulimits", ulimits.is_empty()),
             ("userns_mode", userns_mode.is_none()),
