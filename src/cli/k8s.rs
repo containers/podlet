@@ -6,10 +6,7 @@ mod volume;
 
 use color_eyre::eyre::{OptionExt, WrapErr, ensure};
 use compose_spec::{Compose, Resource};
-use k8s_openapi::{
-    api::core::v1::{PersistentVolumeClaim, Pod, PodSpec},
-    apimachinery::pkg::apis::meta::v1::ObjectMeta,
-};
+use k8s_openapi::api::core::v1::{PersistentVolumeClaim, Pod};
 
 use self::service::Service;
 
@@ -87,26 +84,16 @@ impl TryFrom<Compose> for File {
 
         let name = name.map(String::from).ok_or_eyre("`name` is required")?;
 
-        let spec =
-            services
-                .into_iter()
-                .try_fold(PodSpec::default(), |mut spec, (name, service)| {
-                    Service::from_compose(&name, service)
-                        .add_to_pod_spec(&mut spec)
-                        .wrap_err_with(|| {
-                            format!("error adding service `{name}` to Kubernetes pod spec")
-                        })
-                        .map(|()| spec)
-                })?;
+        let mut pod = Pod::default();
+        pod.metadata.name = Some(name.clone());
 
-        let pod = Pod {
-            metadata: ObjectMeta {
-                name: Some(name.clone()),
-                ..ObjectMeta::default()
-            },
-            spec: Some(spec),
-            status: None,
-        };
+        for (name, service) in services {
+            Service::from_compose(&name, service)
+                .add_to_pod(&mut pod)
+                .wrap_err_with(|| {
+                    format!("error adding service `{name}` to Kubernetes pod spec")
+                })?;
+        }
 
         let persistent_volume_claims = volumes
             .into_iter()

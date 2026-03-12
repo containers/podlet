@@ -25,7 +25,7 @@ use compose_spec::{
 use indexmap::{IndexMap, IndexSet};
 use k8s_openapi::{
     api::core::v1::{
-        Capabilities, Container, ContainerPort, EnvVar, ExecAction, PodSpec, Probe,
+        Capabilities, Container, ContainerPort, EnvVar, ExecAction, Pod, Probe,
         ResourceRequirements, SELinuxOptions, SecurityContext,
     },
     apimachinery::pkg::api::resource::Quantity,
@@ -51,6 +51,7 @@ pub(super) struct Service {
     environment: ListOrMap,
     healthcheck: Option<Healthcheck>,
     image: Option<Image>,
+    pids_limit: Option<Limit<u32>>,
     ports: Ports,
     pull_policy: Option<PullPolicy>,
     stdin_open: bool,
@@ -199,7 +200,6 @@ impl Service {
                 oom_kill_disable,
                 oom_score_adj,
                 pid,
-                pids_limit,
                 platform,
                 profiles,
                 restart,
@@ -235,6 +235,7 @@ impl Service {
             environment,
             healthcheck,
             image,
+            pids_limit,
             ports,
             pull_policy,
             stdin_open,
@@ -245,12 +246,12 @@ impl Service {
         }
     }
 
-    /// Add the service to a [`PodSpec`]'s [`Container`]s and [`Volume`]s.
+    /// Add the service to a [`Pod`]'s [`Container`]s and [`Volume`]s.
     ///
     /// # Errors
     ///
     /// Returns an error if an unsupported option was used or conversion of one of the fields fails.
-    pub(super) fn add_to_pod_spec(self, spec: &mut PodSpec) -> color_eyre::Result<()> {
+    pub(super) fn add_to_pod(self, pod: &mut Pod) -> color_eyre::Result<()> {
         let Self {
             unsupported,
             name,
@@ -261,6 +262,7 @@ impl Service {
             environment,
             healthcheck,
             image,
+            pids_limit,
             ports,
             pull_policy,
             stdin_open,
@@ -272,13 +274,15 @@ impl Service {
 
         unsupported.ensure_empty()?;
 
+        let spec = pod.spec.get_or_insert_default();
+
         let volume_mounts =
             tmpfs_and_volumes_try_into_volume_mounts(tmpfs, volumes, &name, &mut spec.volumes)
                 // converting `tmpfs` always succeeds
                 .wrap_err("error converting `volumes`")?;
 
         spec.containers.push(Container {
-            name: name.into(),
+            name: name.clone().into(),
             resources: resources.into_resource_requirements(),
             security_context: security_context.try_into_security_context()?,
             args: command
@@ -347,6 +351,13 @@ impl Service {
                 .transpose()?,
             ..Container::default()
         });
+
+        if let Some(pids_limit) = pids_limit {
+            pod.metadata.annotations.get_or_insert_default().insert(
+                format!("io.podman.annotations.pids-limit/{name}"),
+                pids_limit.to_string(),
+            );
+        }
 
         Ok(())
     }
@@ -724,7 +735,6 @@ struct Unsupported {
     oom_kill_disable: bool,
     oom_score_adj: Option<OomScoreAdj>,
     pid: Option<String>,
-    pids_limit: Option<Limit<u32>>,
     platform: Option<Platform>,
     profiles: IndexSet<Identifier>,
     restart: Option<Restart>,
@@ -797,7 +807,6 @@ impl Unsupported {
             oom_kill_disable,
             oom_score_adj,
             pid,
-            pids_limit,
             platform,
             profiles,
             restart,
@@ -858,7 +867,6 @@ impl Unsupported {
             ("memswap_limit", memswap_limit.is_none()),
             ("oom_kill_disable", !oom_kill_disable),
             ("oom_score_adj", oom_score_adj.is_none()),
-            ("pids_limit", pids_limit.is_none()),
             ("platform", platform.is_none()),
             ("profiles", profiles.is_empty()),
             ("runtime", runtime.is_none()),
