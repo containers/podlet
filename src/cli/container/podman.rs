@@ -184,12 +184,6 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
 
-    /// Set proxy environment variables in the container based on the host proxy vars
-    #[arg(long, action = ArgAction::Set, default_value_t = true)]
-    #[serde(skip_serializing_if = "skip_true")]
-    #[default = true]
-    http_proxy: bool,
-
     /// How to handle the builtin image volumes
     #[arg(long, value_name = "bind | tmpfs | ignore")]
     image_volume: Option<String>,

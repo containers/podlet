@@ -145,6 +145,11 @@ pub struct Container {
     /// Sets the host name that is available inside the container.
     pub host_name: Option<String>,
 
+    /// Whether proxy environment variables are passed into the container.
+    #[serde(skip_serializing_if = "skip_true")]
+    #[default = true]
+    pub http_proxy: bool,
+
     /// The image to run in the container.
     pub image: String,
 
@@ -316,6 +321,10 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_7 {
+            self.remove_v5_7_options();
+        }
+
         if version < PodmanVersion::V5_6 {
             self.remove_v5_6_options()?;
         }
@@ -374,6 +383,14 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.7.0
+    fn remove_v5_7_options(&mut self) {
+        if !self.http_proxy {
+            self.http_proxy = true;
+            self.podman_args_push_str("--http-proxy=false");
+        }
+    }
+
     /// Remove Quadlet options added in Podman v5.6.0
     fn remove_v5_6_options(&mut self) -> Result<(), DowngradeError> {
         self.mount.iter().try_for_each(|mount| {
