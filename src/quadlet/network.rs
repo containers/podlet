@@ -31,6 +31,9 @@ pub struct Network {
     /// Define a gateway for the subnet.
     pub gateway: Vec<IpAddr>,
 
+    /// Maps to the `network_interface` option in the network config.
+    pub interface_name: Option<String>,
+
     /// Restrict external access of this network.
     #[serde(skip_serializing_if = "Not::not")]
     pub internal: bool,
@@ -72,6 +75,12 @@ impl Network {
 
 impl Downgrade for Network {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_6 {
+            if let Some(interface_name) = self.interface_name.take() {
+                self.push_arg("interface-name", &interface_name);
+            }
+        }
+
         if version < PodmanVersion::V4_7 {
             for dns in std::mem::take(&mut self.dns) {
                 self.push_arg("dns", &dns);

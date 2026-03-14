@@ -1,6 +1,7 @@
 mod opt;
 
 use clap::{Args, Subcommand};
+use serde::Serialize;
 
 pub use self::opt::Opt;
 
@@ -73,6 +74,12 @@ pub struct Create {
     #[arg(short, long, value_name = "KEY=VALUE")]
     pub label: Vec<String>,
 
+    /// Arguments that do not have a more specific Quadlet option.
+    ///
+    /// Converts to "PodmanArgs=ARGS".
+    #[command(flatten)]
+    pub podman_args: PodmanArgs,
+
     /// The name of the volume to create
     ///
     /// This will be used as the name of the generated file when used with
@@ -86,13 +93,43 @@ impl From<Create> for crate::quadlet::Volume {
             driver,
             opt,
             label,
+            podman_args,
             name: _,
         }: Create,
     ) -> Self {
+        let podman_args =
+            crate::serde::args::to_string(podman_args).expect("PodmanArgs serializes to args");
+
         Self {
             driver,
             label,
+            podman_args: (!podman_args.is_empty()).then_some(podman_args),
             ..opt.into()
         }
+    }
+}
+
+/// [`Args`] for `podman volume create` (i.e. [`Create`]) that convert into `PodmanArgs=ARGS`.
+#[derive(Args, Serialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub struct PodmanArgs {
+    /// Set the UID that the volume will be created as.
+    #[arg(long)]
+    pub uid: Option<u32>,
+
+    /// Set the GID that the volume will be created as.
+    #[arg(long)]
+    pub gid: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn podman_args_default_serialize_empty() -> Result<(), crate::serde::args::Error> {
+        let args = crate::serde::args::to_string(PodmanArgs::default())?;
+        assert!(args.is_empty());
+        Ok(())
     }
 }

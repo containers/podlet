@@ -25,7 +25,7 @@ use compose_spec::{
 use indexmap::{IndexMap, IndexSet};
 use k8s_openapi::{
     api::core::v1::{
-        Capabilities, Container, ContainerPort, EnvVar, ExecAction, PodSpec, Probe,
+        Capabilities, Container, ContainerPort, EnvVar, ExecAction, Lifecycle, Pod, Probe,
         ResourceRequirements, SELinuxOptions, SecurityContext,
     },
     apimachinery::pkg::api::resource::Quantity,
@@ -47,13 +47,16 @@ pub(super) struct Service {
     resources: ContainerResources,
     security_context: ContainerSecurityContext,
     command: Option<Command>,
+    cpuset: CpuSet,
     entrypoint: Option<Command>,
     environment: ListOrMap,
     healthcheck: Option<Healthcheck>,
     image: Option<Image>,
+    pids_limit: Option<Limit<u32>>,
     ports: Ports,
     pull_policy: Option<PullPolicy>,
     stdin_open: bool,
+    stop_signal: Option<String>,
     tmpfs: Option<ItemOrList<AbsolutePath>>,
     tty: bool,
     volumes: Volumes,
@@ -163,7 +166,6 @@ impl Service {
                 cpu_quota,
                 cpu_rt_runtime,
                 cpu_rt_period,
-                cpuset,
                 cgroup,
                 cgroup_parent,
                 configs,
@@ -199,7 +201,6 @@ impl Service {
                 oom_kill_disable,
                 oom_score_adj,
                 pid,
-                pids_limit,
                 platform,
                 profiles,
                 restart,
@@ -208,7 +209,6 @@ impl Service {
                 secrets,
                 shm_size,
                 stop_grace_period,
-                stop_signal,
                 storage_opt,
                 sysctls,
                 ulimits,
@@ -231,13 +231,16 @@ impl Service {
                 user,
             },
             command,
+            cpuset,
             entrypoint,
             environment,
             healthcheck,
             image,
+            pids_limit,
             ports,
             pull_policy,
             stdin_open,
+            stop_signal,
             tmpfs,
             tty,
             volumes,
@@ -245,25 +248,29 @@ impl Service {
         }
     }
 
-    /// Add the service to a [`PodSpec`]'s [`Container`]s and [`Volume`]s.
+    /// Add the service to a [`Pod`]'s [`Container`]s and [`Volume`]s.
     ///
     /// # Errors
     ///
     /// Returns an error if an unsupported option was used or conversion of one of the fields fails.
-    pub(super) fn add_to_pod_spec(self, spec: &mut PodSpec) -> color_eyre::Result<()> {
+    #[expect(clippy::too_many_lines, reason = "`Self` expansion")]
+    pub(super) fn add_to_pod(self, pod: &mut Pod) -> color_eyre::Result<()> {
         let Self {
             unsupported,
             name,
             resources,
             security_context,
             command,
+            cpuset,
             entrypoint,
             environment,
             healthcheck,
             image,
+            pids_limit,
             ports,
             pull_policy,
             stdin_open,
+            stop_signal,
             tmpfs,
             tty,
             volumes,
@@ -272,13 +279,15 @@ impl Service {
 
         unsupported.ensure_empty()?;
 
+        let spec = pod.spec.get_or_insert_default();
+
         let volume_mounts =
             tmpfs_and_volumes_try_into_volume_mounts(tmpfs, volumes, &name, &mut spec.volumes)
                 // converting `tmpfs` always succeeds
                 .wrap_err("error converting `volumes`")?;
 
         spec.containers.push(Container {
-            name: name.into(),
+            name: name.clone().into(),
             resources: resources.into_resource_requirements(),
             security_context: security_context.try_into_security_context()?,
             args: command
@@ -306,6 +315,11 @@ impl Service {
                 })
                 .transpose()
                 .wrap_err("error converting `environment`")?,
+            lifecycle: stop_signal.map(|stop_signal| Lifecycle {
+                post_start: None,
+                pre_stop: None,
+                stop_signal: Some(stop_signal),
+            }),
             liveness_probe: healthcheck
                 .and_then(|healthcheck| match healthcheck {
                     Healthcheck::Command(command) => {
@@ -347,6 +361,20 @@ impl Service {
                 .transpose()?,
             ..Container::default()
         });
+
+        if let Some(pids_limit) = pids_limit {
+            pod.metadata.annotations.get_or_insert_default().insert(
+                format!("io.podman.annotations.pids-limit/{name}"),
+                pids_limit.to_string(),
+            );
+        }
+
+        if !cpuset.is_empty() {
+            pod.metadata.annotations.get_or_insert_default().insert(
+                format!("io.podman.annotations.cpuset/{name}"),
+                cpuset.to_string(),
+            );
+        }
 
         Ok(())
     }
@@ -688,7 +716,6 @@ struct Unsupported {
     cpu_quota: Option<Duration>,
     cpu_rt_runtime: Option<Duration>,
     cpu_rt_period: Option<Duration>,
-    cpuset: CpuSet,
     cgroup: Option<Cgroup>,
     cgroup_parent: Option<String>,
     configs: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
@@ -724,7 +751,6 @@ struct Unsupported {
     oom_kill_disable: bool,
     oom_score_adj: Option<OomScoreAdj>,
     pid: Option<String>,
-    pids_limit: Option<Limit<u32>>,
     platform: Option<Platform>,
     profiles: IndexSet<Identifier>,
     restart: Option<Restart>,
@@ -733,7 +759,6 @@ struct Unsupported {
     secrets: Vec<ShortOrLong<Identifier, ConfigOrSecret>>,
     shm_size: Option<ByteValue>,
     stop_grace_period: Option<Duration>,
-    stop_signal: Option<String>,
     storage_opt: Map,
     sysctls: ListOrMap,
     ulimits: Ulimits,
@@ -761,7 +786,6 @@ impl Unsupported {
             cpu_quota,
             cpu_rt_runtime,
             cpu_rt_period,
-            cpuset,
             cgroup,
             cgroup_parent,
             configs,
@@ -797,7 +821,6 @@ impl Unsupported {
             oom_kill_disable,
             oom_score_adj,
             pid,
-            pids_limit,
             platform,
             profiles,
             restart,
@@ -806,7 +829,6 @@ impl Unsupported {
             secrets,
             shm_size,
             stop_grace_period,
-            stop_signal,
             storage_opt,
             sysctls,
             ulimits,
@@ -826,7 +848,6 @@ impl Unsupported {
             ("cpu_quota", cpu_quota.is_none()),
             ("cpu_rt_runtime", cpu_rt_runtime.is_none()),
             ("cpu_rt_period", cpu_rt_period.is_none()),
-            ("cpuset", cpuset.is_empty()),
             ("cgroup", cgroup.is_none()),
             ("cgroup_parent", cgroup_parent.is_none()),
             ("configs", configs.is_empty()),
@@ -858,14 +879,12 @@ impl Unsupported {
             ("memswap_limit", memswap_limit.is_none()),
             ("oom_kill_disable", !oom_kill_disable),
             ("oom_score_adj", oom_score_adj.is_none()),
-            ("pids_limit", pids_limit.is_none()),
             ("platform", platform.is_none()),
             ("profiles", profiles.is_empty()),
             ("runtime", runtime.is_none()),
             ("scale", scale.is_none()),
             ("secrets", secrets.is_empty()),
             ("shm_size", shm_size.is_none()),
-            ("stop_signal", stop_signal.is_none()),
             ("storage_opt", storage_opt.is_empty()),
             ("ulimits", ulimits.is_empty()),
             ("userns_mode", userns_mode.is_none()),

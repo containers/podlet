@@ -181,6 +181,9 @@ pub struct Artifact {
 
     /// If the artifact contains multiple blobs, the digest or title of the blob to use.
     pub digest_or_title: Option<DigestOrTitle>,
+
+    /// Overwrite the filename used inside the container for mounting.
+    pub name: Option<String>,
 }
 
 /// A flattened version of [`Artifact`] for (de)serialization.
@@ -192,7 +195,7 @@ struct ArtifactFlat {
     source: String,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     destination: PathBuf,
 
     /// If the artifact contains multiple blobs, the digest to use.
@@ -202,6 +205,10 @@ struct ArtifactFlat {
     /// If the artifact contains multiple blobs, the title to use.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     title: Option<String>,
+
+    /// Overwrite the filename used inside the container for mounting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 impl From<Artifact> for ArtifactFlat {
@@ -210,6 +217,7 @@ impl From<Artifact> for ArtifactFlat {
             source,
             destination,
             digest_or_title,
+            name,
         }: Artifact,
     ) -> Self {
         let (digest, title) = match digest_or_title {
@@ -223,6 +231,7 @@ impl From<Artifact> for ArtifactFlat {
             destination,
             digest,
             title,
+            name,
         }
     }
 }
@@ -236,6 +245,7 @@ impl TryFrom<ArtifactFlat> for Artifact {
             destination,
             digest,
             title,
+            name,
         }: ArtifactFlat,
     ) -> Result<Self, Self::Error> {
         let digest_or_title = match (digest, title) {
@@ -249,6 +259,7 @@ impl TryFrom<ArtifactFlat> for Artifact {
             source,
             destination,
             digest_or_title,
+            name,
         })
     }
 }
@@ -278,6 +289,7 @@ pub struct Bind {
     #[serde(
         default,
         alias = "dst",
+        alias = "dest",
         alias = "target",
         skip_serializing_if = "Option::is_none"
     )]
@@ -417,7 +429,7 @@ impl From<SELinux> for SELinuxRelabel {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct DevPts {
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// UID of the file owner.
@@ -475,7 +487,7 @@ pub struct Image {
     pub source: String,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// Read-write permission.
@@ -501,7 +513,7 @@ pub struct Volume {
     pub source: Option<String>,
 
     /// Mount destination spec.
-    #[serde(alias = "dst", alias = "target")]
+    #[serde(alias = "dst", alias = "dest", alias = "target")]
     pub destination: PathBuf,
 
     /// Only read permissions
@@ -556,13 +568,14 @@ mod tests {
             Mount::Artifact(Artifact {
                 source: "artifact".to_owned(),
                 destination: "/dst".into(),
-                digest_or_title: None
+                digest_or_title: None,
+                name: None,
             })
         );
         assert_eq!(mount.to_string(), string);
 
         // Digest
-        let string = "type=artifact,source=artifact,destination=/dst,digest=digest";
+        let string = "type=artifact,source=artifact,destination=/dst,digest=digest,name=name";
         let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
@@ -570,12 +583,13 @@ mod tests {
                 source: "artifact".to_owned(),
                 destination: "/dst".into(),
                 digest_or_title: Some(DigestOrTitle::Digest("digest".to_owned())),
+                name: Some("name".to_owned()),
             })
         );
         assert_eq!(mount.to_string(), string);
 
         // Title
-        let string = "type=artifact,source=artifact,destination=/dst,title=title";
+        let string = "type=artifact,source=artifact,destination=/dst,title=title,name=name";
         let mount: Mount = string.parse()?;
         assert_eq!(
             mount,
@@ -583,6 +597,7 @@ mod tests {
                 source: "artifact".to_owned(),
                 destination: "/dst".into(),
                 digest_or_title: Some(DigestOrTitle::Title("title".to_owned())),
+                name: Some("name".to_owned()),
             })
         );
         assert_eq!(mount.to_string(), string);
@@ -590,7 +605,7 @@ mod tests {
         // Digest and title is error
         assert!(
             Mount::from_str(
-                "type=artifact,source=artifact,destination=/dst,digest=digest,title=title"
+                "type=artifact,source=artifact,destination=/dst,digest=digest,title=title,name=name"
             )
             .is_err()
         );

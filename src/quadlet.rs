@@ -32,7 +32,7 @@ pub use self::{
     install::Install,
     kube::Kube,
     network::{IpRange, Network},
-    pod::Pod,
+    pod::{ExitPolicy, Pod},
     service::Service,
     unit::Unit,
     volume::Volume,
@@ -613,13 +613,17 @@ pub enum PodmanVersion {
     V5_4,
 
     /// Podman v5.5
-    #[value(name = "5.5", aliases = ["latest", "5.5.0", "5.5.1", "5.5.2"])]
+    #[value(name = "5.5", aliases = ["5.5.0", "5.5.1", "5.5.2"])]
     V5_5,
+
+    /// Podman v5.6
+    #[value(name = "5.6", aliases = ["latest", "5.6.0", "5.6.1", "5.6.2"])]
+    V5_6,
 }
 
 impl PodmanVersion {
     /// Latest supported version of Podman with regards to Quadlet.
-    pub const LATEST: Self = Self::V5_5;
+    pub const LATEST: Self = Self::V5_6;
 
     /// Podman version as a static string slice.
     pub const fn as_str(self) -> &'static str {
@@ -635,6 +639,7 @@ impl PodmanVersion {
             Self::V5_3 => "5.3",
             Self::V5_4 => "5.4",
             Self::V5_5 => "5.5",
+            Self::V5_6 => "5.6",
         }
     }
 }

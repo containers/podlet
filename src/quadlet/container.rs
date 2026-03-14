@@ -20,6 +20,7 @@ use smart_default::SmartDefault;
 
 use crate::serde::{quadlet::seq_quote_whitespace, serialize_display_seq, skip_true};
 
+use self::mount::Artifact;
 pub use self::{device::Device, mount::Mount, rootfs::Rootfs, volume::Volume};
 
 use super::{AutoUpdate, Downgrade, DowngradeError, HostPaths, PodmanVersion, push_arg_display};
@@ -315,6 +316,10 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_6 {
+            self.remove_v5_6_options()?;
+        }
+
         if version < PodmanVersion::V5_5 {
             self.remove_v5_5_options()?;
         }
@@ -369,6 +374,21 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.6.0
+    fn remove_v5_6_options(&mut self) -> Result<(), DowngradeError> {
+        self.mount.iter().try_for_each(|mount| {
+            if let Mount::Artifact(Artifact { name: Some(_), .. }) = mount {
+                Err(DowngradeError::Option {
+                    quadlet_option: "Mount",
+                    value: mount.to_string(),
+                    supported_version: PodmanVersion::V5_6,
+                })
+            } else {
+                Ok(())
+            }
+        })
+    }
+
     /// Remove Quadlet options added in Podman v5.5.0
     fn remove_v5_5_options(&mut self) -> Result<(), DowngradeError> {
         self.mount.iter().try_for_each(|mount| {

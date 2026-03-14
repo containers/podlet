@@ -3,7 +3,7 @@ use std::{path::PathBuf, str::FromStr};
 use clap::{Args, Subcommand};
 use thiserror::Error;
 
-use crate::quadlet::{self, image::DecryptionKey};
+use crate::quadlet::{self, container::PullPolicy, image::DecryptionKey};
 
 use super::image_to_name;
 
@@ -107,6 +107,14 @@ pub struct Pull {
     #[arg(long, conflicts_with_all = ["os", "arch"], value_name = "OS/ARCH")]
     pub platform: Option<Platform>,
 
+    /// Pull image policy.
+    ///
+    /// Converts to "Policy=POLICY".
+    ///
+    /// Default is `always`.
+    #[arg(long)]
+    pub policy: Option<PullPolicy>,
+
     /// Number of times to retry pulling or pushing images between the registry and local storage.
     ///
     /// Converts to "Retry=ATTEMPTS".
@@ -154,6 +162,7 @@ impl From<Pull> for quadlet::Image {
             disable_content_trust: _,
             os,
             platform,
+            policy,
             retry,
             retry_delay,
             tls_verify,
@@ -176,6 +185,7 @@ impl From<Pull> for quadlet::Image {
             image_tag: None,
             os,
             podman_args: None,
+            policy,
             retry,
             retry_delay,
             tls_verify,

@@ -75,6 +75,12 @@ pub struct Create {
     #[arg(long)]
     pub gateway: Vec<IpAddr>,
 
+    /// Maps to the `network_interface` option in the network config
+    ///
+    /// Converts to "InterfaceName=NAME"
+    #[arg(long, value_name = "NAME")]
+    pub interface_name: Option<String>,
+
     /// Restrict external access of the network
     ///
     /// Converts to "Internal=true"
@@ -138,21 +144,40 @@ pub struct Create {
 }
 
 impl From<Create> for crate::quadlet::Network {
-    fn from(value: Create) -> Self {
-        let podman_args = value.podman_args.to_string();
+    fn from(
+        Create {
+            disable_dns,
+            dns,
+            driver,
+            gateway,
+            interface_name,
+            internal,
+            ipam_driver,
+            ip_range,
+            ipv6,
+            label,
+            opt,
+            subnet,
+            podman_args,
+            name: _,
+        }: Create,
+    ) -> Self {
+        let podman_args = podman_args.to_string();
+
         Self {
-            disable_dns: value.disable_dns,
-            dns: value.dns,
-            driver: value.driver,
-            gateway: value.gateway,
-            internal: value.internal,
-            ipam_driver: value.ipam_driver,
-            ip_range: value.ip_range,
-            ipv6: value.ipv6,
-            label: value.label,
-            options: value.opt,
+            disable_dns,
+            dns,
+            driver,
+            gateway,
+            interface_name,
+            internal,
+            ipam_driver,
+            ip_range,
+            ipv6,
+            label,
+            options: opt,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
-            subnet: value.subnet,
+            subnet,
         }
     }
 }
@@ -160,10 +185,6 @@ impl From<Create> for crate::quadlet::Network {
 #[derive(Args, Serialize, Debug, Default, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct PodmanArgs {
-    /// Maps to the `network_interface` option in the network config
-    #[arg(long, value_name = "NAME")]
-    pub interface_name: Option<String>,
-
     /// A static route to add to every container in this network
     ///
     /// Can be specified multiple times
