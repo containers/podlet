@@ -177,6 +177,11 @@ pub struct PodmanArgs {
     #[serde(skip_serializing_if = "Not::not")]
     no_hosts: bool,
 
+    /// Do not prefix container name with pod name
+    #[arg(long)]
+    #[serde(skip_serializing_if = "Not::not")]
+    no_pod_prefix: bool,
+
     /// Directory path for seccomp profiles
     #[arg(long, value_name = "PATH")]
     seccomp_profile_root: Option<PathBuf>,
