@@ -178,6 +178,9 @@ pub enum JoinOption {
     /// `BindsTo=`, used in [Unit] sections.
     BindsTo,
 
+    /// `BuildArg=`, used in [Build] sections.
+    BuildArg,
+
     /// `DropCapability=`, used in [Container] sections.
     DropCapability,
 
@@ -226,6 +229,7 @@ impl JoinOption {
         Self::Annotation,
         Self::Before,
         Self::BindsTo,
+        Self::BuildArg,
         Self::DropCapability,
         Self::Environment,
         Self::Label,
@@ -254,6 +258,7 @@ impl JoinOption {
             Self::Annotation => "Annotation",
             Self::Before => "Before",
             Self::BindsTo => "BindsTo",
+            Self::BuildArg => "BuildArg",
             Self::DropCapability => "DropCapability",
             Self::Environment => "Environment",
             Self::Label => "Label",
@@ -287,6 +292,7 @@ impl FromStr for JoinOption {
             "Annotation" => Ok(Self::Annotation),
             "Before" => Ok(Self::Before),
             "BindsTo" => Ok(Self::BindsTo),
+            "BuildArg" => Ok(Self::BuildArg),
             "DropCapability" => Ok(Self::DropCapability),
             "Environment" => Ok(Self::Environment),
             "Label" => Ok(Self::Label),

@@ -30,6 +30,11 @@ pub struct Build {
     /// Path of the authentication file.
     pub auth_file: Option<PathBuf>,
 
+    /// Specifies build arguments and their values.
+    #[expect(clippy::struct_field_names, reason = "Quadlet option")]
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub build_arg: Vec<String>,
+
     /// Set network-scoped DNS resolver/nameserver for the build container.
     #[serde(rename = "DNS")]
     pub dns: Dns,
@@ -112,6 +117,12 @@ impl HostPaths for Build {
 
 impl Downgrade for Build {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_7 {
+            for build_arg in std::mem::take(&mut self.build_arg) {
+                self.push_arg("build-arg", &build_arg);
+            }
+        }
+
         if version < PodmanVersion::V5_5 {
             if let Some(retry) = self.retry.take() {
                 self.push_arg_display("retry", retry);
