@@ -110,6 +110,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "NODES")]
     cpuset_mems: Option<String>,
 
+    /// The username and/or password to use to authenticate with the registry, if required
+    #[arg(long, value_name = "[USERNAME][:PASSWORD]")]
+    creds: Option<String>,
+
     /// Key needed to decrypt the image
     #[arg(long, value_name = "KEY[:PASSPHRASE]")]
     decryption_key: Option<String>,
