@@ -52,6 +52,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "DEVICE:WEIGHT")]
     blkio_weight_device: Vec<String>,
 
+    /// Use certificates in the specified directory to connect to the registry
+    #[arg(long, value_name = "PATH")]
+    cert_dir: Option<PathBuf>,
+
     /// Specify the cgroup file to write to and its value
     ///
     /// Can be specified multiple times
