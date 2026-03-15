@@ -44,7 +44,7 @@ impl Kube {
     pub fn name(&self) -> &str {
         let Kube::Play { play } = self;
 
-        play.file.name().unwrap_or("pod")
+        play.file.first().and_then(YamlFile::name).unwrap_or("pod")
     }
 }
 
@@ -93,22 +93,36 @@ pub struct Play {
     /// The path to the Kubernetes YAML file to use
     ///
     /// Converts to "Yaml=FILE"
-    file: YamlFile,
+    ///
+    /// Multiple files can be specified
+    #[arg(required = true)]
+    file: Vec<YamlFile>,
 }
 
 impl From<Play> for crate::quadlet::Kube {
-    fn from(mut value: Play) -> Self {
-        let auto_update = AutoUpdate::extract_from_annotations(&mut value.podman_args.annotation);
-        let podman_args = value.podman_args.to_string();
+    fn from(
+        Play {
+            configmap,
+            log_driver,
+            network,
+            publish,
+            userns,
+            mut podman_args,
+            file,
+        }: Play,
+    ) -> Self {
+        let auto_update = AutoUpdate::extract_from_annotations(&mut podman_args.annotation);
+        let podman_args = podman_args.to_string();
+
         Self {
             auto_update,
-            config_map: value.configmap,
-            log_driver: value.log_driver,
-            network: value.network,
+            config_map: configmap,
+            log_driver,
+            network,
             podman_args: (!podman_args.is_empty()).then_some(podman_args),
-            publish_port: value.publish,
-            user_ns: value.userns,
-            yaml: value.file,
+            publish_port: publish,
+            user_ns: userns,
+            yaml: file,
         }
     }
 }

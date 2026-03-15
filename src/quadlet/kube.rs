@@ -40,7 +40,7 @@ pub struct Kube {
 
     /// The path, absolute or relative to the location of the unit file, or URL
     /// to the Kubernetes YAML file to use.
-    pub yaml: YamlFile,
+    pub yaml: Vec<YamlFile>,
 }
 
 impl Kube {
@@ -53,7 +53,7 @@ impl Kube {
             podman_args: None,
             publish_port: Vec::new(),
             user_ns: None,
-            yaml,
+            yaml: vec![yaml],
         }
     }
 
@@ -66,6 +66,13 @@ impl Kube {
 
 impl Downgrade for Kube {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_7 && self.yaml.len() > 1 {
+            return Err(DowngradeError::Multiple {
+                quadlet_option: "Yaml",
+                supported_version: PodmanVersion::V5_7,
+            });
+        }
+
         if version < PodmanVersion::V4_7 {
             for auto_update in std::mem::take(&mut self.auto_update) {
                 self.push_arg("annotation", &auto_update.to_annotation());
@@ -98,7 +105,9 @@ impl Downgrade for Kube {
 
 impl HostPaths for Kube {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        self.config_map.iter_mut().chain(self.yaml.as_path_mut())
+        self.config_map
+            .iter_mut()
+            .chain(self.yaml.iter_mut().filter_map(YamlFile::as_path_mut))
     }
 }
 
