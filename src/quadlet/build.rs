@@ -61,6 +61,9 @@ pub struct Build {
     /// Assign additional groups to the primary user running within the container process.
     pub group_add: Vec<String>,
 
+    /// Path to an alternative `.containerignore` file.
+    pub ignore_file: Option<PathBuf>,
+
     /// Specifies the name which is assigned to the resulting image if the build process completes
     /// successfully.
     pub image_tag: Vec<String>,
@@ -110,6 +113,7 @@ impl HostPaths for Build {
         self.auth_file
             .iter_mut()
             .chain(self.file.host_paths())
+            .chain(&mut self.ignore_file)
             .chain(self.secret.host_paths())
             .chain(self.set_working_directory.host_paths())
     }
@@ -120,6 +124,10 @@ impl Downgrade for Build {
         if version < PodmanVersion::V5_7 {
             for build_arg in std::mem::take(&mut self.build_arg) {
                 self.push_arg("build-arg", &build_arg);
+            }
+
+            if let Some(ignore_file) = self.ignore_file.take() {
+                self.push_arg("ignorefile", &ignore_file.as_os_str().to_string_lossy());
             }
         }
 

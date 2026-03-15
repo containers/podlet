@@ -125,6 +125,12 @@ pub struct Build {
     #[arg(long, value_name = "GROUP | keep-groups")]
     group_add: Vec<String>,
 
+    /// Path to an alternative `.containerignore` file.
+    ///
+    /// Converts to "IgnoreFile=PATH".
+    #[arg(long, value_name = "PATH")]
+    ignorefile: Option<PathBuf>,
+
     /// The name assigned to the resulting image if the build process completes successfully.
     ///
     /// Converts to "ImageTag=IMAGE_NAME".
@@ -243,6 +249,7 @@ impl From<Build> for quadlet::Build {
             file,
             force_rm,
             group_add,
+            ignorefile,
             tag,
             label,
             network,
@@ -272,6 +279,7 @@ impl From<Build> for quadlet::Build {
             file,
             force_rm,
             group_add,
+            ignore_file: ignorefile,
             image_tag: tag,
             label,
             network,
@@ -591,10 +599,6 @@ struct PodmanArgs {
     #[serde(skip_serializing_if = "skip_true")]
     #[default = true]
     identity_label: bool,
-
-    /// Path to an alternative `.containerignore` file.
-    #[arg(long, value_name = "PATH")]
-    ignorefile: Option<PathBuf>,
 
     /// Write the built image's ID to a file.
     #[arg(long, value_name = "IMAGE_ID_FILE")]
