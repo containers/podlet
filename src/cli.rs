@@ -1,3 +1,4 @@
+mod artifact;
 mod build;
 mod compose;
 mod container;
@@ -38,7 +39,7 @@ use crate::quadlet::{
 };
 
 use self::{
-    build::Build, compose::Compose, container::Container, generate::Generate,
+    artifact::Artifact, build::Build, compose::Compose, container::Container, generate::Generate,
     global_args::GlobalArgs, image::Image, install::Install, kube::Kube, network::Network,
     pod::Pod, volume::Volume,
 };
@@ -623,6 +624,16 @@ enum PodmanCommands {
         #[command(subcommand)]
         image: Box<Image>,
     },
+
+    /// Generate a Podman Quadlet `.artifact` file
+    ///
+    /// For details on options see:
+    /// https://docs.podman.io/en/stable/markdown/podman-artifact-pull.1.html
+    Artifact {
+        /// The \[Artifact\] section
+        #[command(subcommand)]
+        artifact: Artifact,
+    },
 }
 
 impl From<PodmanCommands> for quadlet::Resource {
@@ -635,6 +646,7 @@ impl From<PodmanCommands> for quadlet::Resource {
             PodmanCommands::Volume { volume } => volume.into(),
             PodmanCommands::Build { build } => (*build).into(),
             PodmanCommands::Image { image } => (*image).into(),
+            PodmanCommands::Artifact { artifact } => artifact.into(),
         }
     }
 }
@@ -680,6 +692,7 @@ impl PodmanCommands {
             Self::Volume { volume } => volume.name(),
             Self::Build { build } => build.name(),
             Self::Image { image } => image.name(),
+            Self::Artifact { artifact } => artifact.name(),
         }
     }
 }
