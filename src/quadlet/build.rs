@@ -30,6 +30,11 @@ pub struct Build {
     /// Path of the authentication file.
     pub auth_file: Option<PathBuf>,
 
+    /// Specifies build arguments and their values.
+    #[expect(clippy::struct_field_names, reason = "Quadlet option")]
+    #[serde(serialize_with = "seq_quote_whitespace")]
+    pub build_arg: Vec<String>,
+
     /// Set network-scoped DNS resolver/nameserver for the build container.
     #[serde(rename = "DNS")]
     pub dns: Dns,
@@ -55,6 +60,9 @@ pub struct Build {
 
     /// Assign additional groups to the primary user running within the container process.
     pub group_add: Vec<String>,
+
+    /// Path to an alternative `.containerignore` file.
+    pub ignore_file: Option<PathBuf>,
 
     /// Specifies the name which is assigned to the resulting image if the build process completes
     /// successfully.
@@ -105,6 +113,7 @@ impl HostPaths for Build {
         self.auth_file
             .iter_mut()
             .chain(self.file.host_paths())
+            .chain(&mut self.ignore_file)
             .chain(self.secret.host_paths())
             .chain(self.set_working_directory.host_paths())
     }
@@ -112,6 +121,16 @@ impl HostPaths for Build {
 
 impl Downgrade for Build {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_7 {
+            for build_arg in std::mem::take(&mut self.build_arg) {
+                self.push_arg("build-arg", &build_arg);
+            }
+
+            if let Some(ignore_file) = self.ignore_file.take() {
+                self.push_arg("ignorefile", &ignore_file.as_os_str().to_string_lossy());
+            }
+        }
+
         if version < PodmanVersion::V5_5 {
             if let Some(retry) = self.retry.take() {
                 self.push_arg_display("retry", retry);

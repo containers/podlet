@@ -1,6 +1,7 @@
 use std::{
     convert::Infallible,
     fmt::{self, Display, Formatter, Write},
+    iter,
     ops::Not,
     path::PathBuf,
     str::FromStr,
@@ -71,15 +72,10 @@ pub struct Image {
 
 impl HostPaths for Image {
     fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
-        let decryption_key = self
-            .decryption_key
-            .as_mut()
-            .map(|decryption_key| &mut decryption_key.key);
-
         self.auth_file
             .iter_mut()
             .chain(&mut self.cert_dir)
-            .chain(decryption_key)
+            .chain(self.decryption_key.host_paths())
     }
 }
 
@@ -220,5 +216,11 @@ impl Display for DecryptionKey {
 impl Serialize for DecryptionKey {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.collect_str(self)
+    }
+}
+
+impl HostPaths for DecryptionKey {
+    fn host_paths(&mut self) -> impl Iterator<Item = &mut PathBuf> {
+        iter::once(&mut self.key)
     }
 }

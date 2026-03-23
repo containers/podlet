@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "podlet"
-version = "0.3.2-alpha.4"
+version = "0.3.2-alpha.5"
 dependencies = [
  "clap",
  "color-eyre",

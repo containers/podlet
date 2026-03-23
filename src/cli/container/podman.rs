@@ -52,6 +52,10 @@ pub struct PodmanArgs {
     #[arg(long, value_name = "DEVICE:WEIGHT")]
     blkio_weight_device: Vec<String>,
 
+    /// Use certificates in the specified directory to connect to the registry
+    #[arg(long, value_name = "PATH")]
+    cert_dir: Option<PathBuf>,
+
     /// Specify the cgroup file to write to and its value
     ///
     /// Can be specified multiple times
@@ -109,6 +113,10 @@ pub struct PodmanArgs {
     /// Memory nodes (MEMs) in which to allow execution
     #[arg(long, value_name = "NODES")]
     cpuset_mems: Option<String>,
+
+    /// The username and/or password to use to authenticate with the registry, if required
+    #[arg(long, value_name = "[USERNAME][:PASSWORD]")]
+    creds: Option<String>,
 
     /// Key needed to decrypt the image
     #[arg(long, value_name = "KEY[:PASSPHRASE]")]
@@ -183,12 +191,6 @@ pub struct PodmanArgs {
     /// Add a user account to /etc/passwd from the host to the container
     #[arg(long, value_name = "NAME")]
     hostuser: Vec<String>,
-
-    /// Set proxy environment variables in the container based on the host proxy vars
-    #[arg(long, action = ArgAction::Set, default_value_t = true)]
-    #[serde(skip_serializing_if = "skip_true")]
-    #[default = true]
-    http_proxy: bool,
 
     /// How to handle the builtin image volumes
     #[arg(long, value_name = "bind | tmpfs | ignore")]

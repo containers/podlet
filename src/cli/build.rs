@@ -55,6 +55,15 @@ pub struct Build {
     #[arg(long, value_name = "PATH")]
     authfile: Option<PathBuf>,
 
+    /// Specifies a build argument and its value.
+    ///
+    /// Converts to "BuildArg=ARG=VALUE".
+    ///
+    /// Can be specified multiple times.
+    #[expect(clippy::struct_field_names, reason = "CLI arg")]
+    #[arg(long, value_name = "ARG=VALUE")]
+    build_arg: Vec<String>,
+
     /// Set custom DNS servers.
     ///
     /// Converts to "DNS=IP_ADDRESS".
@@ -115,6 +124,12 @@ pub struct Build {
     /// Can be specified multiple times.
     #[arg(long, value_name = "GROUP | keep-groups")]
     group_add: Vec<String>,
+
+    /// Path to an alternative `.containerignore` file.
+    ///
+    /// Converts to "IgnoreFile=PATH".
+    #[arg(long, value_name = "PATH")]
+    ignorefile: Option<PathBuf>,
 
     /// The name assigned to the resulting image if the build process completes successfully.
     ///
@@ -226,6 +241,7 @@ impl From<Build> for quadlet::Build {
             annotation,
             arch,
             authfile,
+            build_arg,
             dns,
             dns_option,
             dns_search,
@@ -233,6 +249,7 @@ impl From<Build> for quadlet::Build {
             file,
             force_rm,
             group_add,
+            ignorefile,
             tag,
             label,
             network,
@@ -254,6 +271,7 @@ impl From<Build> for quadlet::Build {
             annotation,
             arch,
             auth_file: authfile,
+            build_arg,
             dns: dns.into(),
             dns_option,
             dns_search,
@@ -261,6 +279,7 @@ impl From<Build> for quadlet::Build {
             file,
             force_rm,
             group_add,
+            ignore_file: ignorefile,
             image_tag: tag,
             label,
             network,
@@ -338,7 +357,6 @@ impl TryFrom<service::Build> for Build {
                 .into_iter()
                 .map(|(hostname, ip)| format!("{hostname}:{ip}"))
                 .collect(),
-            build_arg: args.into_list().into_iter().collect(),
             build_context: additional_contexts
                 .iter()
                 .map(|(id, context)| format!("{id}={context}"))
@@ -386,6 +404,7 @@ impl TryFrom<service::Build> for Build {
 
         Ok(Self {
             file,
+            build_arg: args.into_list().into_iter().collect(),
             tag: tags.into_iter().map(Into::into).collect(),
             label: labels.into_list().into_iter().collect(),
             network: network.map(Into::into).into_iter().collect(),
@@ -433,12 +452,6 @@ struct PodmanArgs {
     #[arg(long)]
     #[serde(skip_serializing_if = "Not::not")]
     all_platforms: bool,
-
-    /// Specifies a build argument and its value.
-    ///
-    /// Can be specified multiple times.
-    #[arg(long, value_name = "ARG=VALUE")]
-    build_arg: Vec<String>,
 
     /// Specifies a file containing lines of build arguments of the form `arg=value`.
     ///
@@ -586,10 +599,6 @@ struct PodmanArgs {
     #[serde(skip_serializing_if = "skip_true")]
     #[default = true]
     identity_label: bool,
-
-    /// Path to an alternative `.containerignore` file.
-    #[arg(long, value_name = "PATH")]
-    ignorefile: Option<PathBuf>,
 
     /// Write the built image's ID to a file.
     #[arg(long, value_name = "IMAGE_ID_FILE")]

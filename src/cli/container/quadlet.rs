@@ -262,6 +262,13 @@ pub struct QuadletOptions {
     #[arg(short, long, value_name = "NAME")]
     hostname: Option<String>,
 
+    /// Set proxy environment variables in the container based on the host proxy vars
+    ///
+    /// Converts to "HttpProxy=true|false"
+    #[arg(long, action = ArgAction::Set, default_value_t = true)]
+    #[default = true]
+    http_proxy: bool,
+
     /// Specify a static IPv4 address for the container
     ///
     /// Converts to "IP=IPV4"
@@ -564,6 +571,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_startup_timeout,
             health_timeout,
             hostname: host_name,
+            http_proxy,
             ip,
             ip6,
             mut label,
@@ -646,6 +654,7 @@ impl From<QuadletOptions> for crate::quadlet::Container {
             health_startup_timeout,
             health_timeout,
             host_name,
+            http_proxy,
             ip,
             ip6,
             label,
