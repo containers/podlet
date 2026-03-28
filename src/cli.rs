@@ -105,7 +105,7 @@ pub struct Cli {
     /// For example, `podlet podman run -e ONE=one -e TWO=two image` results in:
     ///
     /// ```ini
-    /// # image.container
+    /// # FileName=image
     /// [Container]
     /// Environment=ONE=one TWO=two
     /// Image=image
@@ -114,7 +114,7 @@ pub struct Cli {
     /// While `podlet -s Environment podman run -e ONE=one -e TWO=two image` results in:
     ///
     /// ```ini
-    /// # image.container
+    /// # FileName=image
     /// [Container]
     /// Environment=ONE=one
     /// Environment=TWO=two
@@ -227,14 +227,14 @@ By default, Podlet will combine all Quadlet options that can be joined into a si
 
 For example, `podlet podman run -e ONE=one -e TWO=two image` results in:
 
-# image.container
+# FileName=image
 [Container]
 Environment=ONE=one TWO=two
 Image=image
 
 While `podlet -s Environment podman run -e ONE=one -e TWO=two image` results in:
 
-# image.container
+# FileName=image
 [Container]
 Environment=ONE=one
 Environment=TWO=two
@@ -288,11 +288,11 @@ multiple times.";
                 .try_into_files()?
                 .into_iter()
                 .map(|file| {
-                    let file_name = format!("{}.{}", file.name(), file.extension());
-                    let file = file
-                        .serialize(&join_options)
-                        .wrap_err_with(|| format! {"error serializing file `{file_name}`"})?;
-                    Ok(format!("# {file_name}\n{file}"))
+                    let file_name = file.name();
+                    let serialized_file = file.serialize(&join_options).wrap_err_with(|| {
+                        format!("error serializing {} file `{file_name}`", file.extension())
+                    })?;
+                    Ok(format!("# FileName={file_name}\n{serialized_file}"))
                 })
                 .collect::<color_eyre::Result<Vec<_>>>()?
                 .join("\n---\n\n");
