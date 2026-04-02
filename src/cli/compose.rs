@@ -59,6 +59,8 @@ pub struct Compose {
     ///
     /// The top-level `name` field in the compose file is required when using this option.
     /// It is used for the name of the pod and in the filenames of the created files.
+    ///
+    /// Conflicts with `--quadlets-file` as a YAML file cannot be included in `.quadlets` file.
     #[arg(long, conflicts_with = "pod")]
     pub kube: bool,
 

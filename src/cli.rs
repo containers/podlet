@@ -52,7 +52,7 @@ use self::{
 #[derive(Parser, Debug, Clone, PartialEq)]
 #[command(author, version, about, subcommand_precedence_over_arg = true)]
 pub struct Cli {
-    /// Generate a file instead of printing to stdout
+    /// Generate file(s) instead of printing to stdout
     ///
     /// Optionally provide a path for the file,
     /// if no path is provided the file will be placed in the current working directory.
@@ -62,34 +62,49 @@ pub struct Cli {
     /// the filename of the kube file,
     /// the container name,
     /// or the name of the container image.
-    #[arg(short, long, group = "file_out")]
+    #[arg(short, long, groups = ["file_out", "file_or_unit_dir"])]
     file: Option<Option<PathBuf>>,
 
-    /// Generate a file in the Podman unit directory instead of printing to stdout
+    /// Generate file(s) in the Podman unit directory instead of printing to stdout
     ///
     /// Conflicts with the --file option
     ///
     /// Equivalent to `--file $XDG_CONFIG_HOME/containers/systemd/` for non-root users,
     /// or `--file /etc/containers/systemd/` for root.
     ///
-    /// The name of the file can be specified with the --name option.
+    /// The name of the file can be specified with the `--name` option.
     #[arg(
         short,
         long,
         visible_alias = "unit-dir",
         conflicts_with = "file",
-        group = "file_out"
+        groups = ["file_out", "file_or_unit_dir"]
     )]
     unit_directory: bool,
 
+    /// Generate a single `.quadlets` file instead of separate Quadlet files
+    ///
+    /// Provide the name (without the extension) that the `.quadlets` file should use.
+    ///
+    /// If `--file` or `--unit-directory` is not used, `--file` is implied with the current working
+    /// directory.
+    #[arg(long, value_name = "NAME", group = "file_out")]
+    quadlets_file: Option<String>,
+
     /// Override the name of the generated file (without the extension)
     ///
-    /// This only applies if a file was not given to the --file option,
-    /// or the --unit-directory option was used.
+    /// This only applies if a directory was given to `--file`, or `--unit-directory` was used.
     ///
     /// E.g. `podlet --file --name hello-world podman run quay.io/podman/hello`
     /// will generate a file with the name "hello-world.container".
-    #[arg(short, long, requires = "file_out")]
+    ///
+    /// Conflicts with the `--quadlets-file` option as the file name is set with it.
+    #[arg(
+        short,
+        long,
+        requires = "file_or_unit_dir",
+        conflicts_with = "quadlets_file"
+    )]
     name: Option<String>,
 
     /// Overwrite existing files when generating a file
@@ -249,18 +264,33 @@ multiple times.";
         let split_options = self.split_options.iter().copied().collect();
         let join_options = &JoinOption::all_set() - &split_options;
 
-        if self.unit_directory || self.file.is_some() {
+        if self.unit_directory || self.file.is_some() || self.quadlets_file.is_some() {
+            // file out
             let path = self.file_path()?;
-            if matches!(path, FilePath::Full(..))
-                && matches!(self.command, Commands::Compose { .. })
+            let quadlets_file = self.quadlets_file.clone();
+            if matches!(path, FilePath::Full(_)) {
+                if quadlets_file.is_some() {
+                    return Err(eyre!(
+                        "A file path was provided to `--file` and `--quadlets-file` was used`"
+                    )
+                    .note("The file name is set by `--quadlets-file`.")
+                    .suggestion("Provide a directory to `--file`."));
+                }
+                if matches!(self.command, Commands::Compose(_)) {
+                    return Err(eyre!(
+                        "A file path was provided to `--file` and the `compose` command was used"
+                    )
+                    .warning("`compose` can generate multiple files so a directory is needed.")
+                    .suggestion("Provide a directory to `--file`."));
+                }
+            }
+            if quadlets_file.is_some()
+                && matches!(self.command, Commands::Compose(Compose { kube: true, .. }))
             {
-                return Err(eyre!(
-                    "A file path was provided to `--file` and the `compose` command was used"
-                )
-                .suggestion(
-                    "Provide a directory to `--file`. \
-                        `compose` can generate multiple files so a directory is needed.",
-                ));
+                return Err(
+                    eyre!("cannot set both `--quadlets-file` and `compose --kube`")
+                        .warning("`.quadlets` files cannot include Kubernetes YAML in them."),
+                );
             }
 
             let overwrite = self.overwrite;
@@ -278,24 +308,25 @@ multiple times.";
                 )?;
             }
 
-            for file in files {
-                file.write(&path, overwrite, &join_options)?;
+            if let Some(quadlets_file) = quadlets_file {
+                let contents = files_to_quadlets_file(&files, &join_options)?;
+                let path = path.to_full(&quadlets_file, "quadlets");
+
+                open_file(&path, overwrite)?
+                    .write_all(contents.as_bytes())
+                    .wrap_err_with(|| format!("error writing to file `{}`", path.display()))?;
+
+                println!("Wrote to file: {}", path.display());
+            } else {
+                for file in files {
+                    file.write(&path, overwrite, &join_options)?;
+                }
             }
 
             Ok(())
         } else {
-            let files = self
-                .try_into_files()?
-                .into_iter()
-                .map(|file| {
-                    let file_name = file.name();
-                    let serialized_file = file.serialize(&join_options).wrap_err_with(|| {
-                        format!("error serializing {} file `{file_name}`", file.extension())
-                    })?;
-                    Ok(format!("# FileName={file_name}\n{serialized_file}"))
-                })
-                .collect::<color_eyre::Result<Vec<_>>>()?
-                .join("\n---\n\n");
+            let files = self.try_into_files()?;
+            let files = files_to_quadlets_file(&files, &join_options)?;
             print!("{files}");
             Ok(())
         }
@@ -457,17 +488,58 @@ enum FilePath {
 impl FilePath {
     /// Convert to full file path
     ///
-    /// If `self` is a directory, the [`File`] is used to set the filename.
-    fn to_full(&self, file: &File) -> Cow<'_, Path> {
+    /// If `self` is a directory, `filename` and `extension` are used to set the filename.
+    fn to_full(&self, filename: &str, extension: &str) -> Cow<'_, Path> {
         match self {
             Self::Full(path) => path.into(),
             Self::Dir(path) => {
-                let mut path = path.join(file.name());
-                path.set_extension(file.extension());
+                let mut path = path.join(filename);
+                path.set_extension(extension);
                 path.into()
             }
         }
     }
+}
+
+/// Serialize each [`File`] and join them together in the `.quadlets` file format.
+///
+/// # Errors
+///
+/// Returns an error if a file fails to serialize.
+fn files_to_quadlets_file<'a>(
+    files: impl IntoIterator<Item = &'a File>,
+    join_options: &HashSet<JoinOption>,
+) -> color_eyre::Result<String> {
+    files
+        .into_iter()
+        .map(|file| {
+            let file_name = file.name();
+
+            let serialized_file = file.serialize(join_options).wrap_err_with(|| {
+                format!("error serializing {} file `{file_name}`", file.extension())
+            })?;
+
+            let mut content = String::with_capacity(serialized_file.capacity());
+            content.push_str("# ");
+
+            match file {
+                File::Quadlet(_) => {
+                    content.push_str("FileName=");
+                    content.push_str(file_name);
+                }
+                File::Kubernetes(_) => {
+                    content.push_str(file_name);
+                    content.push_str(".yaml");
+                }
+            }
+
+            content.push('\n');
+            content.push_str(&serialized_file);
+
+            Ok(content)
+        })
+        .collect::<color_eyre::Result<Vec<_>>>()
+        .map(|files| files.join("\n---\n\n"))
 }
 
 #[derive(Subcommand, Debug, Clone, PartialEq)]
@@ -795,7 +867,7 @@ impl File {
         overwrite: bool,
         join_options: &HashSet<JoinOption>,
     ) -> color_eyre::Result<()> {
-        let path = path.to_full(self);
+        let path = path.to_full(self.name(), self.extension());
         let mut file = open_file(&path, overwrite)?;
         let path = path.display();
 
