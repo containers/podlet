@@ -88,6 +88,7 @@ pub struct InvalidLabelOpt(pub String);
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct QuadletOptions {
+    pub app_armor: Option<String>,
     pub mask: Vec<String>,
     pub no_new_privileges: bool,
     pub seccomp_profile: Option<PathBuf>,
@@ -100,10 +101,20 @@ pub struct QuadletOptions {
     pub podman_args: Vec<String>,
 }
 
+impl FromIterator<SecurityOpt> for QuadletOptions {
+    fn from_iter<T: IntoIterator<Item = SecurityOpt>>(iter: T) -> Self {
+        iter.into_iter()
+            .fold(Self::default(), |mut quadlet_options, security_opt| {
+                quadlet_options.add_security_opt(security_opt);
+                quadlet_options
+            })
+    }
+}
+
 impl QuadletOptions {
-    pub fn add_security_opt(&mut self, security_opt: SecurityOpt) {
+    fn add_security_opt(&mut self, security_opt: SecurityOpt) {
         match security_opt {
-            SecurityOpt::Apparmor(policy) => self.podman_args.push(format!("apparmor={policy}")),
+            SecurityOpt::Apparmor(policy) => self.app_armor = Some(policy),
             SecurityOpt::Label(label_opt) => self.add_label_opt(label_opt),
             SecurityOpt::Mask(mask) => self.mask.extend(mask.split(':').map(Into::into)),
             SecurityOpt::NoNewPrivileges => self.no_new_privileges = true,
@@ -118,7 +129,7 @@ impl QuadletOptions {
         }
     }
 
-    pub fn add_label_opt(&mut self, label_opt: LabelOpt) {
+    fn add_label_opt(&mut self, label_opt: LabelOpt) {
         match label_opt {
             LabelOpt::User(user) => self.podman_args.push(format!("label=user:{user}")),
             LabelOpt::Role(role) => self.podman_args.push(format!("label=role:{role}")),
