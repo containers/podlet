@@ -37,6 +37,8 @@ impl Display for QuoteWhitespace<'_> {
             for char in self.0.chars() {
                 match char {
                     '\n' => f.write_str(r"\n")?,
+                    '"' => f.write_str(r#"\""#)?,
+                    '\\' => f.write_str(r"\\")?,
                     char => f.write_char(char)?,
                 }
             }
@@ -917,5 +919,11 @@ mod tests {
 
         let quoted = QuoteWhitespace("test1\ntest2");
         assert_eq!(quoted.to_string(), r#""test1\ntest2""#);
+
+        let quoted = QuoteWhitespace(r#"key={"foo": "bar"}"#);
+        assert_eq!(quoted.to_string(), r#""key={\"foo\": \"bar\"}""#);
+
+        let quoted = QuoteWhitespace(r"path=C:\Users\test dir");
+        assert_eq!(quoted.to_string(), r#""path=C:\\Users\\test dir""#);
     }
 }
