@@ -119,6 +119,7 @@ impl From<Container> for crate::quadlet::Container {
         let mut podman_args = podman_args.to_string();
 
         let security_opt::QuadletOptions {
+            app_armor,
             mask,
             no_new_privileges,
             seccomp_profile,
@@ -129,13 +130,7 @@ impl From<Container> for crate::quadlet::Container {
             security_label_type,
             unmask,
             podman_args: security_podman_args,
-        } = security_opt.into_iter().fold(
-            security_opt::QuadletOptions::default(),
-            |mut security_options, security_opt| {
-                security_options.add_security_opt(security_opt);
-                security_options
-            },
-        );
+        } = security_opt.into_iter().collect();
 
         for arg in security_podman_args {
             podman_args.push_str(" --security-opt ");
@@ -143,6 +138,7 @@ impl From<Container> for crate::quadlet::Container {
         }
 
         Self {
+            app_armor,
             image,
             mask,
             no_new_privileges,

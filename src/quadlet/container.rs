@@ -43,6 +43,9 @@ pub struct Container {
     #[serde(serialize_with = "seq_quote_whitespace")]
     pub annotation: Vec<String>,
 
+    /// Sets the apparmor confinement profile for the container.
+    pub app_armor: Option<String>,
+
     /// Indicates whether the container will be auto-updated.
     pub auto_update: Option<AutoUpdate>,
 
@@ -321,6 +324,10 @@ pub struct Container {
 
 impl Downgrade for Container {
     fn downgrade(&mut self, version: PodmanVersion) -> Result<(), DowngradeError> {
+        if version < PodmanVersion::V5_8 {
+            self.remove_v5_8_options();
+        }
+
         if version < PodmanVersion::V5_7 {
             self.remove_v5_7_options();
         }
@@ -383,6 +390,12 @@ macro_rules! extract {
 }
 
 impl Container {
+    /// Remove Quadlet options added in Podman v5.8.0
+    fn remove_v5_8_options(&mut self) {
+        if let Some(app_armor) = self.app_armor.take() {
+            self.push_arg("security-opt", format_args!("apparmor=\"{app_armor}\""));
+        }
+    }
     /// Remove Quadlet options added in Podman v5.7.0
     fn remove_v5_7_options(&mut self) {
         if !self.http_proxy {
