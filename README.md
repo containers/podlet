@@ -36,6 +36,16 @@ Demo created with [Autocast](https://github.com/k9withabone/autocast). You can a
 - Set Podman version compatibility with `--podman-version`.
 - Resolve relative host paths with `--absolute-host-paths`.
 
+## Communication
+
+The Podlet project shares communication channels with other projects in the [Containers organization](https://github.com/containers#-community).
+On the [Podman Discord](https://discord.com/invite/x5GzFF6QH4), there are two dedicated channels for Podlet:
+
+- [#podlet](https://discord.com/channels/852634929845239818/1470439037633302651) for user discussions.
+- [#podlet-dev](https://discord.com/channels/852634929845239818/1470439066431525078) for development of Podlet.
+
+For discussions about issues, bugs, or features, feel free to create an [issue](https://github.com/containers/podlet/issues), [discussion](https://github.com/containers/podlet/discussions), or [pull request](https://github.com/containers/podlet/pulls) on GitHub.
+
 ## Install
 
 Podlet can be acquired in several ways:
@@ -384,7 +394,7 @@ Podlet is not (yet) a validator for Podman commands. Some Podman options are inc
 ## Contribution
 
 Contributions, suggestions, and/or comments are appreciated!
-See the [contribution guide](./CONTRIBUTING.md) for more information on reporting issues, submitting pull requests, building Podlet, the Minimum Supported Rust Version (MSRV) policy, running CI tasks locally, and communication channels.
+See the [contribution guide](./CONTRIBUTING.md) for more information on reporting issues, submitting pull requests, building Podlet, the Minimum Supported Rust Version (MSRV) policy, and running CI tasks locally.
 
 ## License
 
