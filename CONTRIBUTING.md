@@ -162,6 +162,10 @@ below is a list of all the jobs with explanations and the commands that they run
 ## Communication
 
 The Podlet project shares communication channels with other projects in the [Containers organization](https://github.com/containers#-community).
+On the [Podman Discord](https://discord.com/invite/x5GzFF6QH4), there are two dedicated channels for Podlet:
+
+- [#podlet](https://discord.com/channels/852634929845239818/1470439037633302651) for user discussions.
+- [#podlet-dev](https://discord.com/channels/852634929845239818/1470439066431525078) for development of Podlet.
 
 For discussions about issues, bugs, or features, feel free to create an [issue], [discussion], or [pull request] on GitHub.
 
