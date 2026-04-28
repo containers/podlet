@@ -3,9 +3,10 @@
 ## Reporting a Vulnerability
 
 If you have identified a security vulnerability in the Podlet project, please **do not** report the
-issue publicly via GitHub issues, mailing list, Discord, etc. Instead, use the
-[private security vulnerability reporting](https://github.com/containers/podlet/security) on GitHub
-or privately contact one or more of the [maintainers](./MAINTAINERS.md).
+issue publicly via GitHub issues, mailing list, Discord, etc. Instead, use GitHub's private
+security vulnerability reporting feature by pressing the "Report a vulnerability" button on the
+repository's [security](https://github.com/containers/podlet/security) page or privately contact one
+or more of the [maintainers](./MAINTAINERS.md).
 
 ## Security Announcements
 
