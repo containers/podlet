@@ -6,8 +6,8 @@
 
 Podlet generates [Podman](https://podman.io/) [Quadlet](https://docs.podman.io/en/stable/markdown/podman-systemd.unit.5.html) files from a Podman command, compose file, or existing object.
 
-[![demo.gif](./demo.gif)](https://asciinema.org/a/775285)
-Demo created with [Autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/775285).
+[![demo.gif](./demo.gif)](https://asciinema.org/a/1035924)
+Demo created with [Autocast](https://github.com/k9withabone/autocast). You can also view the demo on [asciinema](https://asciinema.org/a/1035924).
 
 ## Features
 
@@ -19,10 +19,12 @@ Demo created with [Autocast](https://github.com/k9withabone/autocast). You can a
     - `podman volume create`
     - `podman build`
     - `podman image pull`
+    - `podman artifact pull`
 - Convert a (docker) compose file to:
     - Multiple Quadlet `.container` files.
     - A Quadlet `.pod` file and `.container` files.
     - A Quadlet `.kube` file and Kubernetes Pod YAML.
+    - A `.quadlets` file for use with [`podman quadlet install`](https://docs.podman.io/en/stable/markdown/podman-quadlet-install.1.html).
 - Generate from existing:
     - Containers
     - Pods
@@ -73,25 +75,32 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -f, --file [<FILE>]                        Generate a file instead of printing to stdout
-  -u, --unit-directory                       Generate a file in the Podman unit directory instead of printing to stdout [aliases: --unit-dir]
-  -n, --name <NAME>                          Override the name of the generated file (without the extension)
-      --overwrite                            Overwrite existing files when generating a file
-  -s, --split-options <QUADLET_OPTION,...>   Split Quadlet options instead of joining them together [possible values: AddCapability, After, Annotation, Before, BindsTo, DropCapability, Environment, Label, Mask, RequiredBy, Requires, Sysctl, Unmask, WantedBy, Wants]
-      --skip-services-check                  Skip the check for existing services of the same name
-  -p, --podman-version <PODMAN_VERSION>      Podman version generated Quadlet files should conform to [default: 5.2] [aliases: --compatibility, --compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8, 5.0, 5.1, 5.2]
-  -a, --absolute-host-paths [<RESOLVE_DIR>]  Convert relative host paths to absolute paths
-  -d, --description <DESCRIPTION>            Add a description to the unit
-      --wants <WANTS>                        Add (weak) requirement dependencies to the unit
-      --requires <REQUIRES>                  Similar to --wants, but adds stronger requirement dependencies
-      --binds-to <BINDS_TO>                  Similar to --requires, but when the dependency stops, this unit also stops
-      --before <BEFORE>                      Configure ordering dependency between units
-      --after <AFTER>                        Configure ordering dependency between units
-  -i, --install                              Add an [Install] section to the unit
-      --wanted-by <WANTED_BY>                Add (weak) parent dependencies to the unit
-      --required-by <REQUIRED_BY>            Similar to --wanted-by, but adds stronger parent dependencies
-  -h, --help                                 Print help (see more with '--help')
-  -V, --version                              Print version
+  -f, --file [<FILE>]                         Generate file(s) instead of printing to stdout
+  -u, --unit-directory                        Generate file(s) in the Podman unit directory instead of printing to stdout [aliases: --unit-dir]
+      --quadlets-file <NAME>                  Generate a single `.quadlets` file instead of separate Quadlet files
+  -n, --name <NAME>                           Override the name of the generated file (without the extension)
+      --overwrite                             Overwrite existing files when generating a file
+  -s, --split-options <QUADLET_OPTION,...>    Split Quadlet options instead of joining them together [possible values: AddCapability, After, Annotation, Before, BindsTo, BuildArg, DropCapability, Environment, Label, Mask, PartOf, RequiredBy, Requires, Sysctl, Unmask, UpheldBy, Upholds, WantedBy, Wants]
+      --skip-services-check                   Skip the check for existing services of the same name
+  -p, --podman-version <PODMAN_VERSION>       Podman version generated Quadlet files should conform to [default: 5.8] [aliases: --compatibility, --compat] [possible values: 4.4, 4.5, 4.6, 4.7, 4.8, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8]
+  -a, --absolute-host-paths [<RESOLVE_DIR>]   Convert relative host paths to absolute paths
+      --service-name <SERVICE_NAME>           Change the name of the systemd service Quadlet generates
+  -d, --description <DESCRIPTION>             Add a description to the unit
+      --wants <WANTS>                         Add (weak) requirement dependencies to the unit
+      --requires <REQUIRES>                   Similar to --wants, but adds stronger requirement dependencies
+      --binds-to <BINDS_TO>                   Similar to --requires, but when the dependency stops, this unit also stops
+      --part-of <PART_OF>                     Similar to --binds-to, but this unit only stops when the dependency is explicitly stopped
+      --upholds <UPHOLDS>                     Similar to --wants, but dependencies are continuously started when inactive or failed
+      --before <BEFORE>                       Configure ordering dependency between units
+      --after <AFTER>                         Configure ordering dependency between units
+  -i, --install                               Add an [Install] section to the unit
+      --wanted-by <WANTED_BY>                 Add (weak) parent dependencies to the unit
+      --required-by <REQUIRED_BY>             Similar to --wanted-by, but adds stronger parent dependencies
+      --upheld-by <UPHELD_BY>                 Similar to --wanted-by, but ensures this unit is up if the parent dependency is
+      --disable-default-quadlet-dependencies  Disable Quadlet's default network dependencies
+      --no-start-with-pod                     Do not start container units with their associated pod
+  -h, --help                                  Print help (see more with '--help')
+  -V, --version                               Print version
 ```
 
 See `podlet --help` for more information.
@@ -106,19 +115,21 @@ Generate a Podman Quadlet file from a Podman command
 Usage: podlet podman [OPTIONS] <COMMAND>
 
 Commands:
-  run      Generate a Podman Quadlet `.container` file
-  pod      Generate a Podman Quadlet `.pod` file
-  kube     Generate a Podman Quadlet `.kube` file
-  network  Generate a Podman Quadlet `.network` file
-  volume   Generate a Podman Quadlet `.volume` file
-  build    Generate a Podman Quadlet `.build` file
-  image    Generate a Podman Quadlet `.image` file
-  help     Print this message or the help of the given subcommand(s)
+  run       Generate a Podman Quadlet `.container` file
+  pod       Generate a Podman Quadlet `.pod` file
+  kube      Generate a Podman Quadlet `.kube` file
+  network   Generate a Podman Quadlet `.network` file
+  volume    Generate a Podman Quadlet `.volume` file
+  build     Generate a Podman Quadlet `.build` file
+  image     Generate a Podman Quadlet `.image` file
+  artifact  Generate a Podman Quadlet `.artifact` file
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help (see more with '--help')
 
 Podman Global Options:
+      --cdi-spec-dir <PATH>                  CDI spec directory path
       --cgroup-manager <MANAGER>             Cgroup manager to use [possible values: cgroupfs, systemd]
       --config <PATH>                        Location of the authentication config file
       --conmon <PATH>                        Path of the conmon binary
@@ -152,7 +163,7 @@ To generate a Quadlet file, just put `podlet` in front of your Podman command!
 ```
 $ podlet podman run quay.io/podman/hello
 
-# hello.container
+# FileName=hello
 [Container]
 Image=quay.io/podman/hello
 ```
@@ -192,12 +203,12 @@ WantedBy=default.target
 
 The name for the file was automatically pulled from the image name, but can be overridden with the `--name` option.
 
-Podlet also supports creating `.pod`, `.kube`, `.network`, `.volume`, `.build`, and `.image` Quadlet files.
+Podlet also supports creating `.pod`, `.kube`, `.network`, `.volume`, `.build`, `.image`, and `.artifact` Quadlet files.
 
 ```
 $ podlet podman kube play --network pasta --userns auto caddy.yaml
 
-# caddy.kube
+# FileName=caddy
 [Kube]
 Yaml=caddy.yaml
 Network=pasta
@@ -244,7 +255,7 @@ volumes:
 `podlet compose compose-example.yaml` will create a `caddy.container` file like so:
 
 ```ini
-# caddy.container
+# FileName=caddy
 [Container]
 Image=docker.io/library/caddy:latest
 PublishPort=8000:80
@@ -269,7 +280,7 @@ The `--pod` option will create a `.pod` Quadlet file and link each `.container` 
 ```
 $ podlet compose --pod compose-example.yaml
 
-# caddy-caddy.container
+# FileName=caddy-caddy
 [Container]
 Image=docker.io/library/caddy:latest
 Pod=caddy.pod
@@ -278,7 +289,7 @@ Volume=caddy-data:/data
 
 ---
 
-# caddy.pod
+# FileName=caddy
 [Pod]
 PublishPort=8000:80
 PublishPort=8443:443
@@ -291,7 +302,7 @@ The `--kube` option will generate Kubernetes YAML which groups all compose servi
 ```
 $ podlet compose --kube compose-example.yaml
 
-# caddy.kube
+# FileName=caddy
 [Kube]
 Yaml=caddy-kube.yaml
 
@@ -361,7 +372,7 @@ $ podman container create --name hello quay.io/podman/hello:latest
 
 $ podlet generate container hello
 
-# hello.container
+# FileName=hello
 [Container]
 ContainerName=hello
 Image=quay.io/podman/hello:latest

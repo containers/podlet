@@ -8,8 +8,8 @@
 
 settings:
   width: 123
-  height: 48
-  title: Podlet v0.3.1 Demo
+  height: 50
+  title: Podlet v0.3.2 Demo
   timeout: 90s
   type_speed: 90ms
 
