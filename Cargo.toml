@@ -1,6 +1,6 @@
 [package]
 name = "podlet"
-version = "0.3.2-alpha.6"
+version = "0.3.2"
 authors = ["Paul Nettleton <k9@k9withabone.dev>"]
 edition = "2024"
 rust-version = "1.85"
@@ -118,7 +118,7 @@ body = """
 
 {% for group, commits in commits | group_by(attribute="group") %}
   ### {{ group | striptags | trim | upper_first }}
-  {%- for commit in commits %}
+  {% for commit in commits %}
     - {% if commit.breaking %}**BREAKING** {% endif -%}
       {% if commit.scope %}*({{ commit.scope }})* {% endif -%}
       {{ commit.message | trim | upper_first }}\
@@ -128,12 +128,14 @@ body = """
       {% if commit.remote.pr_number %} in \
         [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }})\
       {%- endif -%}.
-      {%- set fixes = commit.footers | filter(attribute="token", value="Fixes") -%}
-      {%- set closes = commit.footers | filter(attribute="token", value="Closes") -%}
-      {% for footer in fixes | concat(with=closes) -%}
-        {%- set issue_number = footer.value | trim_start_matches(pat="#") %} \
-        ([{{ footer.value }}]({{ self::remote_url() }}/issues/{{ issue_number }}))\
-      {%- endfor -%}
+      {%- if commit.footers -%}
+        {%- set fixes = commit.footers | filter(attribute="token", value="Fixes") -%}
+        {%- set closes = commit.footers | filter(attribute="token", value="Closes") -%}
+        {% for footer in fixes | concat(with=closes) -%}
+          {%- set issue_number = footer.value | trim_start_matches(pat="#") %} \
+          ([{{ footer.value }}]({{ self::remote_url() }}/issues/{{ issue_number }}))\
+        {%- endfor -%}
+      {%- endif -%}
       {% if commit.body %}
         {%- for section in commit.body | trim | split(pat="\n\n") %}
           {% raw %}  {% endraw %}- {{ section | replace(from="\n", to=" ") }}
@@ -144,7 +146,7 @@ body = """
 
 {%- if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
   ### New Contributors
-{%- endif -%}
+{% endif -%}
 
 {% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
   - @{{ contributor.username }} made their first contribution
@@ -182,8 +184,8 @@ postprocessors = []
 [workspace.metadata.git-cliff.git]
 # parse the commits based on https://www.conventionalcommits.org
 conventional_commits = true
-# filter out the commits that are not conventional
-filter_unconventional = true
+# include the commits that are not conventional, they are manually moved to the correct section or removed
+filter_unconventional = false
 # process each line of a commit as an individual commit
 split_commits = false
 # regex for preprocessing the commit messages
@@ -201,6 +203,7 @@ commit_parsers = [
   { message = "^chore", group = "<!-- 8 -->Miscellaneous" },
   { message = "^ci", default_scope = "ci", group = "<!-- 8 -->Miscellaneous" },
   { message = "^release", skip = true },
+  { message = ".*", group = "<!-- 9 -->Other" },
 ]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false
