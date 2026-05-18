@@ -5,6 +5,156 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-05-18
+
+Another large release for Podlet! I know I said in the previous release notes that future releases would be smaller, but this release is a bit of an exception because it brings Podlet up to date with the latest version of Podman (v5.8.2 at the time of writing).
+
+### Highlights
+
+- Support for Quadlet options introduced in Podman v5.3.0 ([#186](https://github.com/containers/podlet/pull/186)), v5.4.0 ([#195](https://github.com/containers/podlet/pull/195)), v5.5.0 ([#197](https://github.com/containers/podlet/pull/197)), v5.6.0 ([#198](https://github.com/containers/podlet/pull/198)), v5.7.0 ([#199](https://github.com/containers/podlet/pull/199)), and v5.8.0 ([#205](https://github.com/containers/podlet/pull/205)). Including support for creating `.artifact` Quadlet files with `podlet podman artifact pull` and `.quadlets` files.
+- New top-level CLI options:
+  - `podlet --part-of`
+  - `podlet --service-name`
+  - `podlet --disable-default-quadlet-dependencies`
+  - `podlet --no-start-with-pod`
+  - `podlet --upheld-by`
+  - `podlet --upholds`
+  - `podlet --quadlets-file`
+
+### Features
+
+- Add `--part-of` option (#192) by [@dododedodonl](https://github.com/dododedodonl) in [#192](https://github.com/containers/podlet/pull/192).
+  - Added a `podlet --part-of` option similar to `--requires`.
+- *(container)* Add `AddHost=` Quadlet option.
+- *(container)* Add `CgroupsMode=` Quadlet option.
+- *(container)* Add `HealthLogDestination=` Quadlet option.
+- *(container)* Add `HealthMaxLogCount=` Quadlet option.
+- *(container)* Add `HealthMaxLogSize=` Quadlet option.
+- *(compose)* Support `network_mode: "service:service_name"`.
+  - Podman v5.3.0 added support for specifying `.container` files for the `Network=` container Quadlet option.
+  - The `network_mode: "service:service_name"` Compose service option is now converted to `Network=service_name.container`.
+- *(pod)* Add `AddHost=` Quadlet option.
+- *(pod)* Add `DNS=` Quadlet option.
+- *(pod)* Add `DNSOption=` Quadlet option.
+- *(pod)* Add `DNSSearch=` Quadlet option.
+- *(pod)* Add `GIDMap=` Quadlet option.
+- *(pod)* Add `IP=` Quadlet option.
+- *(pod)* Add `IP6=` Quadlet option.
+- *(pod)* Add `SubGIDMap=` Quadlet option.
+- *(pod)* Add `SubUIDMap=` Quadlet option.
+- *(pod)* Add `UIDMap=` Quadlet option.
+- *(pod)* Add `UserNS=` Quadlet option.
+- *(build)* Support setting `ImageTag=` Quadlet option multiple times.
+  - Improved error message when converting from a Compose file and an image tag is not provided in the service's `build` section. ([#173](https://github.com/containers/podlet/issues/173))
+- Add `podlet --service-name` option.
+  - Sets the `ServiceName=` Quadlet option which changes the name of the systemd service Quadlet generates.
+  - Can only be used when generating a single Quadlet file.
+- Add `podlet --disable-default-quadlet-dependencies` flag.
+  - Sets `DefaultDependencies=false` in the `[Quadlet]` section.
+- *(container)* Add `podlet --no-start-with-pod` flag.
+  - Sets `StartWithPod=false` in the `[Container]` section.
+- *(container)* Add `subpath` volume mount option.
+- *(container)* Add `podman run --hosts-file` option.
+- *(container)* Add `podman run --no-hostname` option.
+- *(pod)* Add `ShmSize=` Quadlet option.
+- *(pod)* Add `podman pod create --hosts-file` option.
+- *(pod)* Add `podman pod create --no-hostname` option.
+- *(container)* Add `artifact` mount type.
+- *(container)* Add `Memory=` Quadlet option.
+- *(container)* Add `Retry=` Quadlet option.
+- *(container)* Add `RetryDelay=` Quadlet option.
+- *(pod)* Add `HostName=` Quadlet option.
+- *(image)* Add `Retry=` Quadlet option.
+- *(image)* Add `RetryDelay=` Quadlet option.
+- *(build)* Add `Retry=` Quadlet option.
+- *(build)* Add `RetryDelay=` Quadlet option.
+- *(build)* Add `podman build --inherit-labels` option.
+- *(install)* Add `podlet --upheld-by` option.
+- *(unit)* Add `podlet --upholds` option.
+- Add `podman --cdi-spec-dir` global option.
+- *(container)* Add `dest` as alias for `destination` mount option.
+- *(container)* Add `name` artifact mount option.
+- *(pod)* Add `Label=` Quadlet option.
+- *(pod)* Add `ExitPolicy=` Quadlet option.
+- *(volume)* Add `podman volume create --uid` option.
+- *(volume)* Add `podman volume create --gid` option.
+- *(image)* Add `Policy=` Quadlet option.
+- *(network)* Add `InterfaceName=` Quadlet option.
+- *(compose)* Support `pids_limit` when converting to k8s.
+  - Sets the `io.podman.annotations.pids-limit/{container_name}` annotation in the pod metadata.
+- *(compose)* Support `cpuset` when converting to k8s.
+  - Sets the `io.podman.annotations.cpuset/{container_name}` annotation in the pod metadata.
+- *(compose)* Support `stop_signal` when converting to k8s.
+  - Sets the container's `lifecycle.stopSignal` field.
+- *(container)* Add `HttpProxy=` Quadlet option.
+- *(container)* Add `podman run --creds` option.
+- *(container)* Add `podman run --cert-dir` option.
+- *(build)* Add `BuildArg=` Quadlet option.
+- *(build)* Add `IgnoreFile=` Quadlet option.
+- *(kube)* Support setting `Yaml=` Quadlet option multiple times.
+- *(kube)* Add `podman kube play --no-pod-prefix` flag.
+- *(artifact)* Generate `.artifact` Quadlet file from command.
+  - Added the `podlet podman artifact pull` subcommand.
+- Change stdout output to `.quadlets` file format.
+  - Changed the comment at the beginning of each file, e.g. from `# test.container` to `# FileName=test`.
+- Add `podlet --quadlets-file` option.
+  - Creates a single `.quadlets` file instead of multiple Quadlet files.
+  - The file can be used with [`podman quadlet install`](https://docs.podman.io/en/stable/markdown/podman-quadlet-install.1.html).
+- *(container)* Add `AppArmor=` Quadlet option.
+
+### Security
+
+- *(maintainers)* Add maintainers list.
+  - Added `MAINTAINERS.md` at the request of the Podman maintainers. It contains contact information for reporting security vulnerabilities if the reporter does not have a GitHub account.
+- *(security)* Direct security reports to maintainers. ([#183](https://github.com/containers/podlet/issues/183))
+  - Changed the security policy at the request of the Podman maintainers to direct security vulnerability reports to the Podlet maintainers.
+
+### Bug Fixes
+
+- Support setting `podman run --detach=True` by [@TheRealBecks](https://github.com/TheRealBecks). ([#174](https://github.com/containers/podlet/issues/174))
+- Escape quotes and backslashes when quoting whitespace by [@pipex](https://github.com/pipex). ([#202](https://github.com/containers/podlet/issues/202))
+
+### Documentation
+
+- *(contributing)* Add Discord channels. ([#180](https://github.com/containers/podlet/issues/180))
+  - Added the Podlet channels on the Podman Discord to the communication section of `CONTRIBUTING.md`.
+- *(readme)* Copy communication section to readme.
+  - Copied the communication from `CONTRIBUTING.md` to `README.md` to make it more visible.
+- *(readme)* Update demo, features, and usage.
+
+### Tests
+
+- Refactor tests to return `Result`.
+
+### Refactor
+
+- Make `podlet::quadlet::File` fields non-optional.
+- Move `cli::{service, unit}` to `quadlet`.
+- Push downgrade errors into functions.
+- Unify `push_arg()` impls.
+
+### Miscellaneous
+
+- Add Podman v5.3 to Podman versions.
+  - Added Podman versions 5.3.0, 5.3.1, and 5.3.2.
+- Add Podman v5.4 to Podman versions.
+  - Added Podman versions 5.4.0, 5.4.1, and 5.4.2.
+- Add Podman v5.5 to Podman versions.
+  - Added Podman versions 5.5.0, 5.5.1, and 5.5.2.
+- Add Podman v5.6 to Podman versions.
+  - Added Podman versions 5.6.0, 5.6.1, and 5.6.2.
+- Add Podman v5.7 to Podman versions.
+  - Added Podman versions 5.7.0 and 5.7.1.
+- Add Podman v5.8 to Podman versions.
+  - Added Podman versions 5.8.0, 5.8.1, and 5.8.2.
+- *(deps)* Update dependencies.
+- *(ci/release)* Update dist.
+
+### New Contributors
+
+- @pipex made their first contribution in [#204](https://github.com/containers/podlet/pull/204)
+- @dododedodonl made their first contribution in [#192](https://github.com/containers/podlet/pull/192)
+
 ## [0.3.1] - 2026-02-02
 
 After an extended hiatus, Podlet is back! I, [@k9withabone], apologize for my prolonged absence and silence. Life is overwhelming at times.
@@ -134,6 +284,7 @@ Added support for Quadlet options introduced in Podman v5.0.0 ([#75](https://git
 Note that the existing option for generating Kubernetes Pod YAML from a Compose file was renamed to `podlet compose --kube`. Both the `--pod` and `--kube` options of `podlet compose` do not take an argument and instead require the top-level `name` field in the Compose file. The `name` is used as the name of the pod and in the filename of the created files.
 
 ### Features
+
 - Add `podlet --binds-to` option.
 - **BREAKING** *(compose)* Rename `podlet compose --pod` to `podlet compose --kube`.
 - *(container)* Add `Entrypoint=` Quadlet option.
@@ -158,6 +309,7 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
     - Does the same for each of the pod's containers.
 
 ### Bug Fixes
+
 - Use Quadlet serializer for `Unit` `Display` implementation ([#64](https://github.com/containers/podlet/issues/64)).
   - Brings `Unit` inline with the other sections of the generated Quadlet file.
 - *(container)* Add `podman run --uts` option.
@@ -168,6 +320,7 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
 - Correct use of `eyre::bail!()` on non-Unix platforms.
 
 ### Documentation
+
 - *(clippy)* Fix Clippy lint warning for `Idmap`.
 - *(compose)* `--kube` help add `name` requirement.
 - Add code of conduct.
@@ -184,6 +337,7 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
 - *(readme)* Update demo, features, and usage.
 
 ### Refactor
+
 - **BREAKING** *(deps)* Remove `docker_compose_types`.
 - **BREAKING** *(compose)* Deserialize `compose_spec::Compose`.
 - `cli::Unit::is_empty()`
@@ -199,6 +353,7 @@ Note that the existing option for generating Kubernetes Pod YAML from a Compose 
 - *(compose)* Move `podlet compose` args into their own struct.
 
 ### Miscellaneous
+
 - *(deps)* Remove `duration-str` dependency.
   - All usages were replaced with `compose_spec::duration`.
 - Add Podman v5.0.0 to Podman versions.
@@ -440,6 +595,7 @@ The initial release of Podlet! Designed for Podman v4.5.0 and newer.
 [@k9withabone]: https://github.com/k9withabone
 [@TheRealBecks]: https://github.com/TheRealBecks
 
+[0.3.2]: https://github.com/containers/podlet/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/containers/podlet/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/containers/podlet/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/containers/podlet/compare/v0.2.3...v0.2.4
