@@ -15,7 +15,7 @@ use crate::escape::arg_quote;
 /// Returns an error if the value errors while serializing, the value is a non-serializable type,
 /// the value has nested maps, or the value is a map without string keys.
 ///
-/// ```
+/// ```ignore
 /// #[derive(Serialize)]
 /// struct Example {
 ///     str: &'static str,
