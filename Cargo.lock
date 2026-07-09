@@ -345,8 +345,7 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 [[package]]
 name = "compose_spec"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fd9b9dc67f2b3024582ec6d861950f0af0aeaabb8350ccda1f0e51ff8e5895c"
+source = "git+https://github.com/maximeborges/compose_spec_rs.git?branch=bugfix%2Fvolume_non-unix#01b8dcea63888171c7d27dcd11be8de004351fb9"
 dependencies = [
  "compose_spec_macros",
  "indexmap",
@@ -361,8 +360,7 @@ dependencies = [
 [[package]]
 name = "compose_spec_macros"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b77735bd89be8da01c8d7e61faec5a9ccb0e313cece3c773c6b3ae251b90c7d4"
+source = "git+https://github.com/maximeborges/compose_spec_rs.git?branch=bugfix%2Fvolume_non-unix#01b8dcea63888171c7d27dcd11be8de004351fb9"
 dependencies = [
  "proc-macro2",
  "quote",

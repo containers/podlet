@@ -421,6 +421,12 @@ For full control (equivalent to the CLI, including the `podman ...` and `generat
 
 See the [API documentation](https://docs.rs/podlet) for details.
 
+### WebAssembly
+
+Because the conversion is pure and entirely in memory, the library can be compiled to `wasm32-unknown-unknown` and run in the browser with no server component. The WASM/JavaScript bindings are left to the consuming project so that the library stays platform-independent.
+
+Until the [`compose_spec` fix](https://github.com/k9withabone/compose_spec_rs/pull/42) for absolute volume paths on non-Unix targets is released, projects targeting WASM must replicate the `[patch.crates-io]` from this repository's `Cargo.toml` in their own workspace.
+
 ## Cautions
 
 Podlet is primarily a tool for helping to get started with Podman systemd units, aka Quadlet files. It is not meant to be an end-all solution for creating and maintaining Quadlet files. Files created with Podlet should always be reviewed before starting the unit.
