@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{self, IsTerminal},
+    io::{self, IsTerminal, Read},
     iter, mem,
     path::{Path, PathBuf},
 };
@@ -12,7 +12,7 @@ use color_eyre::{
     eyre::{OptionExt, WrapErr, bail, ensure, eyre},
 };
 use compose_spec::{
-    Identifier, Network, Networks, Options, Resource, Service, Volumes, service::Command,
+    Identifier, Network, Networks, Resource, Service, Volumes, service::Command,
 };
 use indexmap::IndexMap;
 
@@ -95,9 +95,7 @@ impl Compose {
     /// - Converting the compose file to Kubernetes YAML.
     /// - Converting the compose file to Quadlet files.
     pub fn try_into_files(self, sections: GenericSections) -> color_eyre::Result<Vec<File>> {
-        let mut options = compose_spec::Compose::options();
-        options.apply_merge(true);
-        let compose = read_from_file_or_stdin(self.compose_file.as_deref(), &options)
+        let compose = read_from_file_or_stdin(self.compose_file.as_deref())
             .wrap_err("error reading compose file")?;
 
         self.into_files(compose, sections)
@@ -210,18 +208,15 @@ impl Compose {
 /// - Stdin was selected and stdin is a terminal.
 /// - No path was given and none of the default files could be opened.
 /// - There was an error deserializing [`compose_spec::Compose`].
-fn read_from_file_or_stdin(
-    path: Option<&Path>,
-    options: &Options,
-) -> color_eyre::Result<compose_spec::Compose> {
-    let (compose_file, path) = if let Some(path) = path {
+fn read_from_file_or_stdin(path: Option<&Path>) -> color_eyre::Result<compose_spec::Compose> {
+    let (yaml, path) = if let Some(path) = path {
         if path.as_os_str() == "-" {
-            return read_from_stdin(options);
+            return read_from_stdin();
         }
-        let compose_file = fs::File::open(path)
-            .wrap_err("could not open provided compose file")
+        let yaml = fs::read_to_string(path)
+            .wrap_err("could not read provided compose file")
             .suggestion("make sure you have the proper permissions for the given file")?;
-        (compose_file, path)
+        (yaml, path)
     } else {
         const FILE_NAMES: [&str; 6] = [
             "compose.yaml",
@@ -233,13 +228,13 @@ fn read_from_file_or_stdin(
         ];
 
         if !io::stdin().is_terminal() {
-            return read_from_stdin(options);
+            return read_from_stdin();
         }
 
         let mut result = None;
         for file_name in FILE_NAMES {
-            if let Ok(compose_file) = fs::File::open(file_name) {
-                result = Some((compose_file, file_name.as_ref()));
+            if let Ok(yaml) = fs::read_to_string(file_name) {
+                result = Some((yaml, file_name.as_ref()));
                 break;
             }
         }
@@ -252,8 +247,7 @@ fn read_from_file_or_stdin(
         )?
     };
 
-    options
-        .from_yaml_reader(compose_file)
+    from_yaml(&yaml)
         .wrap_err_with(|| format!("File `{}` is not a valid compose file", path.display()))
 }
 
@@ -262,15 +256,58 @@ fn read_from_file_or_stdin(
 /// # Errors
 ///
 /// Returns an error if stdin is a terminal or there was an error deserializing.
-fn read_from_stdin(options: &Options) -> color_eyre::Result<compose_spec::Compose> {
-    let stdin = io::stdin();
+fn read_from_stdin() -> color_eyre::Result<compose_spec::Compose> {
+    let mut stdin = io::stdin();
     if stdin.is_terminal() {
         bail!("cannot read compose from stdin, stdin is a terminal");
     }
 
-    options
-        .from_yaml_reader(stdin)
-        .wrap_err("data from stdin is not a valid compose file")
+    let mut yaml = String::new();
+    stdin
+        .read_to_string(&mut yaml)
+        .wrap_err("could not read compose from stdin")?;
+
+    from_yaml(&yaml).wrap_err("data from stdin is not a valid compose file")
+}
+
+/// Deserialize a [`compose_spec::Compose`] from a string of YAML.
+///
+/// Deserializing directly from the source text lets `serde_yaml` report the line, column, and
+/// field path of any error. Deserializing through a [`serde_yaml::Value`] (which is required to
+/// expand YAML merge keys, `<<`) discards that location information. This function therefore
+/// parses directly from the text, only falling back to the merge-aware path when the compose file
+/// actually uses merge keys, for which a location cannot be reported regardless.
+///
+/// # Errors
+///
+/// Returns an error if the YAML could not be deserialized into a [`compose_spec::Compose`].
+pub(crate) fn from_yaml(yaml: &str) -> serde_yaml::Result<compose_spec::Compose> {
+    match serde_yaml::from_str::<compose_spec::Compose>(yaml) {
+        Ok(compose) => Ok(compose),
+        // Direct deserialization fails on merge keys (`<<`), which are only expanded when going
+        // through a `Value`. If the file uses them, retry via the merge-aware path. Otherwise
+        // `direct_error` carries the most useful location, so return it.
+        Err(direct_error) => match serde_yaml::from_str::<serde_yaml::Value>(yaml) {
+            Ok(value) if uses_merge_keys(&value) => {
+                let mut options = compose_spec::Compose::options();
+                options.apply_merge(true);
+                options.from_yaml_value(value)
+            }
+            _ => Err(direct_error),
+        },
+    }
+}
+
+/// Returns `true` if the YAML [`Value`](serde_yaml::Value) contains a merge key (`<<`), which must
+/// be expanded via [`apply_merge`](serde_yaml::Value::apply_merge) before deserialization.
+fn uses_merge_keys(value: &serde_yaml::Value) -> bool {
+    match value {
+        serde_yaml::Value::Mapping(mapping) => mapping.iter().any(|(key, value)| {
+            key.as_str() == Some("<<") || uses_merge_keys(key) || uses_merge_keys(value)
+        }),
+        serde_yaml::Value::Sequence(sequence) => sequence.iter().any(uses_merge_keys),
+        _ => false,
+    }
 }
 
 /// Attempt to convert [`Service`]s, [`Networks`], and [`Volumes`] into [`File`]s.

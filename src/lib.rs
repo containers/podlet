@@ -48,7 +48,6 @@ mod serde;
 use std::collections::HashSet;
 
 use color_eyre::eyre::WrapErr;
-use compose_spec::Compose;
 
 pub use self::cli::Cli;
 use self::{
@@ -116,11 +115,8 @@ pub fn compose_to_files(
         split_options,
     } = options;
 
-    let mut parse_options = Compose::options();
-    parse_options.apply_merge(true);
-    let compose = parse_options
-        .from_yaml_reader(yaml.as_bytes())
-        .wrap_err("input is not a valid compose file")?;
+    let compose =
+        cli::compose::from_yaml(yaml).wrap_err("input is not a valid compose file")?;
 
     let command = ComposeCommand {
         pod,
