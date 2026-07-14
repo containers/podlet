@@ -12,15 +12,15 @@
 //!
 //! Run `podlet --help` for more information.
 
-mod cli;
-mod escape;
-mod quadlet;
-mod serde;
+// This binary is a thin wrapper around the `podlet` library, so it only uses a couple of crates
+// directly. The remaining dependencies are used by the library target, which still enforces the
+// `unused_crate_dependencies` lint.
+#![allow(unused_crate_dependencies)]
 
 use clap::Parser;
 use color_eyre::eyre;
 
-use self::cli::Cli;
+use podlet::Cli;
 
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;

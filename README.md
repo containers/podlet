@@ -37,6 +37,7 @@ Demo created with [Autocast](https://github.com/k9withabone/autocast). You can a
     - Opt-out with `--skip-services-check`.
 - Set Podman version compatibility with `--podman-version`.
 - Resolve relative host paths with `--absolute-host-paths`.
+- Usable as a library crate, in addition to the CLI.
 
 ## Communication
 
@@ -395,6 +396,30 @@ Please note that `--security-opt label=disable` may be required for systems with
 Alternatively, if you just want Podlet to read a specific compose file you can use:
 
 `podman run --rm -v ./compose.yaml:/compose.yaml:Z ghcr.io/containers/podlet compose /compose.yaml`
+
+## Use as a Library
+
+In addition to the CLI, Podlet can be used as a library. The most common use case is converting a compose file into Quadlet files entirely in memory, without touching the filesystem:
+
+```rust
+use podlet::{compose_to_files, ComposeOptions};
+
+let compose = "\
+services:
+  caddy:
+    image: docker.io/library/caddy:latest
+    ports:
+      - 8000:80
+";
+
+let files = compose_to_files(compose, ComposeOptions::default()).unwrap();
+assert_eq!(files[0].name, "caddy.container");
+assert!(files[0].content.contains("Image=docker.io/library/caddy:latest"));
+```
+
+For full control (equivalent to the CLI, including the `podman ...` and `generate` subcommands), build a `Cli` and call `Cli::try_into_generated_files()` to obtain the generated files in memory instead of printing or writing them.
+
+See the [API documentation](https://docs.rs/podlet) for details.
 
 ## Cautions
 
