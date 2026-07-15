@@ -95,17 +95,36 @@ impl Compose {
     /// - Converting the compose file to Kubernetes YAML.
     /// - Converting the compose file to Quadlet files.
     pub fn try_into_files(self, sections: GenericSections) -> color_eyre::Result<Vec<File>> {
+        let mut options = compose_spec::Compose::options();
+        options.apply_merge(true);
+        let compose = read_from_file_or_stdin(self.compose_file.as_deref(), &options)
+            .wrap_err("error reading compose file")?;
+
+        self.into_files(compose, sections)
+    }
+
+    /// Convert an already parsed [`compose_spec::Compose`] into [`File`]s.
+    ///
+    /// Unlike [`try_into_files`](Self::try_into_files), this performs no filesystem or standard
+    /// input access, making it suitable for restricted targets such as WASM. The `compose_file`
+    /// field is ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the compose file fails validation, uses an unsupported option, or
+    /// cannot be converted into Quadlet or Kubernetes YAML files.
+    pub fn into_files(
+        self,
+        compose: compose_spec::Compose,
+        sections: GenericSections,
+    ) -> color_eyre::Result<Vec<File>> {
         let Self {
             pod,
             kube,
             add_container_name,
-            compose_file,
+            compose_file: _,
         } = self;
 
-        let mut options = compose_spec::Compose::options();
-        options.apply_merge(true);
-        let compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
-            .wrap_err("error reading compose file")?;
         compose
             .validate_all()
             .wrap_err("error validating compose file")?;
