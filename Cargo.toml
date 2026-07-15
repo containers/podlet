@@ -11,6 +11,14 @@ license = "MPL-2.0"
 keywords = ["podman", "quadlet", "containers"]
 categories = ["command-line-utilities"]
 
+[lib]
+name = "podlet"
+path = "src/lib.rs"
+
+[[bin]]
+name = "podlet"
+path = "src/main.rs"
+
 [lints.rust]
 unused_crate_dependencies = "warn"
 unused_import_braces = "warn"
@@ -77,6 +85,15 @@ url = "2.3"
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.0.0", features = ["process"] }
 zbus = "5.0.0"
+
+# `compose_spec` uses `Path::is_absolute()` to validate volume paths, which returns `false` for
+# Podman-style absolute paths (starting with `/`) on non-Unix targets such as `wasm32-unknown-unknown`.
+# Until the fix is released, patch to the branch from
+# https://github.com/k9withabone/compose_spec_rs/pull/42 so compose conversion is correct on WASM.
+# Note: `[patch]` only applies when building Podlet itself; downstream library consumers targeting
+# WASM should add the same patch to their own workspace `Cargo.toml`.
+[patch.crates-io]
+compose_spec = { git = "https://github.com/maximeborges/compose_spec_rs.git", branch = "bugfix/volume_non-unix" }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
