@@ -501,6 +501,20 @@ impl FilePath {
     }
 }
 
+#[cfg(any(unix, test))]
+fn service_conflict_suggestion(path: &FilePath, existing_unit: &str) -> String {
+    let rename_option = match path {
+        FilePath::Full(_) => "`--file`",
+        FilePath::Dir(_) => "`--name`",
+    };
+
+    format!(
+        "Change the generated file's name with {rename_option}. Alternatively, use \
+         `--skip-services-check` if you intend to replace the existing service file at \
+         {existing_unit}."
+    )
+}
+
 /// Serialize each [`File`] and join them together in the `.quadlets` file format.
 ///
 /// # Errors
@@ -970,10 +984,7 @@ fn check_existing<'a>(
                     return Err(eyre!(
                         "File name `{name}` conflicts with existing unit file: {file_name}"
                     )
-                    .suggestion(
-                        "Change the generated file's name with `--file` or `--name`. \
-                                Alternatively, use `--skip-services-check` if this is ok.",
-                    ));
+                    .suggestion(service_conflict_suggestion(path, &file_name)));
                 }
             }
         }
@@ -998,5 +1009,35 @@ mod tests {
     #[test]
     fn verify_cli() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn service_conflict_with_full_path_suggests_file_option() {
+        let suggestion = service_conflict_suggestion(
+            &FilePath::Full("custom.container".into()),
+            "/etc/systemd/system/container-example.service",
+        );
+
+        assert_eq!(
+            suggestion,
+            "Change the generated file's name with `--file`. Alternatively, use \
+             `--skip-services-check` if you intend to replace the existing service file at \
+             /etc/systemd/system/container-example.service."
+        );
+    }
+
+    #[test]
+    fn service_conflict_with_directory_suggests_name_option() {
+        let suggestion = service_conflict_suggestion(
+            &FilePath::Dir(".".into()),
+            "/etc/systemd/system/container-example.service",
+        );
+
+        assert_eq!(
+            suggestion,
+            "Change the generated file's name with `--name`. Alternatively, use \
+             `--skip-services-check` if you intend to replace the existing service file at \
+             /etc/systemd/system/container-example.service."
+        );
     }
 }
