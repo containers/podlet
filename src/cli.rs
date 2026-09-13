@@ -450,6 +450,10 @@ multiple times.";
             }
         }
 
+        for file in &mut files {
+            file.host_paths_home_specifier();
+        }
+
         let downgrade = self.podman_version < PodmanVersion::LATEST;
         if resolve_dir.is_some() || self.no_start_with_pod || downgrade {
             for file in &mut files {
@@ -826,6 +830,15 @@ impl File {
         }
     }
 
+    /// If a Quadlet file, replace a leading `~` in host paths with the systemd `%h` specifier.
+    fn host_paths_home_specifier(&mut self) {
+        for path in self.host_paths() {
+            if let Some(home_path) = home_specifier_path(path) {
+                *path = home_path;
+            }
+        }
+    }
+
     /// If a Quadlet file, make all host paths absolute and clean.
     ///
     /// Relative paths are resolved using `resolve_dir` as the base.
@@ -884,10 +897,20 @@ impl File {
     }
 }
 
+/// If `path` starts with `~`, a version using the systemd `%h` specifier is returned.
+///
+/// systemd does not perform shell-style tilde expansion, so a `~` left in a Quadlet file results in
+/// an invalid relative path being given to Podman.
+fn home_specifier_path(path: &Path) -> Option<PathBuf> {
+    let rest = path.to_str()?.strip_prefix('~')?;
+    (rest.is_empty() || rest.starts_with('/')).then(|| format!("%h{rest}").into())
+}
+
 /// If `path` is relative, it is resolved using `resolve_dir` and a cleaned version is returned.
 fn absolute_clean_path(resolve_dir: &Path, path: &Path) -> PathBuf {
     // Paths starting with "%" are also absolute because they start with a systemd specifier.
-    let path: Cow<Path> = if path.is_absolute() || path.starts_with("%") {
+    let specifier = path.to_str().is_some_and(|path| path.starts_with('%'));
+    let path: Cow<Path> = if path.is_absolute() || specifier {
         path.into()
     } else {
         resolve_dir.join(path).into()
@@ -998,5 +1021,37 @@ mod tests {
     #[test]
     fn verify_cli() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn home_specifier_paths() {
+        assert_eq!(
+            home_specifier_path(Path::new("~/foo/bar")),
+            Some("%h/foo/bar".into()),
+        );
+        assert_eq!(home_specifier_path(Path::new("~")), Some("%h".into()));
+        assert_eq!(home_specifier_path(Path::new("~user/foo")), None);
+        assert_eq!(home_specifier_path(Path::new("/foo/~/bar")), None);
+        assert_eq!(home_specifier_path(Path::new("./foo")), None);
+    }
+
+    #[test]
+    fn volume_home_specifier() -> color_eyre::Result<()> {
+        let cli = Cli::parse_from(["podlet", "podman", "run", "-v", "~/data:/data:Z", "image"]);
+        let files = cli.try_into_files()?;
+        let file = files.first().expect("one file created");
+        assert!(
+            file.serialize(&HashSet::new())?
+                .contains("Volume=%h/data:/data:Z")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn specifier_path_not_resolved() {
+        assert_eq!(
+            absolute_clean_path(Path::new("/resolve/dir"), Path::new("%h/data")),
+            PathBuf::from("%h/data"),
+        );
     }
 }
