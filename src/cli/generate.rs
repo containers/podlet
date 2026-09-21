@@ -910,4 +910,24 @@ mod tests {
     fn verify_pod_parser_cli() {
         PodParser::command().debug_assert();
     }
+
+    #[test]
+    fn can_parse_all_detach_flag_forms() {
+        let forms = ["-d", "-d=true", "--detach", "--detach=false"];
+        for flag in forms {
+            let _parsed = ContainerParser::parse_from([flag, "image"]);
+        }
+    }
+
+    #[test]
+    /// `--detach true image` should be interpreted as an image named `true` with the command `image`.
+    fn detach_flag_with_space_separated_value_should_cause_misparse() {
+        let forms = [["-d", "false", "image"], ["--detach", "true", "image"]];
+        for args @ [_detach_flag, image, command] in forms {
+            let parsed = ContainerParser::parse_from(&args);
+            let container = quadlet::Container::from(parsed.container);
+            assert_eq!(container.image, image);
+            assert_eq!(container.exec.as_deref(), Some(command));
+        }
+    }
 }
