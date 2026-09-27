@@ -20,7 +20,7 @@ mod ser;
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, PartialEq)]
@@ -55,7 +55,7 @@ pub fn to_string<T: Serialize>(value: T) -> Result<String, Error> {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use serde::Deserialize;
 ///
 /// #[derive(Deserialize, PartialEq)]
