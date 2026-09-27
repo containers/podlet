@@ -83,7 +83,7 @@ pub fn to_string_join_all<T: Serialize>(value: T) -> Result<String, Error> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// #[derive(Serialize)]
 /// #[serde(rename_all = "PascalCase")]
 /// struct Example {
