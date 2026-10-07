@@ -119,11 +119,13 @@ impl Compose {
         } = self;
 
         match (pod, port_placement) {
-            (true, Some(PortPlacement::Container)) => bail!(
-                "`--port-placement=container` cannot be used with `--pod`: Podman only supports publishing ports through the pod. Omit `--pod` to keep ports on their service containers"
-            ),
+            (true, Some(PortPlacement::Container)) => {
+                bail!(
+                    "`--port-placement=container` cannot be used with `--pod`: Podman only supports publishing ports through the pod. Omit `--pod` to keep ports on their service containers"
+                );
+            }
             (false, Some(PortPlacement::Pod)) => {
-                bail!("`--port-placement=pod` requires `--pod`")
+                bail!("`--port-placement=pod` requires `--pod`");
             }
             _ => {}
         }
