@@ -231,6 +231,7 @@ Arguments:
 
 Options:
       --pod   Create a `.pod` file and link it with each `.container` file
+      --port-placement <PORT_PLACEMENT>  Where to publish Compose service ports [possible values: pod, container]
       --kube  Create a Kubernetes YAML file for a pod instead of separate containers
   -h, --help  Print help (see more with '--help')
 ```
@@ -276,6 +277,8 @@ If a compose file is not given, Podlet will search for the following files in th
 #### Pod
 
 The `--pod` option will create a `.pod` Quadlet file and link each `.container` file to it.
+By default, it moves every service's published ports to the `.pod` file. Use
+`--port-placement=pod` to select this behavior explicitly.
 
 ```
 $ podlet compose --pod compose-example.yaml
@@ -294,6 +297,20 @@ Volume=caddy-data:/data
 PublishPort=8000:80
 PublishPort=8443:443
 ```
+
+Podman [requires ports of containers in a pod to be published by the
+pod](https://docs.podman.io/en/stable/markdown/podman-pod-create.1.html). To keep
+each service's published ports in its own `.container` file, omit `--pod`:
+
+```
+$ podlet compose --port-placement=container compose-example.yaml
+```
+
+This creates separate container Quadlets without a `.pod` file. The option is
+also the default when `--pod` is absent. Combining
+`--pod --port-placement=container` is rejected because Podman does not support
+that configuration. This applies to TCP, UDP, host IP bindings, and both short
+and long Compose port syntax.
 
 #### Kubernetes YAML
 
