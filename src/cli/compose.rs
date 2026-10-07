@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::Args;
+use clap::{Args, ValueEnum};
 use color_eyre::{
     Help,
     eyre::{OptionExt, WrapErr, bail, ensure, eyre},
@@ -39,6 +39,13 @@ pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>>
     }
 }
 
+/// Where Compose service ports are published.
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortPlacement {
+    Pod,
+    Container,
+}
+
 /// [`Args`] for the `podlet compose` subcommand.
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
 pub struct Compose {
@@ -52,6 +59,14 @@ pub struct Compose {
     /// Published ports are taken from each container and applied to the pod.
     #[arg(long, conflicts_with = "kube")]
     pub pod: bool,
+
+    /// Where to publish Compose service ports.
+    ///
+    /// Defaults to `pod` with `--pod` and `container` otherwise. Podman does not support
+    /// publishing ports from individual containers in a pod, so `container` cannot be used
+    /// with `--pod`.
+    #[arg(long, value_enum, conflicts_with = "kube")]
+    pub port_placement: Option<PortPlacement>,
 
     /// Create a Kubernetes YAML file for a pod instead of separate containers
     ///
@@ -97,10 +112,23 @@ impl Compose {
     pub fn try_into_files(self, sections: GenericSections) -> color_eyre::Result<Vec<File>> {
         let Self {
             pod,
+            port_placement,
             kube,
             add_container_name,
             compose_file,
         } = self;
+
+        match (pod, port_placement) {
+            (true, Some(PortPlacement::Container)) => {
+                bail!(
+                    "`--port-placement=container` cannot be used with `--pod`: Podman only supports publishing ports through the pod. Omit `--pod` to keep ports on their service containers"
+                );
+            }
+            (false, Some(PortPlacement::Pod)) => {
+                bail!("`--port-placement=pod` requires `--pod`");
+            }
+            _ => {}
+        }
 
         let mut options = compose_spec::Compose::options();
         options.apply_merge(true);

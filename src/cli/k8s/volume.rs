@@ -131,7 +131,9 @@ impl DriverOpts {
                 };
                 self.add_mount_options(&mount_options)?;
             }
-            key => bail!("unknown volume driver option `{key}`"),
+            key => {
+                bail!("unknown volume driver option `{key}`");
+            }
         }
         Ok(())
     }

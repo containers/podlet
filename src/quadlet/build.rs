@@ -204,7 +204,9 @@ impl FromStr for Secret {
                     );
                     source = Some(value.into());
                 }
-                option => bail!("unknown secret option `{option}`"),
+                option => {
+                    bail!("unknown secret option `{option}`");
+                }
             }
         }
 

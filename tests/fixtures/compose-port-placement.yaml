@@ -1,0 +1,13 @@
+name: port-placement
+services:
+  web:
+    image: docker.io/library/nginx:alpine
+    ports:
+      - "127.0.0.1:8080:80"
+      - target: 443
+        published: "8443"
+        protocol: tcp
+  server:
+    image: docker.io/library/alpine:latest
+    ports:
+      - "3478:3478/udp"
