@@ -355,7 +355,7 @@ multiple times.";
             #[cfg(not(unix))]
             color_eyre::eyre::bail!("Cannot get Podman unit directory on non-Unix system");
         } else if let Some(Some(path)) = &self.file {
-            if path.is_dir() {
+            if path.is_dir() || path.to_string_lossy().ends_with(std::path::is_separator) {
                 path.clone()
             } else {
                 return Ok(FilePath::Full(path.clone()));
