@@ -431,7 +431,9 @@ fn cache_try_into_image(
 ) -> color_eyre::Result<String> {
     let image = match cache_type {
         CacheType::Registry(image) => image.into_inner(),
-        CacheType::Other(_) => bail!("only the `registry` cache type is supported"),
+        CacheType::Other(_) => {
+            bail!("only the `registry` cache type is supported");
+        }
     };
     ensure!(options.is_empty(), "cache options are not supported");
     Ok(image)
