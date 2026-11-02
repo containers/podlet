@@ -273,6 +273,39 @@ If a compose file is not given, Podlet will search for the following files in th
 - `podman-compose.yaml`
 - `podman-compose.yml`
 
+#### Restart policies
+
+For Quadlet output, Compose's `deploy.restart_policy.condition` and `delay` map
+to systemd's `Restart=` and `RestartSec=`:
+
+```yaml
+services:
+  app:
+    image: quay.io/podman/hello
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+```
+
+The generated `.container` file includes:
+
+```ini
+[Service]
+Restart=always
+RestartSec=5s
+```
+
+Conditions `none`, `on-failure`, and `any` map to `no`, `on-failure`, and `always`,
+respectively. A deployment restart policy takes precedence over `restart`;
+without one, the existing `restart` conversion is unchanged. An omitted condition
+defaults to `any`, and an omitted delay defaults to `0s`.
+
+Other deployment options, including restart-policy `max_attempts` and `window`,
+remain unsupported and produce an error. For Podman command conversion,
+`podlet podman run --restart always --restart-sec 5s IMAGE` sets the same systemd
+restart policy and delay.
+
 #### Pod
 
 The `--pod` option will create a `.pod` Quadlet file and link each `.container` file to it.
