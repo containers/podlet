@@ -438,7 +438,24 @@ fn service_try_into_quadlet_file(
 
     let global_args = GlobalArgs::from_compose(&mut service);
 
-    let restart = service.restart;
+    let restart = match service
+        .deploy
+        .as_mut()
+        .and_then(|deploy| deploy.restart_policy.take())
+    {
+        Some(policy) => {
+            let restart = quadlet::Service::try_from(policy)?;
+            if service
+                .deploy
+                .as_ref()
+                .is_some_and(compose_spec::service::Deploy::is_empty)
+            {
+                service.deploy = None;
+            }
+            restart
+        }
+        None => service.restart.map(Into::into).unwrap_or_default(),
+    };
 
     let mut container = Container::try_from(service)
         .map(quadlet::Container::from)
@@ -479,7 +496,7 @@ fn service_try_into_quadlet_file(
         resource: container.into(),
         globals: global_args.into(),
         quadlet,
-        service: restart.map(Into::into).unwrap_or_default(),
+        service: restart,
         install,
     })
 }
@@ -561,4 +578,121 @@ fn volumes_try_into_quadlet_files(
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn convert_service(options: &str, pod: Option<&str>) -> color_eyre::Result<String> {
+        let service = serde_yaml::from_str(&format!("image: quay.io/podman/hello\n{options}"))?;
+        let file = service_try_into_quadlet_file(
+            service,
+            "test".parse()?,
+            GenericSections {
+                unit: quadlet::Unit::default(),
+                quadlet: quadlet::Quadlet::default(),
+                install: quadlet::Install::default(),
+            },
+            &HashMap::new(),
+            pod,
+            &mut Vec::new(),
+            false,
+        )?;
+        Ok(file.serialize_to_quadlet(&quadlet::JoinOption::all_set())?)
+    }
+
+    #[test]
+    fn compose_restart_policies() -> color_eyre::Result<()> {
+        for (condition, expected) in [
+            ("none", "no"),
+            ("on-failure", "on-failure"),
+            ("any", "always"),
+        ] {
+            let output = convert_service(
+                &format!("deploy:\n  restart_policy:\n    condition: {condition}\n    delay: 5s\n"),
+                None,
+            )?;
+            assert!(output.contains(&format!("[Service]\nRestart={expected}\nRestartSec=5s\n")));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn compose_restart_delay_durations() -> color_eyre::Result<()> {
+        for delay in ["0s", "5s", "500ms", "1m30s", "1s500ms250us"] {
+            let output = convert_service(
+                &format!("deploy:\n  restart_policy:\n    delay: {delay}\n"),
+                None,
+            )?;
+            assert!(output.contains(&format!("RestartSec={delay}\n")));
+            assert!(output.contains("Restart=always\n"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn compose_restart_policy_defaults_and_precedence() -> color_eyre::Result<()> {
+        let output = convert_service("restart: 'no'\ndeploy:\n  restart_policy: {}\n", None)?;
+        assert!(output.contains("Restart=always\nRestartSec=0s\n"));
+
+        let output = convert_service(
+            "restart: always\ndeploy:\n  restart_policy:\n    condition: on-failure\n",
+            None,
+        )?;
+        assert!(output.contains("Restart=on-failure\nRestartSec=0s\n"));
+        Ok(())
+    }
+
+    #[test]
+    fn compose_restart_without_deploy_is_unchanged() -> color_eyre::Result<()> {
+        for (policy, expected) in [
+            ("'no'", "no"),
+            ("always", "always"),
+            ("unless-stopped", "always"),
+            ("on-failure", "on-failure"),
+        ] {
+            let output = convert_service(&format!("restart: {policy}\n"), None)?;
+            assert!(output.contains(&format!("Restart={expected}\n")));
+            assert!(!output.contains("RestartSec="));
+        }
+        let output = convert_service("", None)?;
+        assert!(!output.contains("[Service]"));
+        Ok(())
+    }
+
+    #[test]
+    fn compose_restart_policy_with_pod() -> color_eyre::Result<()> {
+        let output = convert_service("deploy:\n  restart_policy:\n    delay: 5s\n", Some("test"))?;
+        assert!(output.contains("Pod=test.pod\n"));
+        assert!(output.contains("Restart=always\nRestartSec=5s\n"));
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_restart_policy_fields_are_rejected() {
+        for (field, value) in [("max_attempts", "3"), ("window", "10s")] {
+            let error = convert_service(
+                &format!("deploy:\n  restart_policy:\n    delay: 5s\n    {field}: {value}\n"),
+                None,
+            )
+            .expect_err("unsupported restart policy field must be rejected");
+            assert!(
+                format!("{error:#}")
+                    .contains(&format!("`deploy.restart_policy.{field}` is not supported"))
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_deploy_fields_are_still_rejected() {
+        for options in [
+            "deploy:\n  replicas: 2\n  restart_policy:\n    delay: 5s\n",
+            "deploy:\n  replicas: 2\n",
+            "deploy:\n  restart_policy:\n    delay: 5s\n    x-custom: true\n",
+            "deploy:\n  x-custom: true\n  restart_policy:\n    delay: 5s\n",
+        ] {
+            assert!(convert_service(options, None).is_err());
+        }
+    }
 }
