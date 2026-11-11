@@ -1,0 +1,5 @@
+podlet (0.3.2-1) UNRELEASED; urgency=medium
+
+  * Add debhelper packaging with locked, offline Cargo builds.
+
+ -- Joe Ma <rikkaneko23@gmail.com>  Tue, 10 Nov 2026 14:51:56 +0800

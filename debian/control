@@ -1,0 +1,19 @@
+Source: podlet
+Section: utils
+Priority: optional
+Maintainer: Joe Ma <rikkaneko23@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cargo (>= 1.85),
+ rustc (>= 1.85),
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/containers/podlet
+
+Package: podlet
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: podman
+Description: Generate Podman Quadlet files
+ Converts Podman commands, Compose files, and existing Podman objects
+ into Podman Quadlet files.
