@@ -1,6 +1,20 @@
 # Cargo build directory
 /target
 
+# Local Debian packages
+/dist/debian/
+
+# Prefetched crates and debhelper build state
+/.debian-cargo-home/
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/podlet/
+/debian/podlet-dbgsym/
+/debian/*.debhelper
+/debian/*.log
+/debian/*.substvars
+
 # VS Code user settings
 /.vscode
 

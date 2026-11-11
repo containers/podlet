@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+include /usr/share/rustc/architecture.mk
+
+# These definitions support native Debian 13 builds on the two published architectures.
+ifeq ($(filter $(DEB_HOST_ARCH),amd64 arm64),)
+$(error Unsupported architecture $(DEB_HOST_ARCH); use amd64 or arm64)
+endif
+ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+$(error Cross-compilation is not supported; build on the target architecture)
+endif
+
+export DEB_BUILD_MAINT_OPTIONS := hardening=+all
+include /usr/share/dpkg/buildflags.mk
+
+# Prefetch into this local cache before dpkg-buildpackage; build and test never fetch crates.
+export CARGO_HOME := $(CURDIR)/.debian-cargo-home
+export CARGO_TARGET_DIR := $(CURDIR)/target/debian
+export CARGO_NET_OFFLINE := true
+export DEB_HOST_RUST_TYPE
+export CARGO_PROFILE_RELEASE_DEBUG := 2
+export CARGO_PROFILE_RELEASE_STRIP := none
+export RUSTFLAGS := -C debuginfo=2 $(foreach flag,$(LDFLAGS),-C link-arg=$(flag))
+unexport CARGO_ENCODED_RUSTFLAGS
+JOBS := $(or $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS))),1)
+
+# Inline make recipes avoid tab indentation; dh owns the standard packaging sequence.
+%:; dh $@ --buildsystem=none;
+
+override_dh_auto_build:; cargo build --release --locked --offline --target $(DEB_HOST_RUST_TYPE) --jobs $(JOBS);
+
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+override_dh_auto_test:; cargo test --release --locked --offline --target $(DEB_HOST_RUST_TYPE) --jobs $(JOBS);
+else
+override_dh_auto_test:;
+endif
+
+override_dh_installchangelogs:; dh_installchangelogs CHANGELOG.md;
+
+# dpkg-buildpackage cleans before building; the prefetched registry must survive that clean.
+override_dh_clean:; dh_clean --exclude=.debian-cargo-home;

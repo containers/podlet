@@ -1,0 +1,1 @@
+target/debian/${env:DEB_HOST_RUST_TYPE}/release/podlet usr/bin
