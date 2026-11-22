@@ -82,7 +82,9 @@ impl TryFrom<Compose> for File {
             "compose extensions are not supported"
         );
 
-        let name = name.map(String::from).ok_or_eyre("`name` is required")?;
+        let name = name
+            .map(String::from)
+            .ok_or_eyre("the top-level `name` field in the compose file or `--name` is required")?;
 
         let mut pod = Pod::default();
         pod.metadata.name = Some(name.clone());
