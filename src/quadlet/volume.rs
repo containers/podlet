@@ -44,6 +44,10 @@ pub struct Volume {
 
     /// The host (numeric) UID, or user name to use as the owner for the volume.
     pub user: Option<String>,
+
+    /// Override the name of the Podman volume created by this Quadlet.
+    #[expect(clippy::struct_field_names, reason = "Quadlet option")]
+    pub volume_name: Option<String>,
 }
 
 impl HostPaths for Volume {
@@ -72,6 +76,16 @@ impl Downgrade for Volume {
             }
         }
 
+        if version < PodmanVersion::V4_7 {
+            if let Some(volume_name) = self.volume_name.take() {
+                return Err(DowngradeError::Option {
+                    quadlet_option: "VolumeName",
+                    value: volume_name,
+                    supported_version: PodmanVersion::V4_7,
+                });
+            }
+        }
+
         if version < PodmanVersion::V4_6 {
             if let Some(podman_args) = self.podman_args.take() {
                 return Err(DowngradeError::Option {
@@ -94,11 +108,10 @@ impl TryFrom<compose_spec::Volume> for Volume {
             driver,
             driver_opts,
             labels,
-            name,
+            name: volume_name,
             extensions,
         }: compose_spec::Volume,
     ) -> Result<Self, Self::Error> {
-        ensure!(name.is_none(), "`name` is not supported");
         ensure!(
             extensions.is_empty(),
             "compose extensions are not supported"
@@ -120,6 +133,7 @@ impl TryFrom<compose_spec::Volume> for Volume {
         Ok(Self {
             driver,
             label: labels.into_list().into_iter().collect(),
+            volume_name,
             ..options.into()
         })
     }
@@ -127,6 +141,8 @@ impl TryFrom<compose_spec::Volume> for Volume {
 
 #[cfg(test)]
 mod tests {
+    use color_eyre::eyre::eyre;
+
     use super::*;
 
     #[test]
@@ -136,6 +152,48 @@ mod tests {
             crate::serde::quadlet::to_string_join_all(volume)?,
             "[Volume]\n"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn compose_volume_name() -> color_eyre::Result<()> {
+        let volume = compose_spec::Volume {
+            name: Some("explicit-volume-name".into()),
+            ..compose_spec::Volume::default()
+        };
+        let volume = Volume::try_from(volume)?;
+
+        assert_eq!(
+            crate::serde::quadlet::to_string_join_all(volume)?,
+            "[Volume]\nVolumeName=explicit-volume-name\n"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn volume_name_added_in_v4_7() -> color_eyre::Result<()> {
+        let mut volume = Volume {
+            volume_name: Some("explicit-volume-name".into()),
+            ..Volume::default()
+        };
+
+        let error = volume
+            .downgrade(PodmanVersion::V4_6)
+            .err()
+            .ok_or_else(|| eyre!("expected VolumeName to be rejected before Podman v4.7"))?;
+
+        assert_eq!(
+            error.to_string(),
+            "Quadlet option `VolumeName=explicit-volume-name` was not supported until Podman v4.7"
+        );
+
+        let mut volume = Volume {
+            volume_name: Some("explicit-volume-name".into()),
+            ..Volume::default()
+        };
+
+        volume.downgrade(PodmanVersion::V4_7)?;
+        assert_eq!(volume.volume_name.as_deref(), Some("explicit-volume-name"));
         Ok(())
     }
 }
