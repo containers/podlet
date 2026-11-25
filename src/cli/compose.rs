@@ -12,7 +12,7 @@ use color_eyre::{
     eyre::{OptionExt, WrapErr, bail, ensure, eyre},
 };
 use compose_spec::{
-    Identifier, Network, Networks, Options, Resource, Service, Volumes, service::Command,
+    Identifier, Name, Network, Networks, Options, Resource, Service, Volumes, service::Command,
 };
 use indexmap::IndexMap;
 
@@ -44,25 +44,31 @@ pub fn command_try_into_vec(command: Command) -> color_eyre::Result<Vec<String>>
 pub struct Compose {
     /// Create a `.pod` file and link it with each `.container` file.
     ///
-    /// The top-level `name` field in the compose file is required when using this option.
-    /// It is used for the name of the pod and in the filenames of the created files.
+    /// The top-level `name` field in the compose file, or `--name`, is required when using this
+    /// option. It is used for the name of the pod and in the filenames of the created files.
     ///
     /// Each container becomes a part of the pod and is renamed to "{pod}-{container}".
     ///
     /// Published ports are taken from each container and applied to the pod.
-    #[arg(long, conflicts_with = "kube")]
+    #[arg(long, conflicts_with = "kube", group = "pod_or_kube")]
     pub pod: bool,
 
     /// Create a Kubernetes YAML file for a pod instead of separate containers
     ///
     /// A `.kube` file using the generated Kubernetes YAML file is also created.
     ///
-    /// The top-level `name` field in the compose file is required when using this option.
-    /// It is used for the name of the pod and in the filenames of the created files.
+    /// The top-level `name` field in the compose file, or `--name`, is required when using this
+    /// option. It is used for the name of the pod and in the filenames of the created files.
     ///
     /// Conflicts with `--quadlets-file` as a YAML file cannot be included in `.quadlets` file.
-    #[arg(long, conflicts_with = "pod")]
+    #[arg(long, conflicts_with = "pod", group = "pod_or_kube")]
     pub kube: bool,
+
+    /// Set the name of the pod, overriding the top-level `name` field in the compose file
+    ///
+    /// Can only be used with `--pod` or `--kube`.
+    #[arg(long, requires = "pod_or_kube")]
+    pub name: Option<Name>,
 
     /// Set `ContainerName` for each container to the compose service name.
     ///
@@ -98,14 +104,18 @@ impl Compose {
         let Self {
             pod,
             kube,
+            name,
             add_container_name,
             compose_file,
         } = self;
 
         let mut options = compose_spec::Compose::options();
         options.apply_merge(true);
-        let compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
+        let mut compose = read_from_file_or_stdin(compose_file.as_deref(), &options)
             .wrap_err("error reading compose file")?;
+        if name.is_some() {
+            compose.name = name;
+        }
         compose
             .validate_all()
             .wrap_err("error validating compose file")?;
@@ -147,7 +157,12 @@ impl Compose {
             } = compose;
 
             let pod_name = pod
-                .then(|| name.ok_or_eyre("`name` is required when using `--pod`"))
+                .then(|| {
+                    name.ok_or_eyre(
+                        "the top-level `name` field in the compose file or `--name` is required \
+                            when using `--pod`",
+                    )
+                })
                 .transpose()?
                 .map(Into::into);
 
@@ -561,4 +576,60 @@ fn volumes_try_into_quadlet_files(
             }
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use crate::cli::Cli;
+
+    const COMPOSE_EXAMPLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/compose-example.yaml");
+
+    #[test]
+    fn pod_name_flag() -> color_eyre::Result<()> {
+        let files = Cli::try_parse_from([
+            "podlet",
+            "compose",
+            "--pod",
+            "--name",
+            "test",
+            COMPOSE_EXAMPLE,
+        ])?
+        .try_into_files()?;
+
+        assert!(
+            files
+                .iter()
+                .any(|file| file.name() == "test" && file.extension() == "pod")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn kube_name_flag() -> color_eyre::Result<()> {
+        let files = Cli::try_parse_from([
+            "podlet",
+            "compose",
+            "--kube",
+            "--name",
+            "test",
+            COMPOSE_EXAMPLE,
+        ])?
+        .try_into_files()?;
+
+        assert!(
+            files
+                .iter()
+                .any(|file| file.name() == "test" && file.extension() == "kube")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn name_flag_requires_pod_or_kube() {
+        assert!(
+            Cli::try_parse_from(["podlet", "compose", "--name", "test", COMPOSE_EXAMPLE]).is_err()
+        );
+    }
 }
